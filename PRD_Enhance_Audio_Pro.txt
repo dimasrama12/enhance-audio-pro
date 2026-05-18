@@ -1,0 +1,101 @@
+PRODUCT REQUIREMENTS DOCUMENT (PRD)
+======================================================================
+Project Name: Enhance Audio Pro
+Suggested Alternative Names: VoxEnhance Studio, ClarityPro Audio, SonicRefine, PureVoice Desktop
+Target Platforms: Windows (.exe) and macOS (.dmg / .app)
+======================================================================
+
+1. EXECUTIVE SUMMARY & TECHNICAL RECOMMENDATIONS
+----------------------------------------------------------------------
+* Objective: A professional desktop application designed to assist audio and video editors in enhancing, separating, and manipulating audio tracks effortlessly.
+* Internet Requirement (Suggestion): It is highly recommended to build this as an OFFLINE application (Local Processing). This guarantees privacy, zero upload/download limits, and avoids expensive cloud server costs. AI models will be downloaded once during installation or first launch.
+* Recommended Tech Stack: 
+  - Frontend UI: Tauri (Rust-based) or Electron.js. Tauri is highly recommended for a smaller app size and better performance. Framework: React.js or Svelte with Tailwind CSS + Framer Motion for smooth animations.
+  - Audio Processing Backend: Python (compiled to a background executable via PyInstaller) utilizing libraries like `torchaudio`, `librosa`, `ffmpeg`.
+  - AI Models: `Demucs` or `Spleeter` (for instrument/stem separation) and `DeepFilterNet` or custom models (for noise/echo removal).
+
+2. CORE FEATURES
+----------------------------------------------------------------------
+* AI Speech Enhancement: Remove background noise and echo from voice recordings. Fixes audio problems post-recording, eliminating the need for a perfect microphone.
+* Advanced Stem/Source Separation:
+  - Isolate specific elements: Vocals, Noise, Background Music.
+  - Isolate specific instruments: Drums, Electric Guitar, Bass, Vocals, etc.
+* Multi-Format Media Support: 
+  - Import video and audio files (over 300+ formats supported, automatically converted internally for faster operation).
+* Input Methods: Drag-and-drop file support, standard file browser, and direct in-app voice recording.
+* Processing Limits: No maximum file size or duration limit. Batch processing capacity: upload up to 30 audio files and 10 video files simultaneously.
+
+3. EDITING & MANIPULATION TOOLS (AUDIO TAB)
+----------------------------------------------------------------------
+* Audio Trimming & Cutting: Adjust start and end times visually.
+* Speed & Pitch Adjustment: Sliders to change playback speed (with defined min/max limits) and shift pitch smoothly.
+* Volume & Decibel (dB) Boost: Safely amplify audio volume.
+* Auto Fade In/Out: One-click buttons to add fade effects, with customizable fade duration (in seconds).
+* Audio Merging & Crossfade: 
+  - Visual drag-and-drop track timeline to combine unlimited tracks seamlessly. 
+  - Crossfade support for smooth transitions between clips.
+  - Adjustable playback intervals using blue sliders (controllable via mouse or arrow keys).
+* Audio Looping: Custom loop generator (e.g., extend a 1-minute clip automatically up to 2 hours).
+* Playback Controls: Real-time Play and Stop buttons for previewing edits.
+* Reset Functionality: Individual 'Reset' buttons for each specific effect (volume, pitch, etc.), plus a global 'Reset All Editing' button.
+
+4. ADVANCED EQUALIZER (EQ)
+----------------------------------------------------------------------
+* Frequency Sliders: Adjustable bands from 0% to 100% on 0, 60, 170, 310, 600, 1k, 3k, 6k, 12k, 14k, 16k Hz.
+* Presets: Default, Classic, Dance, Club, Full Bass, Full Bass & Treble, Full Treble, Laptop Speakers, Large Hall, Live, Party, Pop, Reggae, Rock, Ska, Soft, Soft Rock, Techno Rock.
+
+5. PREVIEW & COMPARISON CAPABILITIES
+----------------------------------------------------------------------
+* Real-time Video/Audio Preview: Apply enhanced audio directly to the uploaded video timeline for instant visual and audio playback.
+* A/B Testing Switch: Toggle between 'Original Audio' and 'Enhanced Audio' seamlessly to compare results.
+* Dedicated Preview Tabs: Separate views to listen to just the newly enhanced audio versus the old audio.
+* Strength Adjustment: Slider to control the intensity of the AI enhancement, balancing speech, music, and ambient noise for the most natural sound.
+
+6. BATCH PROCESSING & QUEUE MANAGEMENT
+----------------------------------------------------------------------
+* Data Grid Columns: No | Filename | Destination | Size | From | Output Status.
+* Selection & Deletion: Multi-select support using Ctrl+Click (individual) and Shift+Click (range). Ability to clear items from the queue.
+* Organization & Filters: 
+  - Group files by audio/video format.
+  - Filter by Output Status (e.g., Incomplete, Processing, Done).
+  - Search bar to quickly find specific files in the queue.
+* Status Indicators: Display the total number of files in the queue and show full history (including incomplete processing).
+* Output Flexibility: Choose target output format manually per file, or apply a format globally to the entire batch.
+
+7. UI/UX & VISUAL DESIGN
+----------------------------------------------------------------------
+* Aesthetic: Professional, high-end, compact, but well-structured.
+* Animations: Smooth micro-animations on hover for interactive elements to make the app feel alive.
+* View Modes: Toggle switch between Grid View and List View.
+* Tabbed Layout: Clear separation between the Video Upload Tab and Audio Upload Tab.
+
+8. SETTINGS & CUSTOMIZATION
+----------------------------------------------------------------------
+* Themes: Light and Dark mode toggle.
+* Languages: Multilingual support (English, Chinese, Spanish, Indonesian, German, French, Japanese, Portuguese, Arabic, Turkish, Thai, Vietnamese, Russian, Italian, Korean, Polish, Dutch).
+* Output Configuration: 
+  - Set a default global output folder directory.
+  - Custom file naming conventions for processed outputs.
+* Documentation: Built-in User Guides, Usecase Examples, and Software License.
+* Custom Keyboard Shortcuts: Editable hotkeys (Initial defaults: Open File Ctrl+O, Convert C, Sidebar Ctrl+B, Fullscreen F, Settings Ctrl+, Exit Alt+X, Cancel Esc, Delete Shift+X, Select All Ctrl+A, Deselect All X, Lock Selected L, Lock All Shift+L, Focus Search Shift+F, Theme Dark [, Theme Light ], Browse Folder Ctrl+Shift+O, Audio Tab 1, Video Tab 2).
+
+9. DEVELOPMENT STRATEGY & ROADMAP
+----------------------------------------------------------------------
+* Phase 1: Core UI structure, routing, settings, and drag-and-drop file ingestion.
+* Phase 2: Integration of the Python Backend for core AI processing (Speech Enhance & Stem Separation).
+* Phase 3: Building the queue system, batch processing logic, and file conversion.
+* Phase 4: Implementing Audio editing tools (Trimming, EQ, Merging, Pitch, Speed).
+* Phase 5: Final polish, animations, localization, and packaging the executable for Windows and macOS.
+
+10. SUGGESTIONS (FEATURES YOU MIGHT HAVE MISSED)
+----------------------------------------------------------------------
+* Hardware Acceleration (GPU): AI audio processing is heavy on the CPU. Adding a feature to utilize the user's graphics card (NVIDIA CUDA / AMD) will drastically speed up rendering times.
+* Waveform/Spectrogram Visualization: Visualizing the audio waves makes it much easier for users to trim audio accurately and visually identify noise.
+* Auto-Save Projects: If the app is closed accidentally, an auto-save mechanism ensures the user's timeline and queue are not lost.
+* Export Bitrate/Quality Options: In addition to choosing the format (MP3, WAV), users usually need to select the audio bitrate (e.g., 128kbps, 320kbps) and sample rate (44.1kHz, 48kHz) for professional use.
+
+11. AI ASSISTANT & DEVELOPMENT WORKFLOW
+----------------------------------------------------------------------
+* Memory & Progress Tracking (claude.md): The AI assistant MUST create a file named `claude.md` in the root directory. 
+* Continuous Updates: For every progress step, feature implementation, or bug fix, the AI must update `claude.md` to log what has been done, what is pending, and any known issues or constraints.
+* Error Prevention: The primary purpose of `claude.md` is to ensure the AI does not repeat previous mistakes, remembers the current context, and maintains consistency throughout the project development lifecycle.
