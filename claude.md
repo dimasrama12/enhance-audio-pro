@@ -180,18 +180,25 @@ chore    : [configuration changes, tooling, etc.]
 # Completed and Working
 - [x] Draft PRD (Product Requirements Document)
 - [x] Initialize Development Rules (CLAUDE.md)
+- [x] Architecture brainstorming and all decisions finalized (see Section 18)
+- [x] Phase 1 design spec written and approved
+      → docs/superpowers/specs/2026-05-20-enhance-audio-pro-design.md
+- [x] Phase 1 implementation plan written (13 tasks, TDD, full code)
+      → docs/superpowers/plans/2026-05-20-phase1-scaffold.md
 
-# In Progress — do not change without confirmation
-- [ ] Initialize repository (Tauri + React + Tailwind)
-- [ ] Setup Backend structure (Python + environment dependencies)
+# Ready to Implement (plan written, not yet executed)
+- [ ] Initialize Tauri + React + Tailwind scaffold (Task 1-2 in plan)
+- [ ] File validation utility + Zustand stores (Tasks 3-4 in plan)
+- [ ] All UI components: TitleBar, Sidebar, DropZone, QueueGrid, SettingsPanel, SetupWizard (Tasks 5-6)
+- [ ] Tauri v2 Rust commands + SQLite layer (Tasks 7-9 in plan)
+- [ ] Python FastAPI sidecar (Tasks 10-11 in plan)
+- [ ] Icons + first dev run (Tasks 12-13 in plan)
 
-# Not Started
-- [ ] Setup UI Shell (Tabs, Layout, Dark/Light Mode)
-- [ ] Drag and Drop File Input Feature
-- [ ] AI Audio Enhancement Backend logic
-- [ ] Stem Separation Backend logic
-- [ ] Queue Management Grid UI
-- [ ] Audio Manipulation Tools (Trim, EQ, Loop)
+# Not Started (Phase 2+)
+- [ ] AI Audio Enhancement Backend logic (Phase 2)
+- [ ] Stem Separation Backend logic (Phase 2)
+- [ ] Audio Manipulation Tools (Trim, EQ, Loop) (Phase 4)
+- [ ] Setup Wizard model download wiring (Phase 2)
 ```
 
 ---
