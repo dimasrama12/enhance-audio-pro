@@ -165,6 +165,7 @@ File placement rules:
 ---
 ## 12. Git Rules
 Every time Claude Code finishes making code changes or additions, immediately commit to GitHub before moving to the next task.
+Regularly commit changes with clean messages and push to GitHub to maintain a safe version history.
 ```
 # Commit Message Format
 feat     : [new feature description]
