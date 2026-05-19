@@ -231,4 +231,79 @@ If instructions or prompts are ambiguous, ASK FIRST before starting coding. Do n
 ```
 
 ---
+## 17. MANDATORY PROGRESS LOGGING RULE
+
+**RULE: At the end of every major task, feature completion, or session, you MUST automatically summarize and log the progress and new decisions into this file to prevent context loss.**
+
+This includes:
+- Every completed feature or sub-task
+- Every architectural or design decision made during that session
+- Any new constraints, blockers, or discoveries
+- Updates to the Features Progress section (section 13)
+
+Do not skip this step. Do not wait to be asked. This is a permanent non-negotiable requirement.
+
+---
+## 18. Architectural Decisions Log
+
+All major architecture decisions finalized during brainstorming sessions (May 18–20, 2026).
+
+### 18.1 System Architecture
+- **Pattern:** Three-process desktop app — React frontend, Tauri/Rust core, Python sidecar
+- **Data flow:** React UI → Tauri `invoke` → Rust core → HTTP (reqwest) → Python FastAPI
+- **Events:** Python pushes real-time progress to frontend via Tauri event system (not polling)
+
+### 18.2 Frontend-Backend Communication
+- **Decision:** Rust HTTP client (`reqwest`) → Python FastAPI server (localhost, random port)
+- **Port handoff:** Rust picks a random available port at startup; passes it to Python via `BACKEND_PORT` env var
+- **Rejected alternatives:** stdio JSON pipes (harder to debug), shared SQLite only (no real-time control)
+
+### 18.3 Queue Architecture — Option C (CONFIRMED)
+- **Decision:** SQLite-backed job queue + Tauri event push for real-time UI updates
+- **Job state:** Written to SQLite by Rust on file drop; read by Python during processing
+- **Progress updates:** Python emits Tauri events (`queue://progress`, `queue://status-change`) — frontend listens, no polling
+- **Rejected alternatives:** Option A (frontend polling), Option B (SQLite polling without events)
+
+### 18.4 Python Backend Distribution
+- **Decision:** PyInstaller single-file `.exe` sidecar bundled inside the Tauri installer
+- **Result:** Zero Python install required for end users; ~150–300 MB sidecar size
+- **Rejected alternatives:** Embedded Python runtime (complex signing), require system Python (bad UX)
+
+### 18.5 AI Model Download Strategy
+- **Decision:** Setup wizard on first app launch — all required AI models downloaded before the user can process files
+- **Model storage:** `%APPDATA%\enhance-audio-pro\models\`
+- **UX:** Progress screen shown during download; app proceeds to main UI only after completion
+- **Rejected alternatives:** On first feature use (surprising delays mid-workflow), bundled in installer (2–5 GB)
+
+### 18.6 Target Platform
+- **Decision:** Windows (.exe) first; macOS (.dmg) added in a later phase
+- **Reason:** Simpler PyInstaller + Tauri builds; faster iteration on core features
+
+### 18.7 Data Layer
+- **Database:** SQLite at `%APPDATA%\enhance-audio-pro\app.db`
+- **Rust access:** `rusqlite` crate (direct, no ORM for Phase 1)
+- **Python access:** Reads same DB for job details during processing
+- **Settings storage:** `tauri-plugin-store` (JSON file) for theme, output folder, language
+
+### 18.8 Phase 1 Scope (confirmed, all 4 items)
+1. App shell — titlebar, sidebar, Video/Audio tab layout, dark/light mode toggle
+2. Drag-and-drop file ingestion — format validation, size read, insert into SQLite queue
+3. Queue data grid UI — filename, destination, size, status columns; filter + search bar
+4. Settings panel — theme, default output folder, language selector (UI only; no i18n logic yet)
+
+### 18.9 Tauri IPC Commands (Phase 1)
+| Command | Description |
+|---|---|
+| `add_files(paths[])` | Validate files and insert into SQLite queue |
+| `get_queue()` | Return all current queue rows |
+| `get_settings()` | Read settings from plugin-store |
+| `save_settings(settings)` | Write settings to plugin-store |
+
+### 18.10 Python FastAPI Endpoints (Phase 1)
+| Endpoint | Description |
+|---|---|
+| `GET /health` | Rust polls this to confirm sidecar is ready before serving UI |
+| `POST /queue/process` | Placeholder — returns 501 until Phase 2 |
+
+---
 _This CLAUDE.md is customized specifically for the Enhance Audio Pro project. Update this file's contents whenever there are architectural changes or completed feature progress._
