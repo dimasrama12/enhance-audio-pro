@@ -200,12 +200,14 @@ chore    : [configuration changes, tooling, etc.]
       → App icons generated (violet placeholder, all sizes via npx tauri icon)
       → Rust GNU toolchain (x86_64-pc-windows-gnu) + MinGW gcc 15.2.0 (see Section 18.11)
 
+- [x] Task 8: SQLite database layer — db/migrations.rs (queue_jobs table), db/queue.rs (QueueJob, insert_job, get_all_jobs)
+- [x] Task 9: Tauri IPC commands — commands/queue.rs (add_files, get_queue), commands/settings.rs (get_settings, save_settings), shared IpcResponse<T> in commands/mod.rs
+- [x] Task 10: Python sidecar lifecycle manager — sidecar/manager.rs (available_port via TcpListener, spawn stub; fully wired in Task 12)
+      → cargo check passes clean — all 6 modules compile, zero errors
+
 # Phase 1 — Remaining Tasks
-- [ ] Task 8: SQLite database layer (migrations + CRUD)
-- [ ] Task 9: Tauri IPC commands (add_files, get_queue, get_settings, save_settings)
-- [ ] Task 10: Python sidecar lifecycle manager
 - [ ] Task 11: Python FastAPI backend (health + queue endpoints, Pytest)
-- [ ] Task 12: App icons + binaries directory (icons done in Task 7; binaries placeholder remains)
+- [ ] Task 12: Binaries directory + restore externalBin + wire sidecar spawn
 - [ ] Task 13: First dev run + integration test
 
 # Not Started (Phase 2+)
