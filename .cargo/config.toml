@@ -1,0 +1,8 @@
+[build]
+target-dir = "D:\\cargo_build\\enhance-audio-pro"
+
+[target.x86_64-pc-windows-gnu]
+rustflags = [
+  "-C", "link-arg=-fuse-ld=lld",
+  "-C", "link-arg=-BC:/Users/User/.rustup/toolchains/stable-x86_64-pc-windows-gnu/lib/rustlib/x86_64-pc-windows-gnu/bin/gcc-ld/"
+]
