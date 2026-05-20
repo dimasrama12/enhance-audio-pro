@@ -205,10 +205,21 @@ chore    : [configuration changes, tooling, etc.]
 - [x] Task 10: Python sidecar lifecycle manager — sidecar/manager.rs (available_port via TcpListener, spawn stub; fully wired in Task 12)
       → cargo check passes clean — all 6 modules compile, zero errors
 
-# Phase 1 — Remaining Tasks
-- [ ] Task 11: Python FastAPI backend (health + queue endpoints, Pytest)
-- [ ] Task 12: Binaries directory + restore externalBin + wire sidecar spawn
-- [ ] Task 13: First dev run + integration test
+# Phase 1 — Completed Tasks (continued, 2026-05-20)
+- [x] Task 11: Python FastAPI backend — backend/main.py, routers/health.py, routers/queue.py
+      → GET /health (200 OK), POST /queue/process (501 placeholder)
+      → 2/2 Pytest tests passing; PyInstaller spec created
+- [x] Task 12: Binaries directory + sidecar wiring — src-tauri/binaries/backend-x86_64-pc-windows-gnu.exe
+      → externalBin restored in tauri.conf.json; sidecar/manager.rs fully wired (spawn + health poll)
+      → cargo check passes clean with sidecar binary in place
+- [x] Task 13: First dev run + integration test — all tests green, cargo check passes on D-drive target
+      → 16/16 Vitest frontend tests passing
+      → 2/2 Pytest backend tests passing
+      → CARGO_TARGET_DIR=D:\cargo_build\enhance-audio-pro (Drive D, storage-safe)
+      → lld linker fixed: -B gcc-ld/ rustflag routes GCC to correct Rust toolchain lld-wrapper
+      → Phase 1 COMPLETE ✓
+
+# Not Started (Phase 2+)
 
 # Not Started (Phase 2+)
 - [ ] AI Audio Enhancement Backend logic (Phase 2)
@@ -331,9 +342,15 @@ All major architecture decisions finalized during brainstorming sessions (May 18
 ### 18.11 Rust Toolchain (discovered Task 7, 2026-05-20)
 - **Decision:** Use `stable-x86_64-pc-windows-gnu` toolchain (not MSVC)
 - **Reason:** MSVC toolchain requires Visual Studio Build Tools (`link.exe`) which are not installed; MinGW GCC 15.2.0 already present at `D:\apk\mingw64\bin\`
-- **Cargo target dir:** Set `CARGO_TARGET_DIR=C:\cargo-build\enhance-audio-pro` to work around MinGW's GNU assembler failing on paths with spaces
 - **Config fix:** Tauri v2 uses `drag-drop-enabled` (not `fileDrop`) in window config
-- **ExternalBin:** Removed from `tauri.conf.json` for Task 7 scaffold; add back in Task 12 once `binaries/backend-x86_64-pc-windows-gnu.exe` exists
+- **ExternalBin:** Restored in Task 12 once `binaries/backend-x86_64-pc-windows-gnu.exe` was built
+
+### 18.12 Build Environment — Drive D Migration (2026-05-20)
+- **Problem:** Drive C storage crisis prevented Rust compilation (target dir was `C:\cargo-build\`)
+- **Fix:** `CARGO_TARGET_DIR=D:\cargo_build\enhance-audio-pro` set in both `.cargo/config.toml` [build] section and `tauri-dev.bat`; `CARGO_HOME=D:\cargo_cache` set by user at OS level
+- **LLD linker root cause:** Rust's `lld-wrapper` (`ld.lld.exe` in `gcc-ld/`) uses `current_exe.parent().parent().join("rust-lld")` to find `rust-lld.exe`. Copying `ld.lld.exe` to `D:\apk\mingw64\bin\` broke this because the wrapper then looked for `rust-lld.exe` two levels up at `D:\apk\mingw64\rust-lld.exe` (which doesn't exist)
+- **Fix:** Added `-C link-arg=-BC:/Users/User/.rustup/toolchains/stable-x86_64-pc-windows-gnu/lib/rustlib/x86_64-pc-windows-gnu/bin/gcc-ld/` to `rustflags` in `.cargo/config.toml`. This tells MinGW GCC to find `ld.lld.exe` in the Rust toolchain's `gcc-ld/` directory where the relative path to `rust-lld.exe` is correct
+- **tauri-dev.bat PATH:** Prepends `gcc-ld/` and `bin/` from rustup toolchain before `%PATH%` as belt-and-suspenders
 
 ---
 _This CLAUDE.md is customized specifically for the Enhance Audio Pro project. Update this file's contents whenever there are architectural changes or completed feature progress._
