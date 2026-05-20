@@ -186,13 +186,23 @@ chore    : [configuration changes, tooling, etc.]
 - [x] Phase 1 implementation plan written (13 tasks, TDD, full code)
       → docs/superpowers/plans/2026-05-20-phase1-scaffold.md
 
-# Ready to Implement (plan written, not yet executed)
-- [ ] Initialize Tauri + React + Tailwind scaffold (Task 1-2 in plan)
-- [ ] File validation utility + Zustand stores (Tasks 3-4 in plan)
-- [ ] All UI components: TitleBar, Sidebar, DropZone, QueueGrid, SettingsPanel, SetupWizard (Tasks 5-6)
-- [ ] Tauri v2 Rust commands + SQLite layer (Tasks 7-9 in plan)
-- [ ] Python FastAPI sidecar (Tasks 10-11 in plan)
-- [ ] Icons + first dev run (Tasks 12-13 in plan)
+# Phase 1 — Completed Tasks (2026-05-20)
+- [x] Task 1: Project scaffold — package.json, vite.config.ts, index.html, tailwind.config.js, postcss.config.js, npm install
+- [x] Task 2: TypeScript types — src/types/ipc.ts, queue.ts, settings.ts
+- [x] Task 3: File validation utility + 8 Vitest tests (TDD) — src/lib/fileValidation.ts
+- [x] Task 4: Zustand stores + 8 Vitest tests (TDD) — useQueueStore, useSettingsStore
+- [x] Task 5: IPC wrappers + React app entry — src/lib/ipc.ts, main.tsx, App.tsx, index.css
+- [x] Task 6: All 7 UI components — TitleBar, Sidebar, DropZone, QueueToolbar, QueueGrid, SettingsPanel, SetupWizard
+      → 16/16 Vitest tests passing
+
+# Phase 1 — Remaining Tasks
+- [ ] Task 7: Tauri v2 Rust scaffold (requires Rust installation)
+- [ ] Task 8: SQLite database layer (migrations + CRUD)
+- [ ] Task 9: Tauri IPC commands (add_files, get_queue, get_settings, save_settings)
+- [ ] Task 10: Python sidecar lifecycle manager
+- [ ] Task 11: Python FastAPI backend (health + queue endpoints, Pytest)
+- [ ] Task 12: App icons + binaries directory
+- [ ] Task 13: First dev run + integration test
 
 # Not Started (Phase 2+)
 - [ ] AI Audio Enhancement Backend logic (Phase 2)

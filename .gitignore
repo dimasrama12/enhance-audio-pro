@@ -52,6 +52,13 @@ backend/models/
 *.sqlite3
 ruvector.db
 
+# Swarm memory (agentic-flow, local only)
+.swarm/
+
+# Claude Code tool artifacts (local only)
+.claude/settings.local.json
+.claude-flow/
+
 # Logs
 *.log
 logs/
