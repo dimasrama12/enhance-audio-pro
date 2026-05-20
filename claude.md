@@ -194,14 +194,18 @@ chore    : [configuration changes, tooling, etc.]
 - [x] Task 5: IPC wrappers + React app entry — src/lib/ipc.ts, main.tsx, App.tsx, index.css
 - [x] Task 6: All 7 UI components — TitleBar, Sidebar, DropZone, QueueToolbar, QueueGrid, SettingsPanel, SetupWizard
       → 16/16 Vitest tests passing
+- [x] Task 7: Tauri v2 Rust scaffold — src-tauri/Cargo.toml, build.rs, tauri.conf.json,
+      capabilities/default.json, main.rs, lib.rs, commands/mod.rs, db/mod.rs, sidecar/mod.rs
+      → cargo check confirms all 473 deps compile; missing submodule files expected (Tasks 8-10)
+      → App icons generated (violet placeholder, all sizes via npx tauri icon)
+      → Rust GNU toolchain (x86_64-pc-windows-gnu) + MinGW gcc 15.2.0 (see Section 18.11)
 
 # Phase 1 — Remaining Tasks
-- [ ] Task 7: Tauri v2 Rust scaffold (requires Rust installation)
 - [ ] Task 8: SQLite database layer (migrations + CRUD)
 - [ ] Task 9: Tauri IPC commands (add_files, get_queue, get_settings, save_settings)
 - [ ] Task 10: Python sidecar lifecycle manager
 - [ ] Task 11: Python FastAPI backend (health + queue endpoints, Pytest)
-- [ ] Task 12: App icons + binaries directory
+- [ ] Task 12: App icons + binaries directory (icons done in Task 7; binaries placeholder remains)
 - [ ] Task 13: First dev run + integration test
 
 # Not Started (Phase 2+)
@@ -321,6 +325,13 @@ All major architecture decisions finalized during brainstorming sessions (May 18
 |---|---|
 | `GET /health` | Rust polls this to confirm sidecar is ready before serving UI |
 | `POST /queue/process` | Placeholder — returns 501 until Phase 2 |
+
+### 18.11 Rust Toolchain (discovered Task 7, 2026-05-20)
+- **Decision:** Use `stable-x86_64-pc-windows-gnu` toolchain (not MSVC)
+- **Reason:** MSVC toolchain requires Visual Studio Build Tools (`link.exe`) which are not installed; MinGW GCC 15.2.0 already present at `D:\apk\mingw64\bin\`
+- **Cargo target dir:** Set `CARGO_TARGET_DIR=C:\cargo-build\enhance-audio-pro` to work around MinGW's GNU assembler failing on paths with spaces
+- **Config fix:** Tauri v2 uses `drag-drop-enabled` (not `fileDrop`) in window config
+- **ExternalBin:** Removed from `tauri.conf.json` for Task 7 scaffold; add back in Task 12 once `binaries/backend-x86_64-pc-windows-gnu.exe` exists
 
 ---
 _This CLAUDE.md is customized specifically for the Enhance Audio Pro project. Update this file's contents whenever there are architectural changes or completed feature progress._
