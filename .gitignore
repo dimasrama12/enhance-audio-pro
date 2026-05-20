@@ -32,6 +32,13 @@ pip-wheel-metadata/
 # PyInstaller
 backend/dist/
 backend/build/
+backend/dist_build/
+backend/build_tmp/
+
+# Compiled sidecar binary (build artifact — not committed)
+src-tauri/binaries/*.exe
+src-tauri/binaries/*.dmg
+src-tauri/binaries/backend-*
 
 # AI Models (downloaded at runtime, not committed)
 backend/models/

@@ -1,5 +1,6 @@
 use std::net::TcpListener;
 use tauri::AppHandle;
+use tauri_plugin_shell::ShellExt;
 
 pub fn available_port() -> u16 {
     TcpListener::bind("127.0.0.1:0")
@@ -8,7 +9,12 @@ pub fn available_port() -> u16 {
         .unwrap_or(8765)
 }
 
-// Spawns the Python sidecar. Fully wired in Task 12 once the binary is bundled.
-pub fn spawn(_app: &AppHandle, _port: u16) -> Result<(), Box<dyn std::error::Error>> {
+pub fn spawn(app: &AppHandle, port: u16) -> Result<(), Box<dyn std::error::Error>> {
+    app.shell()
+        .sidecar("backend")
+        .map_err(|e| e.to_string())?
+        .env("BACKEND_PORT", port.to_string())
+        .spawn()
+        .map_err(|e| e.to_string())?;
     Ok(())
 }
