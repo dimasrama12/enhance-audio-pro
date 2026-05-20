@@ -1,0 +1,16 @@
+{
+  "$schema": "https://schema.tauri.app/schema/capabilities/2.json",
+  "identifier": "default",
+  "description": "Default app capabilities",
+  "windows": ["main"],
+  "permissions": [
+    "core:default",
+    "shell:allow-spawn",
+    "shell:allow-kill",
+    "dialog:allow-open",
+    "store:allow-get",
+    "store:allow-set",
+    "store:allow-save",
+    "store:allow-load"
+  ]
+}
