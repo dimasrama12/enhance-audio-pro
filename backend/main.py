@@ -1,13 +1,14 @@
 import os
 import uvicorn
 from fastapi import FastAPI
-from routers import enhance, health, queue, wizard
+from routers import enhance, health, queue, separate, wizard
 
 app = FastAPI(title="Enhance Audio Pro Backend", version="0.1.0")
 app.include_router(health.router)
 app.include_router(queue.router)
 app.include_router(enhance.router)
 app.include_router(wizard.router)
+app.include_router(separate.router)
 
 if __name__ == "__main__":
     port = int(os.environ.get("BACKEND_PORT", "8765"))
