@@ -254,8 +254,29 @@ chore    : [configuration changes, tooling, etc.]
 # Note: PRD Phase 2 included Stem Separation — deferred to Phase 3 by implementation decision.
 # PRD Phase 3 = queue batch logic + file conversion; PRD Phase 4 = audio tools; PRD Phase 5 = polish/packaging.
 
-## Phase 3 (next)
-- [ ] Stem Separation backend — Demucs integration (vocals, drums, bass, other) with CUDA/CPU fallback
+# Phase 3 — Completed Tasks (2026-05-22)
+- [x] Phase 3 design spec written and approved
+      → docs/superpowers/specs/2026-05-21-phase3-stem-separation-design.md
+- [x] Phase 3 implementation plan written
+      → docs/superpowers/plans/2026-05-21-phase3-stem-separation.md
+- [x] Python: conftest.py extended with Demucs mocks + torchaudio.load return value
+- [x] Python: processors/separate_stems.py — lazy htdemucs_ft loader, CUDA/CPU fallback
+      → 4/4 Pytest tests passing (TDD)
+- [x] Python: routers/separate.py — POST /separate, BackgroundTasks, progress callbacks
+      → 3/3 Pytest tests passing (TDD)
+- [x] Python: requirements.txt — added demucs>=4.0.0
+- [x] Python: main.py — all 5 routers registered (health, queue, enhance, wizard, separate)
+      → 18/18 Pytest tests passing total
+- [x] Rust: commands/separate.rs — separate_stems sync command, fire-and-forget to /separate
+      (sync not async — same State<'_, T> lifetime fix as process_queue in Phase 2)
+- [x] Rust: commands/mod.rs — pub mod separate added
+- [x] Rust: lib.rs — separate_stems registered in invoke_handler; cargo check clean
+- [x] Frontend: ipc.ts — invokeSeparateStems wrapper added
+- [x] Frontend: QueueToolbar — Separate Stems button (indigo, Scissors icon); Enhance renamed from Process
+      → 19/19 Vitest tests passing
+      → Phase 3 COMPLETE ✓
+
+## Phase 4 (next)
 - [ ] PyInstaller build + Tauri installer packaging (.exe for Windows)
 - [ ] File format conversion pipeline (300+ formats via ffmpeg)
 - [ ] Batch processing limits enforcement (30 audio / 10 video simultaneous)
