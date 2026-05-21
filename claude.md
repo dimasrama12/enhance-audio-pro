@@ -276,13 +276,32 @@ chore    : [configuration changes, tooling, etc.]
       → 19/19 Vitest tests passing
       → Phase 3 COMPLETE ✓
 
-## Phase 4 (next)
-- [ ] PyInstaller build + Tauri installer packaging (.exe for Windows)
-- [ ] File format conversion pipeline (300+ formats via ffmpeg)
-- [ ] Batch processing limits enforcement (30 audio / 10 video simultaneous)
-- [ ] Output format selector per file + global batch format override
+# Phase 4 — Completed Tasks (2026-05-22)
+- [x] Phase 4 implementation plan written
+      → docs/superpowers/plans/2026-05-22-phase4-packaging-conversion.md
+- [x] Python: processors/convert_audio.py — ffmpeg subprocess wrapper, SUPPORTED_FORMATS
+      → 4/4 Pytest tests passing (TDD)
+- [x] Python: routers/convert.py — POST /convert, BackgroundTasks, output_format-aware path
+      → 3/3 Pytest tests passing (TDD)
+- [x] Python: main.py — 6 routers registered; 25/25 Pytest tests passing total
+- [x] Python: build.spec — PyInstaller one-file spec for backend sidecar
+- [x] Rust: db/migrations.rs — output_format TEXT DEFAULT 'wav' (idempotent ALTER TABLE)
+- [x] Rust: db/queue.rs — output_format in QueueJob; update_job_output_format; count_active_jobs_by_type
+- [x] Rust: commands/convert.rs — convert_files (fire-and-forget) + set_output_format
+- [x] Rust: commands/queue.rs — 30 audio / 10 video batch limits enforced at add_files
+- [x] Rust: lib.rs — convert_files + set_output_format registered; cargo check clean
+- [x] Rust: tauri.conf.json — bundle targets ["msi"] for Windows
+- [x] Frontend: src/types/queue.ts — output_format: string added
+- [x] Frontend: useQueueStore.ts — setOutputFormat action; JobStatus import fixed
+- [x] Frontend: ipc.ts — invokeConvertFiles + invokeSetOutputFormat wrappers
+- [x] Frontend: QueueGrid.tsx — Output Format column with per-row <select> (7 formats)
+- [x] Frontend: QueueToolbar.tsx — global format override + Apply All + Convert button (teal)
+- [x] Frontend: DropZone.tsx — 5-second rejection warning on batch limit exceeded
+- [x] Build: scripts/build-backend.bat — one-command PyInstaller build + copy to binaries
+      → 20/20 Vitest tests passing
+      → Phase 4 COMPLETE ✓
 
-## Phase 4
+## Phase 5 (next)
 - [ ] Audio Manipulation Tools: Trim/Cut, Speed, Pitch, Volume/dB Boost, Auto Fade In/Out
 - [ ] Audio Merging & Crossfade — drag-and-drop track timeline
 - [ ] Audio Looping — custom loop generator (extend clip to N hours)
@@ -291,14 +310,14 @@ chore    : [configuration changes, tooling, etc.]
 - [ ] Playback controls (real-time preview, A/B original vs enhanced toggle)
 - [ ] Enhancement strength slider
 
-## Phase 5
+## Phase 6
 - [ ] Multi-select queue (Ctrl+Click individual, Shift+Click range)
 - [ ] Grid View / List View toggle
-- [ ] Localization — 17 languages (EN, ZH, ES, ID, DE, FR, JA, PT, AR, TR, TH, VI, RU, IT, KO, PL, NL)
-- [ ] Custom keyboard shortcuts (editable hotkeys per PRD Section 8)
+- [ ] Localization — 17 languages
+- [ ] Custom keyboard shortcuts
 - [ ] Built-in user guide / documentation panel
 - [ ] Auto-save project state
-- [ ] Export bitrate/quality options (MP3 128/320kbps, WAV 44.1k/48kHz, etc.)
+- [ ] Export bitrate/quality options
 - [ ] macOS packaging (.dmg / .app)
 ```
 
