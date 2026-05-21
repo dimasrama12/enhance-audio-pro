@@ -6,6 +6,7 @@ mod commands;
 mod db;
 mod sidecar;
 
+use commands::convert::{convert_files, set_output_format};
 use commands::download::start_model_download;
 use commands::process::process_queue;
 use commands::queue::{add_files, get_queue};
@@ -69,6 +70,8 @@ pub fn run() {
             process_queue,
             start_model_download,
             separate_stems,
+            convert_files,
+            set_output_format,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
