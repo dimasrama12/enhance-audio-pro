@@ -27,7 +27,7 @@ async def convert_jobs(req: ConvertRequest, background_tasks: BackgroundTasks) -
 
 
 async def _process_jobs(job_ids: List[str], callback_url: str) -> None:
-    loop = asyncio.get_event_loop()
+    loop = asyncio.get_running_loop()
     appdata = os.environ.get("APPDATA", str(pathlib.Path.home()))
     db_path = pathlib.Path(appdata) / "enhance-audio-pro" / "app.db"
 
@@ -60,7 +60,7 @@ async def _process_jobs(job_ids: List[str], callback_url: str) -> None:
                 convert_file(src, dst, _cb)
 
             await loop.run_in_executor(
-                None, lambda: _sync_convert(filepath, str(out_path), job_id)
+                None, lambda fp=filepath, op=str(out_path), jid=job_id: _sync_convert(fp, op, jid)
             )
 
             async with httpx.AsyncClient(timeout=5) as client:
