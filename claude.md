@@ -251,9 +251,34 @@ chore    : [configuration changes, tooling, etc.]
       → Phase 2 COMPLETE ✓
 
 # Not Started (Phase 3+)
-- [ ] Stem Separation Backend logic (Phase 3)
-- [ ] Audio Manipulation Tools (Trim, EQ, Loop) (Phase 4)
-- [ ] PyInstaller build + Tauri installer packaging (Phase 3)
+# Note: PRD Phase 2 included Stem Separation — deferred to Phase 3 by implementation decision.
+# PRD Phase 3 = queue batch logic + file conversion; PRD Phase 4 = audio tools; PRD Phase 5 = polish/packaging.
+
+## Phase 3 (next)
+- [ ] Stem Separation backend — Demucs integration (vocals, drums, bass, other) with CUDA/CPU fallback
+- [ ] PyInstaller build + Tauri installer packaging (.exe for Windows)
+- [ ] File format conversion pipeline (300+ formats via ffmpeg)
+- [ ] Batch processing limits enforcement (30 audio / 10 video simultaneous)
+- [ ] Output format selector per file + global batch format override
+
+## Phase 4
+- [ ] Audio Manipulation Tools: Trim/Cut, Speed, Pitch, Volume/dB Boost, Auto Fade In/Out
+- [ ] Audio Merging & Crossfade — drag-and-drop track timeline
+- [ ] Audio Looping — custom loop generator (extend clip to N hours)
+- [ ] Advanced EQ — 11-band sliders + 17 presets (Classic, Dance, Rock, etc.)
+- [ ] Waveform / Spectrogram visualization
+- [ ] Playback controls (real-time preview, A/B original vs enhanced toggle)
+- [ ] Enhancement strength slider
+
+## Phase 5
+- [ ] Multi-select queue (Ctrl+Click individual, Shift+Click range)
+- [ ] Grid View / List View toggle
+- [ ] Localization — 17 languages (EN, ZH, ES, ID, DE, FR, JA, PT, AR, TR, TH, VI, RU, IT, KO, PL, NL)
+- [ ] Custom keyboard shortcuts (editable hotkeys per PRD Section 8)
+- [ ] Built-in user guide / documentation panel
+- [ ] Auto-save project state
+- [ ] Export bitrate/quality options (MP3 128/320kbps, WAV 44.1k/48kHz, etc.)
+- [ ] macOS packaging (.dmg / .app)
 ```
 
 ---
