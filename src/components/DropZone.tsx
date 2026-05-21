@@ -12,6 +12,7 @@ interface FileDropPayload { paths: string[]; }
 export default function DropZone(): JSX.Element {
   const [isDragging, setIsDragging] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [limitWarning, setLimitWarning] = useState<string | null>(null);
   const { addJobs } = useQueueStore();
 
   const handleFiles = useCallback(async (paths: string[]): Promise<void> => {
@@ -34,6 +35,10 @@ export default function DropZone(): JSX.Element {
     } else {
       setError(res.error ?? 'Failed to add files.');
       setTimeout(() => setError(null), 3000);
+    }
+    if (res.error) {
+      setLimitWarning(res.error);
+      setTimeout(() => setLimitWarning(null), 5000);
     }
   }, [addJobs]);
 
@@ -69,6 +74,11 @@ export default function DropZone(): JSX.Element {
             className="text-xs text-red-400 mt-2">{error}</motion.p>
         )}
       </AnimatePresence>
+      {limitWarning && (
+        <p className="mt-2 px-3 py-2 bg-orange-500/20 border border-orange-500/40 rounded-lg text-orange-300 text-xs text-center">
+          {limitWarning}
+        </p>
+      )}
     </div>
   );
 }
