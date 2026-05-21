@@ -9,6 +9,7 @@ mod sidecar;
 use commands::download::start_model_download;
 use commands::process::process_queue;
 use commands::queue::{add_files, get_queue};
+use commands::separate::separate_stems;
 use commands::settings::{get_settings, save_settings};
 
 pub struct AppState {
@@ -67,6 +68,7 @@ pub fn run() {
             save_settings,
             process_queue,
             start_model_download,
+            separate_stems,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

@@ -1,6 +1,7 @@
 pub mod download;
 pub mod process;
 pub mod queue;
+pub mod separate;
 pub mod settings;
 
 use serde::Serialize;
