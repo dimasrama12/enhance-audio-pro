@@ -1,5 +1,7 @@
-import { Search, Trash2 } from 'lucide-react';
+import { useState } from 'react';
+import { Play, Search, Trash2 } from 'lucide-react';
 import { useQueueStore } from '@/stores/useQueueStore';
+import { invokeProcessQueue } from '@/lib/ipc';
 
 const FILTERS = [
   { value: 'all', label: 'All' }, { value: 'pending', label: 'Pending' },
@@ -8,7 +10,21 @@ const FILTERS = [
 ];
 
 export default function QueueToolbar(): JSX.Element {
-  const { filter, searchQuery, setFilter, setSearchQuery, clearQueue } = useQueueStore();
+  const { filter, searchQuery, setFilter, setSearchQuery, clearQueue, jobs } = useQueueStore();
+  const [isProcessing, setIsProcessing] = useState(false);
+
+  const pendingIds = jobs.filter((j) => j.status === 'pending').map((j) => j.id);
+  const canProcess = pendingIds.length > 0 && !isProcessing;
+
+  async function handleProcess(): Promise<void> {
+    if (!canProcess) return;
+    setIsProcessing(true);
+    try {
+      await invokeProcessQueue(pendingIds);
+    } finally {
+      setIsProcessing(false);
+    }
+  }
 
   return (
     <div className="flex items-center gap-3 shrink-0">
@@ -31,6 +47,15 @@ export default function QueueToolbar(): JSX.Element {
           <option key={f.value} value={f.value} className="bg-neutral-800">{f.label}</option>
         ))}
       </select>
+      <button
+        onClick={handleProcess}
+        disabled={!canProcess}
+        title="Process pending files"
+        className="flex items-center gap-2 px-4 py-1.5 rounded-lg text-sm font-medium bg-violet-600 hover:bg-violet-500 disabled:opacity-40 disabled:cursor-not-allowed transition-colors text-white"
+      >
+        <Play size={14} />
+        {isProcessing ? 'Processing…' : 'Process'}
+      </button>
       <button
         onClick={clearQueue}
         title="Clear queue"

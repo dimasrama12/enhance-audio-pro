@@ -18,3 +18,11 @@ export async function invokeGetSettings(): Promise<IpcResponse<AppSettings>> {
 export async function invokeSaveSettings(settings: AppSettings): Promise<IpcResponse<null>> {
   return invoke<IpcResponse<null>>('save_settings', { settings });
 }
+
+export async function invokeProcessQueue(jobIds: string[]): Promise<IpcResponse<null>> {
+  return invoke<IpcResponse<null>>('process_queue', { jobIds });
+}
+
+export async function invokeStartModelDownload(): Promise<IpcResponse<null>> {
+  return invoke<IpcResponse<null>>('start_model_download');
+}

@@ -9,6 +9,8 @@ export interface QueueJob {
   size_bytes: number;
   media_type: MediaType;
   status: JobStatus;
+  progress: number;
+  error_message: string | null;
   created_at: string;
   updated_at: string;
 }

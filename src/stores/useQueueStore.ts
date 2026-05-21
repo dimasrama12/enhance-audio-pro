@@ -11,6 +11,8 @@ interface QueueState {
   setSearchQuery: (query: string) => void;
   clearQueue: () => void;
   filteredJobs: () => QueueJob[];
+  setProgress: (id: string, percent: number) => void;
+  setStatus: (id: string, status: JobStatus, errorMessage?: string) => void;
 }
 
 export const useQueueStore = create<QueueState>((set, get) => ({
@@ -28,4 +30,16 @@ export const useQueueStore = create<QueueState>((set, get) => ({
       .filter((j) => filter === 'all' || j.status === filter)
       .filter((j) => !searchQuery || j.filename.toLowerCase().includes(searchQuery.toLowerCase()));
   },
+  setProgress: (id, percent) =>
+    set((s) => ({
+      jobs: s.jobs.map((j) => (j.id === id ? { ...j, progress: percent } : j)),
+    })),
+  setStatus: (id, status, errorMessage) =>
+    set((s) => ({
+      jobs: s.jobs.map((j) =>
+        j.id === id
+          ? { ...j, status, error_message: errorMessage ?? j.error_message }
+          : j
+      ),
+    })),
 }));

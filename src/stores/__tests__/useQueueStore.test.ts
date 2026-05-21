@@ -10,6 +10,8 @@ const makeJob = (overrides: Partial<QueueJob> = {}): QueueJob => ({
   size_bytes: 1024,
   media_type: 'audio',
   status: 'pending',
+  progress: 0,
+  error_message: null,
   created_at: '2026-05-20T00:00:00Z',
   updated_at: '2026-05-20T00:00:00Z',
   ...overrides,
@@ -47,5 +49,31 @@ describe('useQueueStore', () => {
     useQueueStore.setState({ jobs: [makeJob()] });
     useQueueStore.getState().clearQueue();
     expect(useQueueStore.getState().jobs).toHaveLength(0);
+  });
+
+  it('setProgress updates progress on the matching job only', () => {
+    useQueueStore.setState({
+      jobs: [makeJob({ id: 'a', progress: 0 }), makeJob({ id: 'b', progress: 0 })],
+    });
+    useQueueStore.getState().setProgress('a', 50);
+    const jobs = useQueueStore.getState().jobs;
+    expect(jobs.find((j) => j.id === 'a')?.progress).toBe(50);
+    expect(jobs.find((j) => j.id === 'b')?.progress).toBe(0);
+  });
+
+  it('setStatus updates status and keeps error_message null when not provided', () => {
+    useQueueStore.setState({ jobs: [makeJob({ id: 'x', status: 'pending' })] });
+    useQueueStore.getState().setStatus('x', 'processing');
+    const job = useQueueStore.getState().jobs[0];
+    expect(job.status).toBe('processing');
+    expect(job.error_message).toBeNull();
+  });
+
+  it('setStatus records error_message when status is error', () => {
+    useQueueStore.setState({ jobs: [makeJob({ id: 'y', status: 'processing' })] });
+    useQueueStore.getState().setStatus('y', 'error', 'Model not found');
+    const job = useQueueStore.getState().jobs[0];
+    expect(job.status).toBe('error');
+    expect(job.error_message).toBe('Model not found');
   });
 });
