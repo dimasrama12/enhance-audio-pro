@@ -219,13 +219,41 @@ chore    : [configuration changes, tooling, etc.]
       → lld linker fixed: -B gcc-ld/ rustflag routes GCC to correct Rust toolchain lld-wrapper
       → Phase 1 COMPLETE ✓
 
-# Not Started (Phase 2+)
+# Phase 2 — Completed Tasks (2026-05-21)
+- [x] Phase 2 design spec written and approved
+      → docs/superpowers/specs/2026-05-21-phase2-speech-enhancement-design.md
+- [x] Phase 2 implementation plan written (16 tasks, TDD, full code)
+      → docs/superpowers/plans/2026-05-21-phase2-speech-enhancement.md
+- [x] Rust: axum callback server (callback/mod.rs) — /callback/progress, /callback/status, /callback/wizard
+      → emits queue://progress, queue://status-change, wizard://progress, wizard://complete, wizard://error
+- [x] Rust: DB layer extended — progress + error_message columns, update_job_status, update_job_error, get_job_by_id
+- [x] Rust: commands/process.rs — process_queue (sync, fire-and-forget via tauri::async_runtime::spawn)
+- [x] Rust: commands/download.rs — start_model_download (sync, fire-and-forget)
+- [x] Rust: sidecar/manager.rs — passes CALLBACK_PORT env var to Python sidecar
+- [x] Rust: lib.rs — Arc<Mutex<Connection>>, callback axum server on random port, AppState with callback_port
+      → cargo check passes clean
+- [x] Python: processors/enhance_speech.py — lazy DeepFilterNet3 load, CUDA/CPU fallback, progress callbacks
+      → 4/4 Pytest tests passing (TDD)
+- [x] Python: routers/enhance.py — POST /enhance, BackgroundTasks, asyncio.get_running_loop() + run_in_executor
+      → 3/3 Pytest tests passing (TDD)
+- [x] Python: routers/wizard.py — POST /wizard/download, BackgroundTasks, httpx progress callbacks
+      → 2/2 Pytest tests passing (TDD)
+- [x] Python: main.py — all 4 routers wired (health, queue, enhance, wizard)
+      → 11/11 Pytest tests passing total
+- [x] Frontend: QueueJob type extended — progress: number, error_message: string | null
+- [x] Frontend: useQueueStore — setProgress, setStatus actions added
+      → 7/7 Vitest tests passing
+- [x] Frontend: ipc.ts — invokeProcessQueue, invokeStartModelDownload wrappers
+- [x] Frontend: QueueGrid — Tauri event listeners for queue://progress + queue://status-change, animated progress bar
+- [x] Frontend: QueueToolbar — Process button with disabled state when no pending jobs
+- [x] Frontend: SetupWizard — wizard://progress, wizard://complete, wizard://error event wiring with live progress bar
+      → 19/19 Vitest frontend tests passing
+      → Phase 2 COMPLETE ✓
 
-# Not Started (Phase 2+)
-- [ ] AI Audio Enhancement Backend logic (Phase 2)
-- [ ] Stem Separation Backend logic (Phase 2)
+# Not Started (Phase 3+)
+- [ ] Stem Separation Backend logic (Phase 3)
 - [ ] Audio Manipulation Tools (Trim, EQ, Loop) (Phase 4)
-- [ ] Setup Wizard model download wiring (Phase 2)
+- [ ] PyInstaller build + Tauri installer packaging (Phase 3)
 ```
 
 ---
@@ -351,6 +379,20 @@ All major architecture decisions finalized during brainstorming sessions (May 18
 - **LLD linker root cause:** Rust's `lld-wrapper` (`ld.lld.exe` in `gcc-ld/`) uses `current_exe.parent().parent().join("rust-lld")` to find `rust-lld.exe`. Copying `ld.lld.exe` to `D:\apk\mingw64\bin\` broke this because the wrapper then looked for `rust-lld.exe` two levels up at `D:\apk\mingw64\rust-lld.exe` (which doesn't exist)
 - **Fix:** Added `-C link-arg=-BC:/Users/User/.rustup/toolchains/stable-x86_64-pc-windows-gnu/lib/rustlib/x86_64-pc-windows-gnu/bin/gcc-ld/` to `rustflags` in `.cargo/config.toml`. This tells MinGW GCC to find `ld.lld.exe` in the Rust toolchain's `gcc-ld/` directory where the relative path to `rust-lld.exe` is correct
 - **tauri-dev.bat PATH:** Prepends `gcc-ld/` and `bin/` from rustup toolchain before `%PATH%` as belt-and-suspenders
+
+### 18.13 Phase 2 Architecture — Callback Server Pattern (2026-05-21)
+- **Decision:** axum 0.7 HTTP server on a random port inside the Rust process receives progress/status POSTs from Python, then emits Tauri events to the frontend
+- **Port handoff:** Rust binds `127.0.0.1:0` (OS assigns port), passes it to Python via `CALLBACK_PORT` env var alongside `BACKEND_PORT`
+- **DB sharing:** `Arc<Mutex<rusqlite::Connection>>` shared between Tauri commands and axum handlers — avoids opening a second SQLite connection
+- **Async command fix:** `process_queue` and `start_model_download` are sync Tauri commands that use `tauri::async_runtime::spawn` internally for fire-and-forget HTTP calls — avoids `State<'_, T>` lifetime conflicts with Tauri v2's `'static` requirement on async commands
+- **`cargo test --lib` known issue:** Pre-existing STATUS_ENTRYPOINT_NOT_FOUND crash due to Windows API Set DLL resolution failure in isolated test binaries (affects Tauri WebView2 deps). Verified pre-existing before Phase 2. Workaround: use `cargo check` for Rust verification.
+
+### 18.14 Phase 2 Python Patterns (2026-05-21)
+- **Lazy imports:** `torch`, `df`, `torchaudio` imported inside functions, not at module level — prevents import-time crash when model not yet downloaded
+- **Model cache:** Module-level `_model` / `_df_state` variables loaded once per sidecar lifetime via `_load_model()` guard
+- **Thread executor:** `asyncio.get_running_loop().run_in_executor(None, ...)` wraps sync `enhance_file` — keeps FastAPI event loop unblocked during GPU/CPU inference
+- **Test mocking:** `backend/tests/conftest.py` pre-populates `sys.modules` with MagicMock stubs for `torch`, `torchaudio`, `df`, `df.enhance` — all 11 tests run without GPU or DeepFilterNet installed
+- **Python venv:** `backend/.venv/Scripts/python.exe` — system Python 3.11.5 at `C:\Users\User\AppData\Local\Programs\Python\Python311\` does NOT have pytest; always use venv
 
 ---
 _This CLAUDE.md is customized specifically for the Enhance Audio Pro project. Update this file's contents whenever there are architectural changes or completed feature progress._
