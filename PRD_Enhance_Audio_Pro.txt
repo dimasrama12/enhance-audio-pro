@@ -95,6 +95,9 @@ Target Platforms: Windows (.exe) and macOS (.dmg / .app)
   [COMPLETED: Demucs processor, /separate endpoint, separate_stems Tauri command, Separate Stems button in QueueToolbar — 18/18 Pytest + 19/19 Vitest passing]
   [SPEC: docs/superpowers/specs/2026-05-21-phase3-stem-separation-design.md]
 * Phase 4: PyInstaller packaging + ffmpeg conversion + batch limits + output format selector.
+  [STATUS: COMPLETE — 2026-05-22]
+  [COMPLETED: ffmpeg processor, /convert endpoint, output_format DB column, per-file and global format selectors, 30 audio/10 video batch limits, PyInstaller build.spec, MSI bundle config — 25/25 Pytest + 20/20 Vitest passing]
+  [PLAN: docs/superpowers/plans/2026-05-22-phase4-packaging-conversion.md]
 * Phase 5: Audio editing tools (Trimming, EQ, Merging, Pitch, Speed, Loop, Crossfade).
 * Phase 6: Final polish — A/B preview, localization (17 languages), keyboard shortcuts, macOS packaging.
 
