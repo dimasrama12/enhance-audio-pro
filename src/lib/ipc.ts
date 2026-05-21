@@ -30,3 +30,11 @@ export async function invokeStartModelDownload(): Promise<IpcResponse<null>> {
 export async function invokeSeparateStems(jobIds: string[]): Promise<IpcResponse<null>> {
   return invoke<IpcResponse<null>>('separate_stems', { jobIds });
 }
+
+export async function invokeConvertFiles(jobIds: string[]): Promise<IpcResponse<null>> {
+  return invoke<IpcResponse<null>>('convert_files', { jobIds });
+}
+
+export async function invokeSetOutputFormat(jobId: string, format: string): Promise<IpcResponse<null>> {
+  return invoke<IpcResponse<null>>('set_output_format', { jobId, format });
+}

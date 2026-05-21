@@ -1,7 +1,12 @@
 import { useState } from 'react';
-import { Play, Scissors, Search, Trash2 } from 'lucide-react';
+import { Play, Scissors, Search, Trash2, RefreshCw } from 'lucide-react';
 import { useQueueStore } from '@/stores/useQueueStore';
-import { invokeProcessQueue, invokeSeparateStems } from '@/lib/ipc';
+import {
+  invokeProcessQueue,
+  invokeSeparateStems,
+  invokeConvertFiles,
+  invokeSetOutputFormat,
+} from '@/lib/ipc';
 
 const FILTERS = [
   { value: 'all', label: 'All' }, { value: 'pending', label: 'Pending' },
@@ -9,45 +14,58 @@ const FILTERS = [
   { value: 'error', label: 'Error' },
 ];
 
+const FORMAT_OPTIONS = ['wav', 'mp3', 'flac', 'aac', 'ogg', 'opus', 'm4a'];
+
 export default function QueueToolbar(): JSX.Element {
-  const { filter, searchQuery, setFilter, setSearchQuery, clearQueue, jobs } = useQueueStore();
+  const { filter, searchQuery, setFilter, setSearchQuery, clearQueue, jobs, setOutputFormat } =
+    useQueueStore();
   const [isProcessing, setIsProcessing] = useState(false);
   const [isSeparating, setIsSeparating] = useState(false);
+  const [isConverting, setIsConverting] = useState(false);
+  const [globalFormat, setGlobalFormat] = useState('wav');
 
   const pendingIds = jobs.filter((j) => j.status === 'pending').map((j) => j.id);
-  const busy = isProcessing || isSeparating;
+  const busy = isProcessing || isSeparating || isConverting;
   const canAct = pendingIds.length > 0 && !busy;
 
   async function handleProcess(): Promise<void> {
     if (!canAct) return;
     setIsProcessing(true);
-    try {
-      await invokeProcessQueue(pendingIds);
-    } finally {
-      setIsProcessing(false);
-    }
+    try { await invokeProcessQueue(pendingIds); } finally { setIsProcessing(false); }
   }
 
   async function handleSeparate(): Promise<void> {
     if (!canAct) return;
     setIsSeparating(true);
-    try {
-      await invokeSeparateStems(pendingIds);
-    } finally {
-      setIsSeparating(false);
-    }
+    try { await invokeSeparateStems(pendingIds); } finally { setIsSeparating(false); }
+  }
+
+  async function handleConvert(): Promise<void> {
+    if (!canAct) return;
+    setIsConverting(true);
+    try { await invokeConvertFiles(pendingIds); } finally { setIsConverting(false); }
+  }
+
+  async function handleApplyFormat(): Promise<void> {
+    const pendingJobs = jobs.filter((j) => j.status === 'pending');
+    await Promise.all(
+      pendingJobs.map((j) => {
+        setOutputFormat(j.id, globalFormat);
+        return invokeSetOutputFormat(j.id, globalFormat);
+      })
+    );
   }
 
   return (
-    <div className="flex items-center gap-3 shrink-0">
-      <div className="relative flex-1">
+    <div className="flex items-center gap-2 shrink-0 flex-wrap">
+      <div className="relative">
         <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-white/40" />
         <input
           type="text"
           placeholder="Search files..."
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
-          className="w-full pl-8 pr-3 py-1.5 bg-white/10 rounded-lg text-sm text-white placeholder-white/30 outline-none focus:ring-1 focus:ring-violet-500 transition"
+          className="pl-8 pr-3 py-1.5 bg-white/10 rounded-lg text-sm text-white placeholder-white/30 outline-none focus:ring-1 focus:ring-violet-500 transition w-40"
         />
       </div>
       <select
@@ -59,6 +77,26 @@ export default function QueueToolbar(): JSX.Element {
           <option key={f.value} value={f.value} className="bg-neutral-800">{f.label}</option>
         ))}
       </select>
+      <div className="flex items-center gap-1.5 bg-white/10 rounded-lg px-3 py-1.5">
+        <span className="text-white/40 text-xs">All→</span>
+        <select
+          value={globalFormat}
+          onChange={(e) => setGlobalFormat(e.target.value)}
+          className="bg-transparent text-white text-xs outline-none"
+        >
+          {FORMAT_OPTIONS.map((f) => (
+            <option key={f} value={f} className="bg-neutral-800">{f.toUpperCase()}</option>
+          ))}
+        </select>
+        <button
+          onClick={handleApplyFormat}
+          disabled={pendingIds.length === 0}
+          title="Apply format to all pending files"
+          className="text-white/60 hover:text-white disabled:opacity-40 transition"
+        >
+          <RefreshCw size={12} />
+        </button>
+      </div>
       <button
         onClick={handleProcess}
         disabled={!canAct}
@@ -76,6 +114,15 @@ export default function QueueToolbar(): JSX.Element {
       >
         <Scissors size={14} />
         {isSeparating ? 'Separating…' : 'Separate Stems'}
+      </button>
+      <button
+        onClick={handleConvert}
+        disabled={!canAct}
+        title="Convert pending files to selected output format"
+        className="flex items-center gap-2 px-4 py-1.5 rounded-lg text-sm font-medium bg-teal-600 hover:bg-teal-500 disabled:opacity-40 disabled:cursor-not-allowed transition-colors text-white"
+      >
+        <RefreshCw size={14} />
+        {isConverting ? 'Converting…' : 'Convert'}
       </button>
       <button
         onClick={clearQueue}

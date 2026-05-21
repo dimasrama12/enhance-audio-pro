@@ -3,6 +3,7 @@ import { listen } from '@tauri-apps/api/event';
 import { motion, AnimatePresence } from 'framer-motion';
 import { clsx } from 'clsx';
 import { useQueueStore } from '@/stores/useQueueStore';
+import { invokeSetOutputFormat } from '@/lib/ipc';
 import type { QueueJob, JobStatus } from '@/types/queue';
 
 const STATUS_COLORS: Record<JobStatus, string> = {
@@ -11,6 +12,8 @@ const STATUS_COLORS: Record<JobStatus, string> = {
   done: 'text-green-400',
   error: 'text-red-400',
 };
+
+const FORMAT_OPTIONS = ['wav', 'mp3', 'flac', 'aac', 'ogg', 'opus', 'm4a'];
 
 function formatBytes(n: number): string {
   if (n < 1024) return `${n} B`;
@@ -31,6 +34,31 @@ function ProgressBar({ percent }: { percent: number }): JSX.Element {
   );
 }
 
+function FormatSelect({ job }: { job: QueueJob }): JSX.Element {
+  const setOutputFormat = useQueueStore((s) => s.setOutputFormat);
+
+  async function handleChange(e: React.ChangeEvent<HTMLSelectElement>): Promise<void> {
+    const fmt = e.target.value;
+    setOutputFormat(job.id, fmt);
+    await invokeSetOutputFormat(job.id, fmt);
+  }
+
+  return (
+    <select
+      value={job.output_format}
+      onChange={handleChange}
+      disabled={job.status !== 'pending'}
+      className="bg-white/10 text-white text-xs rounded px-2 py-0.5 outline-none focus:ring-1 focus:ring-violet-500 disabled:opacity-40 transition"
+    >
+      {FORMAT_OPTIONS.map((f) => (
+        <option key={f} value={f} className="bg-neutral-800">
+          {f.toUpperCase()}
+        </option>
+      ))}
+    </select>
+  );
+}
+
 function JobRow({ job, index }: { job: QueueJob; index: number }): JSX.Element {
   return (
     <motion.tr
@@ -41,10 +69,13 @@ function JobRow({ job, index }: { job: QueueJob; index: number }): JSX.Element {
       className="border-b border-white/5 hover:bg-white/5 transition-colors"
     >
       <td className="px-4 py-2 text-white/30 text-xs w-10">{index + 1}</td>
-      <td className="px-4 py-2 text-sm text-white truncate max-w-[200px]">{job.filename}</td>
-      <td className="px-4 py-2 text-xs text-white/50 truncate max-w-[160px]">{job.destination || '—'}</td>
-      <td className="px-4 py-2 text-xs text-white/50 w-24">{formatBytes(job.size_bytes)}</td>
-      <td className="px-4 py-2 text-xs uppercase text-white/40 w-20">{job.media_type}</td>
+      <td className="px-4 py-2 text-sm text-white truncate max-w-[180px]">{job.filename}</td>
+      <td className="px-4 py-2 text-xs text-white/50 truncate max-w-[130px]">{job.destination || '—'}</td>
+      <td className="px-4 py-2 text-xs text-white/50 w-20">{formatBytes(job.size_bytes)}</td>
+      <td className="px-4 py-2 text-xs uppercase text-white/40 w-16">{job.media_type}</td>
+      <td className="px-4 py-2 w-28">
+        <FormatSelect job={job} />
+      </td>
       <td className={clsx('px-4 py-2 text-xs font-medium capitalize w-36', STATUS_COLORS[job.status])}>
         <span title={job.status === 'error' ? (job.error_message ?? undefined) : undefined}>
           {job.status}
@@ -65,7 +96,6 @@ export default function QueueGrid(): JSX.Element {
       'queue://progress',
       (event) => setProgress(event.payload.jobId, event.payload.percent)
     );
-
     const unlistenStatus = listen<{ jobId: string; status: string; error_message?: string }>(
       'queue://status-change',
       (event) => {
@@ -73,7 +103,6 @@ export default function QueueGrid(): JSX.Element {
         setStatus(jobId, status as JobStatus, error_message);
       }
     );
-
     return () => {
       unlistenProgress.then((fn) => fn());
       unlistenStatus.then((fn) => fn());
@@ -88,8 +117,9 @@ export default function QueueGrid(): JSX.Element {
             <th className="px-4 py-2 w-10">#</th>
             <th className="px-4 py-2">Filename</th>
             <th className="px-4 py-2">Destination</th>
-            <th className="px-4 py-2 w-24">Size</th>
-            <th className="px-4 py-2 w-20">Type</th>
+            <th className="px-4 py-2 w-20">Size</th>
+            <th className="px-4 py-2 w-16">Type</th>
+            <th className="px-4 py-2 w-28">Output</th>
             <th className="px-4 py-2 w-36">Status</th>
           </tr>
         </thead>
@@ -97,7 +127,7 @@ export default function QueueGrid(): JSX.Element {
           <AnimatePresence>
             {jobs.length === 0 ? (
               <tr>
-                <td colSpan={6} className="px-4 py-16 text-center text-white/30 text-sm">
+                <td colSpan={7} className="px-4 py-16 text-center text-white/30 text-sm">
                   No files in queue. Drop audio or video files above to get started.
                 </td>
               </tr>
