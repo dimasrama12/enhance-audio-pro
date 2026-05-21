@@ -1,3 +1,5 @@
+pub mod download;
+pub mod process;
 pub mod queue;
 pub mod settings;
 

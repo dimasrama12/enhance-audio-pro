@@ -9,11 +9,16 @@ pub fn available_port() -> u16 {
         .unwrap_or(8765)
 }
 
-pub fn spawn(app: &AppHandle, port: u16) -> Result<(), Box<dyn std::error::Error>> {
+pub fn spawn(
+    app: &AppHandle,
+    port: u16,
+    callback_port: u16,
+) -> Result<(), Box<dyn std::error::Error>> {
     app.shell()
         .sidecar("backend")
         .map_err(|e| e.to_string())?
         .env("BACKEND_PORT", port.to_string())
+        .env("CALLBACK_PORT", callback_port.to_string())
         .spawn()
         .map_err(|e| e.to_string())?;
     Ok(())
