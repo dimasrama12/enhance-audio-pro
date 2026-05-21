@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import type { QueueJob } from '@/types/queue';
+import type { QueueJob, JobStatus } from '@/types/queue';
 
 interface QueueState {
   jobs: QueueJob[];
@@ -13,6 +13,7 @@ interface QueueState {
   filteredJobs: () => QueueJob[];
   setProgress: (id: string, percent: number) => void;
   setStatus: (id: string, status: JobStatus, errorMessage?: string) => void;
+  setOutputFormat: (id: string, format: string) => void;
 }
 
 export const useQueueStore = create<QueueState>((set, get) => ({
@@ -37,9 +38,11 @@ export const useQueueStore = create<QueueState>((set, get) => ({
   setStatus: (id, status, errorMessage) =>
     set((s) => ({
       jobs: s.jobs.map((j) =>
-        j.id === id
-          ? { ...j, status, error_message: errorMessage ?? j.error_message }
-          : j
+        j.id === id ? { ...j, status, error_message: errorMessage ?? j.error_message } : j
       ),
+    })),
+  setOutputFormat: (id, format) =>
+    set((s) => ({
+      jobs: s.jobs.map((j) => (j.id === id ? { ...j, output_format: format } : j)),
     })),
 }));

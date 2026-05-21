@@ -11,6 +11,7 @@ export interface QueueJob {
   status: JobStatus;
   progress: number;
   error_message: string | null;
+  output_format: string;
   created_at: string;
   updated_at: string;
 }

@@ -14,6 +14,7 @@ pub struct QueueJob {
     pub status: String,
     pub progress: i64,
     pub error_message: Option<String>,
+    pub output_format: String,
     pub created_at: String,
     pub updated_at: String,
 }
@@ -30,8 +31,8 @@ pub fn insert_job(
 
     conn.execute(
         "INSERT INTO queue_jobs
-            (id, filename, filepath, destination, size_bytes, media_type, status, created_at, updated_at)
-         VALUES (?1, ?2, ?3, '', ?4, ?5, 'pending', ?6, ?7)",
+            (id, filename, filepath, destination, size_bytes, media_type, status, output_format, created_at, updated_at)
+         VALUES (?1, ?2, ?3, '', ?4, ?5, 'pending', 'wav', ?6, ?7)",
         params![id, filename, filepath, size_bytes, media_type, now, now],
     )?;
 
@@ -45,6 +46,7 @@ pub fn insert_job(
         status: "pending".to_string(),
         progress: 0,
         error_message: None,
+        output_format: "wav".to_string(),
         created_at: now.clone(),
         updated_at: now,
     })
@@ -53,9 +55,8 @@ pub fn insert_job(
 pub fn get_all_jobs(conn: &Connection) -> Result<Vec<QueueJob>> {
     let mut stmt = conn.prepare(
         "SELECT id, filename, filepath, destination, size_bytes, media_type, status,
-                progress, error_message, created_at, updated_at
-         FROM queue_jobs
-         ORDER BY created_at ASC",
+                progress, error_message, output_format, created_at, updated_at
+         FROM queue_jobs ORDER BY created_at ASC",
     )?;
 
     let jobs = stmt
@@ -70,8 +71,10 @@ pub fn get_all_jobs(conn: &Connection) -> Result<Vec<QueueJob>> {
                 status: row.get(6)?,
                 progress: row.get(7)?,
                 error_message: row.get(8)?,
-                created_at: row.get(9)?,
-                updated_at: row.get(10)?,
+                output_format: row.get::<_, Option<String>>(9)?
+                    .unwrap_or_else(|| "wav".to_string()),
+                created_at: row.get(10)?,
+                updated_at: row.get(11)?,
             })
         })?
         .collect::<Result<Vec<_>>>()?;
@@ -82,7 +85,7 @@ pub fn get_all_jobs(conn: &Connection) -> Result<Vec<QueueJob>> {
 pub fn get_job_by_id(conn: &Connection, id: &str) -> Result<Option<QueueJob>> {
     let mut stmt = conn.prepare(
         "SELECT id, filename, filepath, destination, size_bytes, media_type, status,
-                progress, error_message, created_at, updated_at
+                progress, error_message, output_format, created_at, updated_at
          FROM queue_jobs WHERE id = ?1",
     )?;
 
@@ -97,8 +100,10 @@ pub fn get_job_by_id(conn: &Connection, id: &str) -> Result<Option<QueueJob>> {
             status: row.get(6)?,
             progress: row.get(7)?,
             error_message: row.get(8)?,
-            created_at: row.get(9)?,
-            updated_at: row.get(10)?,
+            output_format: row.get::<_, Option<String>>(9)?
+                .unwrap_or_else(|| "wav".to_string()),
+            created_at: row.get(10)?,
+            updated_at: row.get(11)?,
         })
     })?;
 
@@ -123,6 +128,24 @@ pub fn update_job_error(conn: &Connection, id: &str, message: &str) -> Result<()
     Ok(())
 }
 
+pub fn update_job_output_format(conn: &Connection, id: &str, format: &str) -> Result<()> {
+    let now = Utc::now().to_rfc3339();
+    conn.execute(
+        "UPDATE queue_jobs SET output_format = ?1, updated_at = ?2 WHERE id = ?3",
+        params![format, now, id],
+    )?;
+    Ok(())
+}
+
+pub fn count_active_jobs_by_type(conn: &Connection, media_type: &str) -> Result<i64> {
+    conn.query_row(
+        "SELECT COUNT(*) FROM queue_jobs
+         WHERE status IN ('pending', 'processing') AND media_type = ?1",
+        [media_type],
+        |r| r.get(0),
+    )
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -142,6 +165,7 @@ mod tests {
         assert_eq!(found.id, job.id);
         assert_eq!(found.progress, 0);
         assert!(found.error_message.is_none());
+        assert_eq!(found.output_format, "wav");
     }
 
     #[test]
@@ -168,5 +192,27 @@ mod tests {
         let jobs = get_all_jobs(&conn).unwrap();
         assert_eq!(jobs[0].status, "error");
         assert_eq!(jobs[0].error_message.as_deref(), Some("model not loaded"));
+    }
+
+    #[test]
+    fn test_update_job_output_format() {
+        let conn = setup();
+        let job = insert_job(&conn, "/tmp/d.wav", "d.wav", 100, "audio").unwrap();
+        assert_eq!(job.output_format, "wav");
+        update_job_output_format(&conn, &job.id, "mp3").unwrap();
+        let found = get_job_by_id(&conn, &job.id).unwrap().unwrap();
+        assert_eq!(found.output_format, "mp3");
+    }
+
+    #[test]
+    fn test_count_active_jobs_by_type() {
+        let conn = setup();
+        insert_job(&conn, "/tmp/a.mp3", "a.mp3", 100, "audio").unwrap();
+        insert_job(&conn, "/tmp/b.mp3", "b.mp3", 100, "audio").unwrap();
+        insert_job(&conn, "/tmp/v.mp4", "v.mp4", 100, "video").unwrap();
+        let audio = count_active_jobs_by_type(&conn, "audio").unwrap();
+        let video = count_active_jobs_by_type(&conn, "video").unwrap();
+        assert_eq!(audio, 2);
+        assert_eq!(video, 1);
     }
 }

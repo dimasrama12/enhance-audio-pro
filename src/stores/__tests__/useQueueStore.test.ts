@@ -12,6 +12,7 @@ const makeJob = (overrides: Partial<QueueJob> = {}): QueueJob => ({
   status: 'pending',
   progress: 0,
   error_message: null,
+  output_format: 'wav',
   created_at: '2026-05-20T00:00:00Z',
   updated_at: '2026-05-20T00:00:00Z',
   ...overrides,
@@ -75,5 +76,16 @@ describe('useQueueStore', () => {
     const job = useQueueStore.getState().jobs[0];
     expect(job.status).toBe('error');
     expect(job.error_message).toBe('Model not found');
+  });
+
+  it('setOutputFormat updates output_format for the matching job', () => {
+    const job: QueueJob = {
+      id: 'job-1', filename: 'a.mp3', filepath: '/a.mp3', destination: '',
+      size_bytes: 100, media_type: 'audio', status: 'pending', progress: 0,
+      error_message: null, output_format: 'wav', created_at: '', updated_at: '',
+    };
+    useQueueStore.getState().setJobs([job]);
+    useQueueStore.getState().setOutputFormat('job-1', 'mp3');
+    expect(useQueueStore.getState().jobs[0].output_format).toBe('mp3');
   });
 });

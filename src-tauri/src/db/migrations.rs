@@ -16,12 +16,15 @@ pub fn run_migrations(conn: &Connection) -> Result<()> {
             updated_at    TEXT    NOT NULL
         );",
     )?;
-    // Idempotent column additions for databases created before Phase 2
     let _ = conn.execute_batch(
         "ALTER TABLE queue_jobs ADD COLUMN progress INTEGER NOT NULL DEFAULT 0;",
     );
     let _ = conn.execute_batch(
         "ALTER TABLE queue_jobs ADD COLUMN error_message TEXT;",
+    );
+    // Phase 4: per-job output format selection
+    let _ = conn.execute_batch(
+        "ALTER TABLE queue_jobs ADD COLUMN output_format TEXT NOT NULL DEFAULT 'wav';",
     );
     Ok(())
 }
