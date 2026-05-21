@@ -1,7 +1,7 @@
 import { useState } from 'react';
-import { Play, Search, Trash2 } from 'lucide-react';
+import { Play, Scissors, Search, Trash2 } from 'lucide-react';
 import { useQueueStore } from '@/stores/useQueueStore';
-import { invokeProcessQueue } from '@/lib/ipc';
+import { invokeProcessQueue, invokeSeparateStems } from '@/lib/ipc';
 
 const FILTERS = [
   { value: 'all', label: 'All' }, { value: 'pending', label: 'Pending' },
@@ -12,17 +12,29 @@ const FILTERS = [
 export default function QueueToolbar(): JSX.Element {
   const { filter, searchQuery, setFilter, setSearchQuery, clearQueue, jobs } = useQueueStore();
   const [isProcessing, setIsProcessing] = useState(false);
+  const [isSeparating, setIsSeparating] = useState(false);
 
   const pendingIds = jobs.filter((j) => j.status === 'pending').map((j) => j.id);
-  const canProcess = pendingIds.length > 0 && !isProcessing;
+  const busy = isProcessing || isSeparating;
+  const canAct = pendingIds.length > 0 && !busy;
 
   async function handleProcess(): Promise<void> {
-    if (!canProcess) return;
+    if (!canAct) return;
     setIsProcessing(true);
     try {
       await invokeProcessQueue(pendingIds);
     } finally {
       setIsProcessing(false);
+    }
+  }
+
+  async function handleSeparate(): Promise<void> {
+    if (!canAct) return;
+    setIsSeparating(true);
+    try {
+      await invokeSeparateStems(pendingIds);
+    } finally {
+      setIsSeparating(false);
     }
   }
 
@@ -49,12 +61,21 @@ export default function QueueToolbar(): JSX.Element {
       </select>
       <button
         onClick={handleProcess}
-        disabled={!canProcess}
-        title="Process pending files"
+        disabled={!canAct}
+        title="Enhance speech for pending files"
         className="flex items-center gap-2 px-4 py-1.5 rounded-lg text-sm font-medium bg-violet-600 hover:bg-violet-500 disabled:opacity-40 disabled:cursor-not-allowed transition-colors text-white"
       >
         <Play size={14} />
-        {isProcessing ? 'Processing…' : 'Process'}
+        {isProcessing ? 'Enhancing…' : 'Enhance'}
+      </button>
+      <button
+        onClick={handleSeparate}
+        disabled={!canAct}
+        title="Separate stems for pending files"
+        className="flex items-center gap-2 px-4 py-1.5 rounded-lg text-sm font-medium bg-indigo-600 hover:bg-indigo-500 disabled:opacity-40 disabled:cursor-not-allowed transition-colors text-white"
+      >
+        <Scissors size={14} />
+        {isSeparating ? 'Separating…' : 'Separate Stems'}
       </button>
       <button
         onClick={clearQueue}

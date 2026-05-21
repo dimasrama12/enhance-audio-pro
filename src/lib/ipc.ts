@@ -26,3 +26,7 @@ export async function invokeProcessQueue(jobIds: string[]): Promise<IpcResponse<
 export async function invokeStartModelDownload(): Promise<IpcResponse<null>> {
   return invoke<IpcResponse<null>>('start_model_download');
 }
+
+export async function invokeSeparateStems(jobIds: string[]): Promise<IpcResponse<null>> {
+  return invoke<IpcResponse<null>>('separate_stems', { jobIds });
+}
