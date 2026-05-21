@@ -36,7 +36,7 @@ export default function DropZone(): JSX.Element {
       setError(res.error ?? 'Failed to add files.');
       setTimeout(() => setError(null), 3000);
     }
-    if (res.error) {
+    if (res.success && res.error) {
       setLimitWarning(res.error);
       setTimeout(() => setLimitWarning(null), 5000);
     }
