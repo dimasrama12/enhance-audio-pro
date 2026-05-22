@@ -1,10 +1,14 @@
 import { getCurrentWindow } from '@tauri-apps/api/window';
-import { Minus, Square, X } from 'lucide-react';
+import { Minus, Square, X, HelpCircle } from 'lucide-react';
 import { useSettingsStore } from '@/stores/useSettingsStore';
 import { invokeSaveSettings } from '@/lib/ipc';
 import type { AppSettings } from '@/types/settings';
 
-export default function TitleBar(): JSX.Element {
+interface Props {
+  onHelpOpen?: () => void;
+}
+
+export default function TitleBar({ onHelpOpen }: Props): JSX.Element {
   const store = useSettingsStore();
   const win = getCurrentWindow();
 
@@ -16,6 +20,7 @@ export default function TitleBar(): JSX.Element {
       outputFolder: store.outputFolder,
       language: store.language,
       setupComplete: store.setupComplete,
+      enhancementStrength: store.enhancementStrength,
     };
     await invokeSaveSettings(settings);
   };
@@ -35,6 +40,15 @@ export default function TitleBar(): JSX.Element {
         >
           {store.theme === 'dark' ? '☀' : '☾'}
         </button>
+        {onHelpOpen && (
+          <button
+            onClick={onHelpOpen}
+            title="User Guide"
+            className="p-1.5 rounded hover:bg-white/10 text-white/50 hover:text-white transition-colors"
+          >
+            <HelpCircle size={14} />
+          </button>
+        )}
         <button onClick={() => win.minimize()} className="p-1.5 rounded hover:bg-white/10 text-white/50 hover:text-white transition-colors">
           <Minus size={12} />
         </button>

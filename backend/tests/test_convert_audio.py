@@ -56,3 +56,22 @@ def test_supported_formats_includes_common_types():
     from processors.convert_audio import SUPPORTED_FORMATS
     for fmt in ["mp3", "wav", "flac", "aac", "ogg", "mp4"]:
         assert fmt in SUPPORTED_FORMATS
+
+
+def test_bitrate_passed_to_ffmpeg_when_specified(tmp_path):
+    with patch("subprocess.run", return_value=_ok()) as mock_run:
+        from processors.convert_audio import convert_file
+        out = str(tmp_path / "out.mp3")
+        convert_file("/audio/song.wav", out, lambda _: None, bitrate="192k")
+    cmd = mock_run.call_args[0][0]
+    assert "-b:a" in cmd
+    assert "192k" in cmd
+
+
+def test_no_bitrate_flag_when_bitrate_empty(tmp_path):
+    with patch("subprocess.run", return_value=_ok()) as mock_run:
+        from processors.convert_audio import convert_file
+        out = str(tmp_path / "out.wav")
+        convert_file("/audio/song.wav", out, lambda _: None, bitrate="")
+    cmd = mock_run.call_args[0][0]
+    assert "-b:a" not in cmd

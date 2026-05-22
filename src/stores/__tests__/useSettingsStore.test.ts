@@ -25,4 +25,13 @@ describe('useSettingsStore', () => {
     useSettingsStore.getState().setOutputFolder('D:\\Output');
     expect(useSettingsStore.getState().outputFolder).toBe('D:\\Output');
   });
+
+  it('has default enhancementStrength of 50', () => {
+    expect(useSettingsStore.getState().enhancementStrength).toBe(50);
+  });
+
+  it('setEnhancementStrength updates strength', () => {
+    useSettingsStore.getState().setEnhancementStrength(75);
+    expect(useSettingsStore.getState().enhancementStrength).toBe(75);
+  });
 });

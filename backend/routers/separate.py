@@ -68,7 +68,7 @@ async def _process_jobs(job_ids: List[str], callback_url: str) -> None:
             async with httpx.AsyncClient(timeout=5) as client:
                 await client.post(
                     f"{callback_url}/callback/status",
-                    json={"job_id": job_id, "status": "done"},
+                    json={"job_id": job_id, "status": "done", "output_filepath": str(out_dir)},
                 )
 
         except Exception as exc:

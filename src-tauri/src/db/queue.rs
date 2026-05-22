@@ -15,6 +15,8 @@ pub struct QueueJob {
     pub progress: i64,
     pub error_message: Option<String>,
     pub output_format: String,
+    pub bitrate: String,
+    pub output_filepath: Option<String>,
     pub created_at: String,
     pub updated_at: String,
 }
@@ -47,6 +49,8 @@ pub fn insert_job(
         progress: 0,
         error_message: None,
         output_format: "wav".to_string(),
+        bitrate: String::new(),
+        output_filepath: None,
         created_at: now.clone(),
         updated_at: now,
     })
@@ -55,7 +59,7 @@ pub fn insert_job(
 pub fn get_all_jobs(conn: &Connection) -> Result<Vec<QueueJob>> {
     let mut stmt = conn.prepare(
         "SELECT id, filename, filepath, destination, size_bytes, media_type, status,
-                progress, error_message, output_format, created_at, updated_at
+                progress, error_message, output_format, bitrate, output_filepath, created_at, updated_at
          FROM queue_jobs ORDER BY created_at ASC",
     )?;
 
@@ -73,8 +77,10 @@ pub fn get_all_jobs(conn: &Connection) -> Result<Vec<QueueJob>> {
                 error_message: row.get(8)?,
                 output_format: row.get::<_, Option<String>>(9)?
                     .unwrap_or_else(|| "wav".to_string()),
-                created_at: row.get(10)?,
-                updated_at: row.get(11)?,
+                bitrate: row.get::<_, Option<String>>(10)?.unwrap_or_default(),
+                output_filepath: row.get(11)?,
+                created_at: row.get(12)?,
+                updated_at: row.get(13)?,
             })
         })?
         .collect::<Result<Vec<_>>>()?;
@@ -85,7 +91,7 @@ pub fn get_all_jobs(conn: &Connection) -> Result<Vec<QueueJob>> {
 pub fn get_job_by_id(conn: &Connection, id: &str) -> Result<Option<QueueJob>> {
     let mut stmt = conn.prepare(
         "SELECT id, filename, filepath, destination, size_bytes, media_type, status,
-                progress, error_message, output_format, created_at, updated_at
+                progress, error_message, output_format, bitrate, output_filepath, created_at, updated_at
          FROM queue_jobs WHERE id = ?1",
     )?;
 
@@ -102,8 +108,10 @@ pub fn get_job_by_id(conn: &Connection, id: &str) -> Result<Option<QueueJob>> {
             error_message: row.get(8)?,
             output_format: row.get::<_, Option<String>>(9)?
                 .unwrap_or_else(|| "wav".to_string()),
-            created_at: row.get(10)?,
-            updated_at: row.get(11)?,
+            bitrate: row.get::<_, Option<String>>(10)?.unwrap_or_default(),
+            output_filepath: row.get(11)?,
+            created_at: row.get(12)?,
+            updated_at: row.get(13)?,
         })
     })?;
 
@@ -133,6 +141,24 @@ pub fn update_job_output_format(conn: &Connection, id: &str, format: &str) -> Re
     conn.execute(
         "UPDATE queue_jobs SET output_format = ?1, updated_at = ?2 WHERE id = ?3",
         params![format, now, id],
+    )?;
+    Ok(())
+}
+
+pub fn update_job_bitrate(conn: &Connection, id: &str, bitrate: &str) -> Result<()> {
+    let now = Utc::now().to_rfc3339();
+    conn.execute(
+        "UPDATE queue_jobs SET bitrate = ?1, updated_at = ?2 WHERE id = ?3",
+        params![bitrate, now, id],
+    )?;
+    Ok(())
+}
+
+pub fn update_job_output_filepath(conn: &Connection, id: &str, filepath: &str) -> Result<()> {
+    let now = Utc::now().to_rfc3339();
+    conn.execute(
+        "UPDATE queue_jobs SET output_filepath = ?1, updated_at = ?2 WHERE id = ?3",
+        params![filepath, now, id],
     )?;
     Ok(())
 }

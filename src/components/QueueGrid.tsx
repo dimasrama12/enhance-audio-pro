@@ -3,7 +3,7 @@ import { listen } from '@tauri-apps/api/event';
 import { motion, AnimatePresence } from 'framer-motion';
 import { clsx } from 'clsx';
 import { useQueueStore } from '@/stores/useQueueStore';
-import { invokeSetOutputFormat } from '@/lib/ipc';
+import { invokeSetOutputFormat, invokeSetBitrate } from '@/lib/ipc';
 import type { QueueJob, JobStatus } from '@/types/queue';
 
 const STATUS_COLORS: Record<JobStatus, string> = {
@@ -14,6 +14,7 @@ const STATUS_COLORS: Record<JobStatus, string> = {
 };
 
 const FORMAT_OPTIONS = ['wav', 'mp3', 'flac', 'aac', 'ogg', 'opus', 'm4a'];
+const BITRATE_OPTIONS = ['', '64k', '96k', '128k', '192k', '256k', '320k'];
 
 function formatBytes(n: number): string {
   if (n < 1024) return `${n} B`;
@@ -53,9 +54,32 @@ function FormatSelect({ job }: { job: QueueJob }): JSX.Element {
       className="bg-white/10 text-white text-xs rounded px-2 py-0.5 outline-none focus:ring-1 focus:ring-violet-500 disabled:opacity-40 transition"
     >
       {FORMAT_OPTIONS.map((f) => (
-        <option key={f} value={f} className="bg-neutral-800">
-          {f.toUpperCase()}
-        </option>
+        <option key={f} value={f} className="bg-neutral-800">{f.toUpperCase()}</option>
+      ))}
+    </select>
+  );
+}
+
+function BitrateSelect({ job }: { job: QueueJob }): JSX.Element {
+  const setBitrate = useQueueStore((s) => s.setBitrate);
+
+  async function handleChange(e: React.ChangeEvent<HTMLSelectElement>): Promise<void> {
+    e.stopPropagation();
+    const br = e.target.value;
+    setBitrate(job.id, br);
+    await invokeSetBitrate(job.id, br);
+  }
+
+  return (
+    <select
+      value={job.bitrate || ''}
+      onChange={handleChange}
+      onClick={(e) => e.stopPropagation()}
+      disabled={job.status !== 'pending'}
+      className="bg-white/10 text-white text-xs rounded px-2 py-0.5 outline-none focus:ring-1 focus:ring-violet-500 disabled:opacity-40 transition"
+    >
+      {BITRATE_OPTIONS.map((b) => (
+        <option key={b} value={b} className="bg-neutral-800">{b || 'Auto'}</option>
       ))}
     </select>
   );
@@ -65,7 +89,7 @@ function JobRow({ job, index, isSelected, onSelect }: {
   job: QueueJob;
   index: number;
   isSelected: boolean;
-  onSelect: () => void;
+  onSelect: (e: React.MouseEvent) => void;
 }): JSX.Element {
   return (
     <motion.tr
@@ -75,7 +99,7 @@ function JobRow({ job, index, isSelected, onSelect }: {
       transition={{ delay: index * 0.03 }}
       onClick={onSelect}
       className={clsx(
-        'border-b border-white/5 cursor-pointer transition-colors',
+        'border-b border-white/5 cursor-pointer transition-colors select-none',
         isSelected
           ? 'bg-violet-600/20 border-violet-500/30 hover:bg-violet-600/25'
           : 'hover:bg-white/5',
@@ -86,8 +110,11 @@ function JobRow({ job, index, isSelected, onSelect }: {
       <td className="px-4 py-2 text-xs text-white/50 truncate max-w-[130px]">{job.destination || '—'}</td>
       <td className="px-4 py-2 text-xs text-white/50 w-20">{formatBytes(job.size_bytes)}</td>
       <td className="px-4 py-2 text-xs uppercase text-white/40 w-16">{job.media_type}</td>
-      <td className="px-4 py-2 w-28">
+      <td className="px-4 py-2 w-24">
         <FormatSelect job={job} />
+      </td>
+      <td className="px-4 py-2 w-24">
+        <BitrateSelect job={job} />
       </td>
       <td className={clsx('px-4 py-2 text-xs font-medium capitalize w-36', STATUS_COLORS[job.status])}>
         <span title={job.status === 'error' ? (job.error_message ?? undefined) : undefined}>
@@ -99,30 +126,103 @@ function JobRow({ job, index, isSelected, onSelect }: {
   );
 }
 
+function JobCard({ job, isSelected, onSelect }: {
+  job: QueueJob;
+  isSelected: boolean;
+  onSelect: (e: React.MouseEvent) => void;
+}): JSX.Element {
+  return (
+    <motion.div
+      initial={{ opacity: 0, scale: 0.97 }}
+      animate={{ opacity: 1, scale: 1 }}
+      exit={{ opacity: 0, scale: 0.97 }}
+      onClick={onSelect}
+      className={clsx(
+        'rounded-xl p-3 border cursor-pointer transition-colors select-none',
+        isSelected
+          ? 'bg-violet-600/20 border-violet-500/40'
+          : 'bg-white/5 border-white/10 hover:bg-white/8',
+      )}
+    >
+      <div className="flex items-start justify-between gap-2 mb-2">
+        <span className="text-sm text-white font-medium truncate">{job.filename}</span>
+        <span className={clsx('text-xs font-medium capitalize shrink-0', STATUS_COLORS[job.status])}>
+          {job.status}
+        </span>
+      </div>
+      <div className="flex items-center gap-3 text-xs text-white/40">
+        <span>{formatBytes(job.size_bytes)}</span>
+        <span className="uppercase">{job.media_type}</span>
+        <span className="uppercase">{job.output_format}</span>
+        {job.bitrate && <span>{job.bitrate}</span>}
+      </div>
+      {job.status === 'processing' && <ProgressBar percent={job.progress} />}
+    </motion.div>
+  );
+}
+
 export default function QueueGrid(): JSX.Element {
   const jobs = useQueueStore((s) => s.filteredJobs());
   const setProgress = useQueueStore((s) => s.setProgress);
   const setStatus = useQueueStore((s) => s.setStatus);
-  const selectedJobId = useQueueStore((s) => s.selectedJobId);
-  const setSelectedJob = useQueueStore((s) => s.setSelectedJob);
+  const setOutputFilepath = useQueueStore((s) => s.setOutputFilepath);
+  const selectedJobIds = useQueueStore((s) => s.selectedJobIds);
+  const { setSelectedJob, toggleSelectJob, rangeSelectJobs } = useQueueStore();
+  const viewMode = useQueueStore((s) => s.viewMode);
 
   useEffect(() => {
     const unlistenProgress = listen<{ jobId: string; percent: number }>(
       'queue://progress',
-      (event) => setProgress(event.payload.jobId, event.payload.percent)
+      (e) => setProgress(e.payload.jobId, e.payload.percent)
     );
-    const unlistenStatus = listen<{ jobId: string; status: string; error_message?: string }>(
+    const unlistenStatus = listen<{ jobId: string; status: string; error_message?: string; outputFilepath?: string }>(
       'queue://status-change',
-      (event) => {
-        const { jobId, status, error_message } = event.payload;
+      (e) => {
+        const { jobId, status, error_message, outputFilepath } = e.payload;
         setStatus(jobId, status as JobStatus, error_message);
+        if (outputFilepath) setOutputFilepath(jobId, outputFilepath);
       }
     );
     return () => {
       unlistenProgress.then((fn) => fn());
       unlistenStatus.then((fn) => fn());
     };
-  }, [setProgress, setStatus]);
+  }, [setProgress, setStatus, setOutputFilepath]);
+
+  function handleRowClick(e: React.MouseEvent, jobId: string): void {
+    if (e.shiftKey) {
+      rangeSelectJobs(jobId);
+    } else if (e.ctrlKey || e.metaKey) {
+      toggleSelectJob(jobId);
+    } else {
+      setSelectedJob(selectedJobIds.length === 1 && selectedJobIds[0] === jobId ? null : jobId);
+    }
+  }
+
+  if (viewMode === 'grid') {
+    return (
+      <div className="flex-1 overflow-auto">
+        {jobs.length === 0 ? (
+          <div className="flex items-center justify-center h-32 text-white/30 text-sm">
+            No files in queue. Drop audio or video files above to get started.
+          </div>
+        ) : (
+          <div className="grid grid-cols-2 gap-2 p-1">
+            <AnimatePresence>
+              {jobs.map((job) => (
+                <JobCard
+                  key={job.id}
+                  job={job}
+                  isSelected={selectedJobIds.includes(job.id)}
+                  onSelect={(e) => handleRowClick(e, job.id)}
+                />
+              ))}
+            </AnimatePresence>
+          </div>
+        )}
+      </div>
+    );
+  }
 
   return (
     <div className="flex-1 overflow-auto rounded-xl bg-white/5">
@@ -134,7 +234,8 @@ export default function QueueGrid(): JSX.Element {
             <th className="px-4 py-2">Destination</th>
             <th className="px-4 py-2 w-20">Size</th>
             <th className="px-4 py-2 w-16">Type</th>
-            <th className="px-4 py-2 w-28">Output</th>
+            <th className="px-4 py-2 w-24">Format</th>
+            <th className="px-4 py-2 w-24">Bitrate</th>
             <th className="px-4 py-2 w-36">Status</th>
           </tr>
         </thead>
@@ -142,7 +243,7 @@ export default function QueueGrid(): JSX.Element {
           <AnimatePresence>
             {jobs.length === 0 ? (
               <tr>
-                <td colSpan={7} className="px-4 py-16 text-center text-white/30 text-sm">
+                <td colSpan={8} className="px-4 py-16 text-center text-white/30 text-sm">
                   No files in queue. Drop audio or video files above to get started.
                 </td>
               </tr>
@@ -152,8 +253,8 @@ export default function QueueGrid(): JSX.Element {
                   key={job.id}
                   job={job}
                   index={i}
-                  isSelected={selectedJobId === job.id}
-                  onSelect={() => setSelectedJob(selectedJobId === job.id ? null : job.id)}
+                  isSelected={selectedJobIds.includes(job.id)}
+                  onSelect={(e) => handleRowClick(e, job.id)}
                 />
               ))
             )}

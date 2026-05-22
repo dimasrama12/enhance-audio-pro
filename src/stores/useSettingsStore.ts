@@ -8,6 +8,7 @@ interface SettingsState extends AppSettings {
   setTheme: (theme: AppSettings['theme']) => void;
   setOutputFolder: (folder: string) => void;
   setLanguage: (language: string) => void;
+  setEnhancementStrength: (v: number) => void;
   markSetupComplete: () => void;
   setInitialized: (v: boolean) => void;
 }
@@ -19,6 +20,7 @@ export const useSettingsStore = create<SettingsState>((set) => ({
   setTheme: (theme) => set({ theme }),
   setOutputFolder: (outputFolder) => set({ outputFolder }),
   setLanguage: (language) => set({ language }),
+  setEnhancementStrength: (enhancementStrength) => set({ enhancementStrength }),
   markSetupComplete: () => set({ setupComplete: true }),
   setInitialized: (initialized) => set({ initialized }),
 }));

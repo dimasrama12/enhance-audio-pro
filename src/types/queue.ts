@@ -12,6 +12,8 @@ export interface QueueJob {
   progress: number;
   error_message: string | null;
   output_format: string;
+  bitrate: string;
+  output_filepath: string | null;
   created_at: string;
   updated_at: string;
 }

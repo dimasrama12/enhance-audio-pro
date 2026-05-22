@@ -26,5 +26,12 @@ pub fn run_migrations(conn: &Connection) -> Result<()> {
     let _ = conn.execute_batch(
         "ALTER TABLE queue_jobs ADD COLUMN output_format TEXT NOT NULL DEFAULT 'wav';",
     );
+    // Phase 6: per-job bitrate and output filepath tracking
+    let _ = conn.execute_batch(
+        "ALTER TABLE queue_jobs ADD COLUMN bitrate TEXT NOT NULL DEFAULT '';",
+    );
+    let _ = conn.execute_batch(
+        "ALTER TABLE queue_jobs ADD COLUMN output_filepath TEXT;",
+    );
     Ok(())
 }

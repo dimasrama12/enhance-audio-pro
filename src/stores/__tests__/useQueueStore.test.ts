@@ -13,6 +13,8 @@ const makeJob = (overrides: Partial<QueueJob> = {}): QueueJob => ({
   progress: 0,
   error_message: null,
   output_format: 'wav',
+  bitrate: '',
+  output_filepath: null,
   created_at: '2026-05-20T00:00:00Z',
   updated_at: '2026-05-20T00:00:00Z',
   ...overrides,
@@ -20,7 +22,9 @@ const makeJob = (overrides: Partial<QueueJob> = {}): QueueJob => ({
 
 describe('useQueueStore', () => {
   beforeEach(() => {
-    useQueueStore.setState({ jobs: [], filter: 'all', searchQuery: '' });
+    useQueueStore.setState({
+      jobs: [], filter: 'all', searchQuery: '', selectedJobIds: [], viewMode: 'table',
+    });
   });
 
   it('adds jobs', () => {
@@ -79,13 +83,74 @@ describe('useQueueStore', () => {
   });
 
   it('setOutputFormat updates output_format for the matching job', () => {
-    const job: QueueJob = {
-      id: 'job-1', filename: 'a.mp3', filepath: '/a.mp3', destination: '',
-      size_bytes: 100, media_type: 'audio', status: 'pending', progress: 0,
-      error_message: null, output_format: 'wav', created_at: '', updated_at: '',
-    };
-    useQueueStore.getState().setJobs([job]);
+    useQueueStore.getState().setJobs([makeJob({ id: 'job-1', output_format: 'wav' })]);
     useQueueStore.getState().setOutputFormat('job-1', 'mp3');
     expect(useQueueStore.getState().jobs[0].output_format).toBe('mp3');
+  });
+
+  it('setBitrate updates bitrate for the matching job', () => {
+    useQueueStore.getState().setJobs([makeJob({ id: 'job-1', bitrate: '' })]);
+    useQueueStore.getState().setBitrate('job-1', '192k');
+    expect(useQueueStore.getState().jobs[0].bitrate).toBe('192k');
+  });
+
+  it('setOutputFilepath updates output_filepath for the matching job', () => {
+    useQueueStore.getState().setJobs([makeJob({ id: 'job-1' })]);
+    useQueueStore.getState().setOutputFilepath('job-1', '/tmp/out.wav');
+    expect(useQueueStore.getState().jobs[0].output_filepath).toBe('/tmp/out.wav');
+  });
+
+  it('setSelectedJob sets exclusive selection', () => {
+    useQueueStore.getState().setSelectedJob('abc');
+    expect(useQueueStore.getState().selectedJobIds).toEqual(['abc']);
+    useQueueStore.getState().setSelectedJob(null);
+    expect(useQueueStore.getState().selectedJobIds).toEqual([]);
+  });
+
+  it('toggleSelectJob adds and removes individual ids', () => {
+    useQueueStore.getState().toggleSelectJob('a');
+    expect(useQueueStore.getState().selectedJobIds).toContain('a');
+    useQueueStore.getState().toggleSelectJob('a');
+    expect(useQueueStore.getState().selectedJobIds).not.toContain('a');
+  });
+
+  it('selectAllJobs selects every job id', () => {
+    useQueueStore.setState({ jobs: [makeJob({ id: '1' }), makeJob({ id: '2' }), makeJob({ id: '3' })] });
+    useQueueStore.getState().selectAllJobs();
+    expect(useQueueStore.getState().selectedJobIds).toHaveLength(3);
+  });
+
+  it('clearSelection empties selectedJobIds', () => {
+    useQueueStore.setState({ selectedJobIds: ['a', 'b'] });
+    useQueueStore.getState().clearSelection();
+    expect(useQueueStore.getState().selectedJobIds).toHaveLength(0);
+  });
+
+  it('primarySelectedId returns first selected id or null', () => {
+    useQueueStore.setState({ selectedJobIds: ['x', 'y'] });
+    expect(useQueueStore.getState().primarySelectedId()).toBe('x');
+    useQueueStore.setState({ selectedJobIds: [] });
+    expect(useQueueStore.getState().primarySelectedId()).toBeNull();
+  });
+
+  it('rangeSelectJobs selects a contiguous range', () => {
+    useQueueStore.setState({
+      jobs: [
+        makeJob({ id: 'a' }), makeJob({ id: 'b' }),
+        makeJob({ id: 'c' }), makeJob({ id: 'd' }),
+      ],
+      selectedJobIds: ['a'],
+    });
+    useQueueStore.getState().rangeSelectJobs('c');
+    const ids = useQueueStore.getState().selectedJobIds;
+    expect(ids).toContain('a');
+    expect(ids).toContain('b');
+    expect(ids).toContain('c');
+  });
+
+  it('setViewMode toggles between table and grid', () => {
+    expect(useQueueStore.getState().viewMode).toBe('table');
+    useQueueStore.getState().setViewMode('grid');
+    expect(useQueueStore.getState().viewMode).toBe('grid');
   });
 });

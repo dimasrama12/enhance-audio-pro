@@ -58,3 +58,36 @@ def test_model_is_loaded_lazily_not_at_import():
     import processors.enhance_speech  # noqa: F401 — intentional bare import
 
     init_df_mock.assert_not_called()
+
+
+def test_strength_defaults_to_full():
+    """strength=1.0 maps to atten_lim_db=40.0."""
+    from processors.enhance_speech import enhance_file
+
+    enhance_file("/tmp/in.wav", "/tmp/out.wav", lambda _: None, strength=1.0)
+
+    enhance_mock = sys.modules["df.enhance"].enhance
+    _, kwargs = enhance_mock.call_args
+    assert abs(kwargs.get("atten_lim_db", 0) - 40.0) < 0.01
+
+
+def test_strength_zero_maps_to_zero_atten():
+    """strength=0.0 results in atten_lim_db=0 (pass-through)."""
+    from processors.enhance_speech import enhance_file
+
+    enhance_file("/tmp/in.wav", "/tmp/out.wav", lambda _: None, strength=0.0)
+
+    enhance_mock = sys.modules["df.enhance"].enhance
+    _, kwargs = enhance_mock.call_args
+    assert abs(kwargs.get("atten_lim_db", 999) - 0.0) < 0.01
+
+
+def test_strength_half_maps_to_twenty_db():
+    """strength=0.5 results in atten_lim_db=20.0."""
+    from processors.enhance_speech import enhance_file
+
+    enhance_file("/tmp/in.wav", "/tmp/out.wav", lambda _: None, strength=0.5)
+
+    enhance_mock = sys.modules["df.enhance"].enhance
+    _, kwargs = enhance_mock.call_args
+    assert abs(kwargs.get("atten_lim_db", 0) - 20.0) < 0.01

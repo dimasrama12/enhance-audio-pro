@@ -2,26 +2,28 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { X } from 'lucide-react';
 import { useSettingsStore } from '@/stores/useSettingsStore';
 import { invokeSaveSettings } from '@/lib/ipc';
+import { SUPPORTED_LANGUAGES } from '@/i18n';
+import { useTranslation } from 'react-i18next';
+import i18n from '@/i18n';
 import type { AppSettings } from '@/types/settings';
 
 interface Props { open: boolean; onClose: () => void; }
 
-const LANGUAGES = [
-  { code: 'en', label: 'English' }, { code: 'id', label: 'Indonesian' },
-  { code: 'zh', label: 'Chinese' }, { code: 'es', label: 'Spanish' },
-  { code: 'de', label: 'German' },  { code: 'fr', label: 'French' },
-  { code: 'ja', label: 'Japanese' },
-];
-
 export default function SettingsPanel({ open, onClose }: Props): JSX.Element {
   const store = useSettingsStore();
+  const { t } = useTranslation();
 
   const save = async (patch: Partial<AppSettings>): Promise<void> => {
     const next: AppSettings = {
-      theme: store.theme, outputFolder: store.outputFolder,
-      language: store.language, setupComplete: store.setupComplete, ...patch,
+      theme: store.theme,
+      outputFolder: store.outputFolder,
+      language: store.language,
+      setupComplete: store.setupComplete,
+      enhancementStrength: store.enhancementStrength,
+      ...patch,
     };
     store.setSettings(next);
+    if (patch.language) i18n.changeLanguage(patch.language);
     await invokeSaveSettings(next);
   };
 
@@ -40,41 +42,64 @@ export default function SettingsPanel({ open, onClose }: Props): JSX.Element {
             className="fixed right-0 top-0 bottom-0 w-80 bg-neutral-900 border-l border-white/10 z-50 flex flex-col"
           >
             <div className="flex items-center justify-between p-4 border-b border-white/10">
-              <h2 className="font-semibold">Settings</h2>
+              <h2 className="font-semibold">{t('settings.title')}</h2>
               <button onClick={onClose} className="text-white/40 hover:text-white transition-colors"><X size={18} /></button>
             </div>
             <div className="flex-1 overflow-y-auto p-4 flex flex-col gap-6">
               <section>
-                <h3 className="text-xs font-semibold uppercase text-white/40 mb-3">Appearance</h3>
+                <h3 className="text-xs font-semibold uppercase text-white/40 mb-3">{t('settings.appearance')}</h3>
                 <div className="flex items-center justify-between">
-                  <span className="text-sm">Theme</span>
+                  <span className="text-sm">{t('settings.theme')}</span>
                   <div className="flex rounded-lg overflow-hidden border border-white/20">
-                    {(['dark', 'light'] as const).map((t) => (
+                    {(['dark', 'light'] as const).map((th) => (
                       <button
-                        key={t}
-                        onClick={() => save({ theme: t })}
-                        className={`px-3 py-1 text-xs capitalize transition-colors ${store.theme === t ? 'bg-violet-600 text-white' : 'text-white/50 hover:text-white'}`}
-                      >{t}</button>
+                        key={th}
+                        onClick={() => save({ theme: th })}
+                        className={`px-3 py-1 text-xs capitalize transition-colors ${store.theme === th ? 'bg-violet-600 text-white' : 'text-white/50 hover:text-white'}`}
+                      >{t(`settings.${th}`)}</button>
                     ))}
                   </div>
                 </div>
               </section>
               <section>
-                <h3 className="text-xs font-semibold uppercase text-white/40 mb-3">Output</h3>
-                <label className="text-sm block mb-2">Default Output Folder</label>
+                <h3 className="text-xs font-semibold uppercase text-white/40 mb-3">{t('settings.enhancement')}</h3>
+                <label className="text-sm block mb-2">{t('settings.strengthLabel')}</label>
+                <div className="flex items-center gap-3">
+                  <input
+                    type="range"
+                    min={0}
+                    max={100}
+                    step={1}
+                    value={store.enhancementStrength}
+                    onChange={(e) => {
+                      const v = Number(e.target.value);
+                      store.setEnhancementStrength(v);
+                      save({ enhancementStrength: v });
+                    }}
+                    className="flex-1 accent-violet-500"
+                  />
+                  <span className="text-sm text-white/60 w-8 text-right tabular-nums">
+                    {store.enhancementStrength}
+                  </span>
+                </div>
+                <p className="text-[10px] text-white/30 mt-1">{t('settings.strengthHint')}</p>
+              </section>
+              <section>
+                <h3 className="text-xs font-semibold uppercase text-white/40 mb-3">{t('settings.output')}</h3>
+                <label className="text-sm block mb-2">{t('settings.outputFolder')}</label>
                 <input
-                  type="text" readOnly value={store.outputFolder || 'Not set'}
+                  type="text" readOnly value={store.outputFolder || t('settings.notSet')}
                   className="w-full px-3 py-1.5 bg-white/10 rounded-lg text-sm text-white/60 outline-none"
                 />
               </section>
               <section>
-                <h3 className="text-xs font-semibold uppercase text-white/40 mb-3">Language</h3>
+                <h3 className="text-xs font-semibold uppercase text-white/40 mb-3">{t('settings.language')}</h3>
                 <select
                   value={store.language}
                   onChange={(e) => save({ language: e.target.value })}
                   className="w-full bg-white/10 text-white text-sm rounded-lg px-3 py-2 outline-none"
                 >
-                  {LANGUAGES.map((l) => (
+                  {SUPPORTED_LANGUAGES.map((l) => (
                     <option key={l.code} value={l.code} className="bg-neutral-800">{l.label}</option>
                   ))}
                 </select>

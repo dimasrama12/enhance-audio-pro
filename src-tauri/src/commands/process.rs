@@ -10,6 +10,7 @@ pub fn process_queue(
     state: State<'_, AppState>,
     app_handle: AppHandle,
     job_ids: Vec<String>,
+    enhancement_strength: Option<f64>,
 ) -> IpcResponse<()> {
     if job_ids.is_empty() {
         return IpcResponse {
@@ -50,10 +51,14 @@ pub fn process_queue(
         );
     }
 
+    // Normalize strength: frontend sends 0-100, Python expects 0.0-1.0
+    let strength = enhancement_strength.unwrap_or(50.0).clamp(0.0, 100.0) / 100.0;
+
     // Fire-and-forget to Python — Python processes jobs serially and calls back
     let payload = json!({
         "job_ids": updated_ids,
         "callback_url": format!("http://127.0.0.1:{}", callback_port),
+        "strength": strength,
     });
 
     tauri::async_runtime::spawn(async move {

@@ -51,6 +51,22 @@ pub fn convert_files(
 }
 
 #[tauri::command]
+pub fn set_bitrate(
+    state: State<'_, AppState>,
+    job_id: String,
+    bitrate: String,
+) -> IpcResponse<()> {
+    let conn = match state.db.lock() {
+        Ok(c) => c,
+        Err(e) => return IpcResponse { success: false, data: None, error: Some(e.to_string()) },
+    };
+    match db_queue::update_job_bitrate(&conn, &job_id, &bitrate) {
+        Ok(()) => IpcResponse { success: true, data: Some(()), error: None },
+        Err(e) => IpcResponse { success: false, data: None, error: Some(e.to_string()) },
+    }
+}
+
+#[tauri::command]
 pub fn set_output_format(
     state: State<'_, AppState>,
     job_id: String,

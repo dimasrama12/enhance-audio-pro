@@ -3,6 +3,7 @@ export interface AppSettings {
   outputFolder: string;
   language: string;
   setupComplete: boolean;
+  enhancementStrength: number;
 }
 
 export const DEFAULT_SETTINGS: AppSettings = {
@@ -10,4 +11,5 @@ export const DEFAULT_SETTINGS: AppSettings = {
   outputFolder: '',
   language: 'en',
   setupComplete: false,
+  enhancementStrength: 50,
 };

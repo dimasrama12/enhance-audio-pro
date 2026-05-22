@@ -35,7 +35,7 @@ async def _process_jobs(job_ids: List[str], callback_url: str) -> None:
         try:
             conn = sqlite3.connect(str(db_path))
             row = conn.execute(
-                "SELECT filepath, destination, filename, output_format FROM queue_jobs WHERE id = ?",
+                "SELECT filepath, destination, filename, output_format, bitrate FROM queue_jobs WHERE id = ?",
                 (job_id,),
             ).fetchone()
             conn.close()
@@ -43,30 +43,32 @@ async def _process_jobs(job_ids: List[str], callback_url: str) -> None:
             if row is None:
                 continue
 
-            filepath, destination, filename, output_format = row
+            filepath, destination, filename, output_format, bitrate = row
             output_format = output_format or "wav"
+            bitrate = bitrate or ""
             stem = pathlib.Path(filename).stem
             out_dir = pathlib.Path(destination) if destination else pathlib.Path(filepath).parent
             out_dir.mkdir(parents=True, exist_ok=True)
             out_path = out_dir / f"{stem}_converted.{output_format}"
 
-            def _sync_convert(src: str, dst: str, jid: str) -> None:
+            def _sync_convert(src: str, dst: str, jid: str, br: str) -> None:
                 def _cb(pct: int) -> None:
                     httpx.post(
                         f"{callback_url}/callback/progress",
                         json={"job_id": jid, "percent": pct},
                         timeout=5,
                     )
-                convert_file(src, dst, _cb)
+                convert_file(src, dst, _cb, bitrate=br)
 
             await loop.run_in_executor(
-                None, lambda fp=filepath, op=str(out_path), jid=job_id: _sync_convert(fp, op, jid)
+                None,
+                lambda fp=filepath, op=str(out_path), jid=job_id, br=bitrate: _sync_convert(fp, op, jid, br),
             )
 
             async with httpx.AsyncClient(timeout=5) as client:
                 await client.post(
                     f"{callback_url}/callback/status",
-                    json={"job_id": job_id, "status": "done"},
+                    json={"job_id": job_id, "status": "done", "output_filepath": str(out_path)},
                 )
 
         except Exception as exc:

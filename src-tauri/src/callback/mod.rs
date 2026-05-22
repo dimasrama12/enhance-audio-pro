@@ -25,6 +25,7 @@ pub struct StatusPayload {
     pub job_id: String,
     pub status: String,
     pub error_message: Option<String>,
+    pub output_filepath: Option<String>,
 }
 
 #[derive(Deserialize)]
@@ -58,11 +59,18 @@ async fn handle_status(State(s): State<CallbackState>, Json(p): Json<StatusPaylo
             let _ = db_queue::update_job_error(&conn, &p.job_id, msg);
         } else {
             let _ = db_queue::update_job_status(&conn, &p.job_id, &p.status);
+            if let Some(ref fp) = p.output_filepath {
+                let _ = db_queue::update_job_output_filepath(&conn, &p.job_id, fp);
+            }
         }
     }
     let _ = s.app.emit(
         "queue://status-change",
-        json!({ "jobId": p.job_id, "status": p.status }),
+        json!({
+            "jobId": p.job_id,
+            "status": p.status,
+            "outputFilepath": p.output_filepath,
+        }),
     );
 }
 

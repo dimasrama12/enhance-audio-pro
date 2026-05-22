@@ -1,21 +1,23 @@
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Scissors, Gauge, Music, Volume2, Waves, GitMerge, Repeat, SlidersHorizontal, X } from 'lucide-react';
+import { Scissors, Gauge, Music, Volume2, Waves, GitMerge, Repeat, SlidersHorizontal, X, Activity } from 'lucide-react';
 import { useQueueStore } from '@/stores/useQueueStore';
 import { invokeManipulateAudio, invokeMergeAudio, invokeLoopAudio, invokeApplyEQ } from '@/lib/ipc';
 import EQPanel from '@/components/EQPanel';
+import WaveformPlayer from '@/components/WaveformPlayer';
 
-type Tab = 'trim' | 'speed' | 'pitch' | 'volume' | 'fade' | 'merge' | 'loop' | 'eq';
+type Tab = 'trim' | 'speed' | 'pitch' | 'volume' | 'fade' | 'merge' | 'loop' | 'eq' | 'waveform';
 
 const TABS: { id: Tab; label: string; icon: React.ReactNode }[] = [
-  { id: 'trim',   label: 'Trim',   icon: <Scissors size={12} /> },
-  { id: 'speed',  label: 'Speed',  icon: <Gauge size={12} /> },
-  { id: 'pitch',  label: 'Pitch',  icon: <Music size={12} /> },
-  { id: 'volume', label: 'Volume', icon: <Volume2 size={12} /> },
-  { id: 'fade',   label: 'Fade',   icon: <Waves size={12} /> },
-  { id: 'merge',  label: 'Merge',  icon: <GitMerge size={12} /> },
-  { id: 'loop',   label: 'Loop',   icon: <Repeat size={12} /> },
-  { id: 'eq',     label: 'EQ',     icon: <SlidersHorizontal size={12} /> },
+  { id: 'trim',     label: 'Trim',     icon: <Scissors size={12} /> },
+  { id: 'speed',    label: 'Speed',    icon: <Gauge size={12} /> },
+  { id: 'pitch',    label: 'Pitch',    icon: <Music size={12} /> },
+  { id: 'volume',   label: 'Volume',   icon: <Volume2 size={12} /> },
+  { id: 'fade',     label: 'Fade',     icon: <Waves size={12} /> },
+  { id: 'merge',    label: 'Merge',    icon: <GitMerge size={12} /> },
+  { id: 'loop',     label: 'Loop',     icon: <Repeat size={12} /> },
+  { id: 'eq',       label: 'EQ',       icon: <SlidersHorizontal size={12} /> },
+  { id: 'waveform', label: 'Waveform', icon: <Activity size={12} /> },
 ];
 
 function NumInput({
@@ -56,7 +58,7 @@ function ApplyButton({ onClick, label = 'Apply' }: { onClick: () => void; label?
 
 export default function ManipulationPanel(): JSX.Element {
   const jobs = useQueueStore((s) => s.jobs);
-  const selectedJobId = useQueueStore((s) => s.selectedJobId);
+  const selectedJobId = useQueueStore((s) => s.primarySelectedId());
   const setSelectedJob = useQueueStore((s) => s.setSelectedJob);
 
   const [tab, setTab] = useState<Tab>('trim');
@@ -249,6 +251,15 @@ export default function ManipulationPanel(): JSX.Element {
                   <div className="flex justify-end">
                     <ApplyButton onClick={applyEQ} label="Apply EQ" />
                   </div>
+                </div>
+              )}
+              {tab === 'waveform' && selectedJob && (
+                <div className="w-full">
+                  <WaveformPlayer
+                    filepath={selectedJob.filepath}
+                    outputFilepath={selectedJob.output_filepath ?? null}
+                    filename={selectedJob.filename}
+                  />
                 </div>
               )}
             </div>

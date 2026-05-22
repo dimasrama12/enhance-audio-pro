@@ -1,12 +1,14 @@
 import { useState } from 'react';
-import { Play, Scissors, Search, Trash2, RefreshCw } from 'lucide-react';
+import { Play, Scissors, Search, Trash2, RefreshCw, LayoutList, LayoutGrid } from 'lucide-react';
 import { useQueueStore } from '@/stores/useQueueStore';
+import { useSettingsStore } from '@/stores/useSettingsStore';
 import {
   invokeProcessQueue,
   invokeSeparateStems,
   invokeConvertFiles,
   invokeSetOutputFormat,
 } from '@/lib/ipc';
+import type { ViewMode } from '@/stores/useQueueStore';
 
 const FILTERS = [
   { value: 'all', label: 'All' }, { value: 'pending', label: 'Pending' },
@@ -17,8 +19,10 @@ const FILTERS = [
 const FORMAT_OPTIONS = ['wav', 'mp3', 'flac', 'aac', 'ogg', 'opus', 'm4a'];
 
 export default function QueueToolbar(): JSX.Element {
-  const { filter, searchQuery, setFilter, setSearchQuery, clearQueue, jobs, setOutputFormat } =
+  const { filter, searchQuery, setFilter, setSearchQuery, clearQueue, jobs, setOutputFormat, viewMode, setViewMode } =
     useQueueStore();
+  const enhancementStrength = useSettingsStore((s) => s.enhancementStrength);
+
   const [isProcessing, setIsProcessing] = useState(false);
   const [isSeparating, setIsSeparating] = useState(false);
   const [isConverting, setIsConverting] = useState(false);
@@ -31,7 +35,7 @@ export default function QueueToolbar(): JSX.Element {
   async function handleProcess(): Promise<void> {
     if (!canAct) return;
     setIsProcessing(true);
-    try { await invokeProcessQueue(pendingIds); } finally { setIsProcessing(false); }
+    try { await invokeProcessQueue(pendingIds, enhancementStrength); } finally { setIsProcessing(false); }
   }
 
   async function handleSeparate(): Promise<void> {
@@ -54,6 +58,11 @@ export default function QueueToolbar(): JSX.Element {
         return invokeSetOutputFormat(j.id, globalFormat);
       })
     );
+  }
+
+  function toggleView(): void {
+    const next: ViewMode = viewMode === 'table' ? 'grid' : 'table';
+    setViewMode(next);
   }
 
   return (
@@ -100,7 +109,7 @@ export default function QueueToolbar(): JSX.Element {
       <button
         onClick={handleProcess}
         disabled={!canAct}
-        title="Enhance speech for pending files"
+        title="Enhance speech [E]"
         className="flex items-center gap-2 px-4 py-1.5 rounded-lg text-sm font-medium bg-violet-600 hover:bg-violet-500 disabled:opacity-40 disabled:cursor-not-allowed transition-colors text-white"
       >
         <Play size={14} />
@@ -109,7 +118,7 @@ export default function QueueToolbar(): JSX.Element {
       <button
         onClick={handleSeparate}
         disabled={!canAct}
-        title="Separate stems for pending files"
+        title="Separate stems [S]"
         className="flex items-center gap-2 px-4 py-1.5 rounded-lg text-sm font-medium bg-indigo-600 hover:bg-indigo-500 disabled:opacity-40 disabled:cursor-not-allowed transition-colors text-white"
       >
         <Scissors size={14} />
@@ -118,11 +127,18 @@ export default function QueueToolbar(): JSX.Element {
       <button
         onClick={handleConvert}
         disabled={!canAct}
-        title="Convert pending files to selected output format"
+        title="Convert format [C]"
         className="flex items-center gap-2 px-4 py-1.5 rounded-lg text-sm font-medium bg-teal-600 hover:bg-teal-500 disabled:opacity-40 disabled:cursor-not-allowed transition-colors text-white"
       >
         <RefreshCw size={14} />
         {isConverting ? 'Converting…' : 'Convert'}
+      </button>
+      <button
+        onClick={toggleView}
+        title={viewMode === 'table' ? 'Switch to grid view' : 'Switch to table view'}
+        className="p-2 rounded-lg text-white/50 hover:text-white hover:bg-white/10 transition-colors"
+      >
+        {viewMode === 'table' ? <LayoutGrid size={16} /> : <LayoutList size={16} />}
       </button>
       <button
         onClick={clearQueue}

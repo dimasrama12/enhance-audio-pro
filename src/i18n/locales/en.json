@@ -1,0 +1,91 @@
+{
+  "app": {
+    "title": "Enhance Audio Pro"
+  },
+  "toolbar": {
+    "search": "Search files...",
+    "filter": "Filter",
+    "enhance": "Enhance",
+    "enhancing": "Enhancing...",
+    "separate": "Separate Stems",
+    "separating": "Separating...",
+    "convert": "Convert",
+    "converting": "Converting...",
+    "clearQueue": "Clear queue",
+    "applyFormat": "Apply format to all pending files",
+    "viewTable": "Table view",
+    "viewGrid": "Grid view"
+  },
+  "queue": {
+    "empty": "No files in queue. Drop audio or video files above to get started.",
+    "col": {
+      "index": "#",
+      "filename": "Filename",
+      "destination": "Destination",
+      "size": "Size",
+      "type": "Type",
+      "output": "Output",
+      "bitrate": "Bitrate",
+      "status": "Status"
+    }
+  },
+  "status": {
+    "pending": "Pending",
+    "processing": "Processing",
+    "done": "Done",
+    "error": "Error"
+  },
+  "settings": {
+    "title": "Settings",
+    "appearance": "Appearance",
+    "theme": "Theme",
+    "dark": "Dark",
+    "light": "Light",
+    "output": "Output",
+    "outputFolder": "Default Output Folder",
+    "notSet": "Not set",
+    "language": "Language",
+    "enhancement": "Enhancement",
+    "strengthLabel": "Enhancement Strength",
+    "strengthHint": "Higher = more aggressive noise removal"
+  },
+  "manipulation": {
+    "tools": "manipulation tools",
+    "tabs": {
+      "trim": "Trim",
+      "speed": "Speed",
+      "pitch": "Pitch",
+      "volume": "Volume",
+      "fade": "Fade",
+      "merge": "Merge",
+      "loop": "Loop",
+      "eq": "EQ",
+      "waveform": "Waveform"
+    }
+  },
+  "help": {
+    "title": "User Guide",
+    "close": "Close",
+    "sections": {
+      "gettingStarted": "Getting Started",
+      "gettingStartedContent": "Drop audio or video files onto the drop zone. Files are added to the queue. Click a row to select it and access manipulation tools.",
+      "enhance": "Speech Enhancement",
+      "enhanceContent": "Select pending files and click Enhance to remove background noise using DeepFilterNet3 (AI). Adjust Enhancement Strength in Settings.",
+      "separate": "Stem Separation",
+      "separateContent": "Click Separate Stems to split audio into vocals, drums, bass, and other parts using Demucs.",
+      "convert": "Format Conversion",
+      "convertContent": "Choose an output format per file (or apply globally) then click Convert. Supports WAV, MP3, FLAC, AAC, OGG, OPUS, M4A.",
+      "manipulation": "Audio Manipulation",
+      "manipulationContent": "Click any queue row to open the manipulation panel. Use tabs to Trim, adjust Speed/Pitch/Volume, apply Fades, Merge files, Loop, or apply EQ.",
+      "waveform": "Waveform Preview",
+      "waveformContent": "Select a processed file to see its waveform. Use A/B toggle to compare original vs enhanced audio.",
+      "keyboard": "Keyboard Shortcuts",
+      "keyboardContent": "Ctrl+A: Select all | Escape: Deselect | Delete: Remove selected | E: Enhance | S: Separate | C: Convert"
+    }
+  },
+  "dropzone": {
+    "drop": "Drop audio or video files here",
+    "browse": "or click to browse",
+    "limit": "Batch limit reached — max 30 audio / 10 video files"
+  }
+}

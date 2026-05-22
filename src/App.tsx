@@ -1,7 +1,8 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useSettingsStore } from '@/stores/useSettingsStore';
 import { useQueueStore } from '@/stores/useQueueStore';
 import { invokeGetSettings, invokeGetQueue } from '@/lib/ipc';
+import i18n from '@/i18n';
 import SetupWizard from '@/components/SetupWizard';
 import TitleBar from '@/components/TitleBar';
 import Sidebar from '@/components/Sidebar';
@@ -9,10 +10,15 @@ import DropZone from '@/components/DropZone';
 import QueueToolbar from '@/components/QueueToolbar';
 import QueueGrid from '@/components/QueueGrid';
 import ManipulationPanel from '@/components/ManipulationPanel';
+import HelpPanel from '@/components/HelpPanel';
+import { useKeyboardShortcuts } from '@/hooks/useKeyboardShortcuts';
 
 export default function App(): JSX.Element {
-  const { theme, setupComplete, setSettings, setInitialized } = useSettingsStore();
+  const { theme, setupComplete, language, setSettings, setInitialized } = useSettingsStore();
   const { setJobs } = useQueueStore();
+  const [helpOpen, setHelpOpen] = useState(false);
+
+  useKeyboardShortcuts();
 
   useEffect(() => {
     async function init(): Promise<void> {
@@ -31,11 +37,17 @@ export default function App(): JSX.Element {
     document.documentElement.classList.toggle('dark', theme === 'dark');
   }, [theme]);
 
+  useEffect(() => {
+    if (language && i18n.language !== language) {
+      i18n.changeLanguage(language);
+    }
+  }, [language]);
+
   if (!setupComplete) return <SetupWizard />;
 
   return (
     <div className="flex flex-col h-screen bg-neutral-900 text-white overflow-hidden">
-      <TitleBar />
+      <TitleBar onHelpOpen={() => setHelpOpen(true)} />
       <div className="flex flex-1 overflow-hidden">
         <Sidebar />
         <main className="flex flex-col flex-1 overflow-hidden p-4 gap-3">
@@ -45,6 +57,7 @@ export default function App(): JSX.Element {
           <ManipulationPanel />
         </main>
       </div>
+      <HelpPanel open={helpOpen} onClose={() => setHelpOpen(false)} />
     </div>
   );
 }

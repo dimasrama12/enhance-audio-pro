@@ -19,8 +19,12 @@ export async function invokeSaveSettings(settings: AppSettings): Promise<IpcResp
   return invoke<IpcResponse<null>>('save_settings', { settings });
 }
 
-export async function invokeProcessQueue(jobIds: string[]): Promise<IpcResponse<null>> {
-  return invoke<IpcResponse<null>>('process_queue', { jobIds });
+export async function invokeProcessQueue(jobIds: string[], enhancementStrength = 50): Promise<IpcResponse<null>> {
+  return invoke<IpcResponse<null>>('process_queue', { jobIds, enhancementStrength });
+}
+
+export async function invokeSetBitrate(jobId: string, bitrate: string): Promise<IpcResponse<null>> {
+  return invoke<IpcResponse<null>>('set_bitrate', { jobId, bitrate });
 }
 
 export async function invokeStartModelDownload(): Promise<IpcResponse<null>> {
