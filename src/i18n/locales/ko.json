@@ -1,0 +1,65 @@
+{
+  "app": { "title": "Enhance Audio Pro" },
+  "toolbar": {
+    "search": "파일 검색...",
+    "filter": "필터",
+    "enhance": "향상",
+    "enhancing": "향상 중...",
+    "separate": "스템 분리",
+    "separating": "분리 중...",
+    "convert": "변환",
+    "converting": "변환 중...",
+    "clearQueue": "대기열 지우기",
+    "applyFormat": "대기 중인 모든 파일에 형식 적용",
+    "viewTable": "테이블 보기",
+    "viewGrid": "그리드 보기"
+  },
+  "queue": {
+    "empty": "대기열에 파일이 없습니다. 위에 오디오 또는 비디오 파일을 드롭하세요.",
+    "col": { "index": "#", "filename": "파일명", "destination": "대상", "size": "크기", "type": "유형", "output": "출력", "bitrate": "비트레이트", "status": "상태" }
+  },
+  "status": { "pending": "대기 중", "processing": "처리 중", "done": "완료", "error": "오류" },
+  "settings": {
+    "title": "설정",
+    "appearance": "외관",
+    "theme": "테마",
+    "dark": "다크",
+    "light": "라이트",
+    "output": "출력",
+    "outputFolder": "기본 출력 폴더",
+    "notSet": "미설정",
+    "language": "언어",
+    "enhancement": "향상",
+    "strengthLabel": "향상 강도",
+    "strengthHint": "높을수록 = 더 강한 노이즈 제거"
+  },
+  "manipulation": {
+    "tools": "조작 도구",
+    "tabs": { "trim": "자르기", "speed": "속도", "pitch": "피치", "volume": "볼륨", "fade": "페이드", "merge": "병합", "loop": "루프", "eq": "EQ", "waveform": "파형" }
+  },
+  "help": {
+    "title": "사용자 가이드",
+    "close": "닫기",
+    "sections": {
+      "gettingStarted": "시작하기",
+      "gettingStartedContent": "드롭 영역에 오디오 또는 비디오 파일을 드롭하세요. 파일이 대기열에 추가됩니다.",
+      "enhance": "음성 향상",
+      "enhanceContent": "대기 중인 파일을 선택하고 향상을 클릭하여 배경 소음을 제거하세요.",
+      "separate": "스템 분리",
+      "separateContent": "스템 분리를 클릭하여 오디오를 보컬, 드럼, 베이스 등으로 분리하세요.",
+      "convert": "형식 변환",
+      "convertContent": "출력 형식을 선택한 후 변환을 클릭하세요. WAV, MP3, FLAC, AAC, OGG, OPUS, M4A 지원.",
+      "manipulation": "오디오 조작",
+      "manipulationContent": "대기열 행을 클릭하여 조작 패널을 여세요.",
+      "waveform": "파형 미리보기",
+      "waveformContent": "처리된 파일을 선택하여 파형을 확인하세요.",
+      "keyboard": "키보드 단축키",
+      "keyboardContent": "Ctrl+A: 전체 선택 | Escape: 선택 해제 | Delete: 제거 | E: 향상 | S: 분리 | C: 변환"
+    }
+  },
+  "dropzone": {
+    "drop": "오디오 또는 비디오 파일을 여기에 드롭하세요",
+    "browse": "또는 클릭하여 탐색",
+    "limit": "배치 한도 도달 — 최대 오디오 30개 / 비디오 10개"
+  }
+}

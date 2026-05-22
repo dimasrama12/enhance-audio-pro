@@ -1,0 +1,54 @@
+{
+  "app": { "title": "Enhance Audio Pro" },
+  "toolbar": {
+    "search": "Rechercher des fichiers...",
+    "filter": "Filtrer",
+    "enhance": "Améliorer",
+    "enhancing": "Amélioration...",
+    "separate": "Séparer les pistes",
+    "separating": "Séparation...",
+    "convert": "Convertir",
+    "converting": "Conversion...",
+    "clearQueue": "Vider la file",
+    "applyFormat": "Appliquer le format à tous les fichiers en attente",
+    "viewTable": "Vue tableau",
+    "viewGrid": "Vue grille"
+  },
+  "queue": {
+    "empty": "Aucun fichier dans la file. Déposez des fichiers audio ou vidéo ici.",
+    "col": { "index": "#", "filename": "Nom du fichier", "destination": "Destination", "size": "Taille", "type": "Type", "output": "Sortie", "bitrate": "Débit", "status": "Statut" }
+  },
+  "status": { "pending": "En attente", "processing": "Traitement", "done": "Terminé", "error": "Erreur" },
+  "settings": {
+    "title": "Paramètres",
+    "appearance": "Apparence",
+    "theme": "Thème",
+    "dark": "Sombre",
+    "light": "Clair",
+    "output": "Sortie",
+    "outputFolder": "Dossier de sortie par défaut",
+    "notSet": "Non défini",
+    "language": "Langue",
+    "enhancement": "Amélioration",
+    "strengthLabel": "Intensité d'amélioration",
+    "strengthHint": "Plus élevé = suppression du bruit plus agressive"
+  },
+  "manipulation": {
+    "tools": "outils de manipulation",
+    "tabs": { "trim": "Couper", "speed": "Vitesse", "pitch": "Hauteur", "volume": "Volume", "fade": "Fondu", "merge": "Fusionner", "loop": "Boucle", "eq": "EQ", "waveform": "Forme d'onde" }
+  },
+  "help": {
+    "title": "Guide utilisateur",
+    "close": "Fermer",
+    "sections": {
+      "gettingStarted": "Démarrage", "gettingStartedContent": "Glissez des fichiers audio ou vidéo dans la zone de dépôt.",
+      "enhance": "Amélioration vocale", "enhanceContent": "Sélectionnez des fichiers en attente et cliquez sur Améliorer.",
+      "separate": "Séparation de pistes", "separateContent": "Cliquez sur Séparer les pistes pour diviser l'audio.",
+      "convert": "Conversion de format", "convertContent": "Choisissez un format de sortie puis cliquez sur Convertir.",
+      "manipulation": "Manipulation audio", "manipulationContent": "Cliquez sur une ligne de la file pour ouvrir le panneau de manipulation.",
+      "waveform": "Aperçu de la forme d'onde", "waveformContent": "Sélectionnez un fichier traité pour voir sa forme d'onde.",
+      "keyboard": "Raccourcis clavier", "keyboardContent": "Ctrl+A : Tout sélectionner | Échap : Désélectionner | Suppr : Supprimer | E : Améliorer | S : Séparer | C : Convertir"
+    }
+  },
+  "dropzone": { "drop": "Déposez des fichiers audio ou vidéo ici", "browse": "ou cliquez pour parcourir", "limit": "Limite de lot atteinte — max. 30 audio / 10 vidéo" }
+}

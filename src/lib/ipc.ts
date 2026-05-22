@@ -11,6 +11,10 @@ export async function invokeGetQueue(): Promise<IpcResponse<QueueJob[]>> {
   return invoke<IpcResponse<QueueJob[]>>('get_queue');
 }
 
+export async function invokeGetRecentHistory(): Promise<IpcResponse<QueueJob[]>> {
+  return invoke<IpcResponse<QueueJob[]>>('get_recent_history');
+}
+
 export async function invokeGetSettings(): Promise<IpcResponse<AppSettings>> {
   return invoke<IpcResponse<AppSettings>>('get_settings');
 }

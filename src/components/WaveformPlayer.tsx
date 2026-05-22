@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import WaveSurfer from 'wavesurfer.js';
-import { Play, Pause, Square, ToggleLeft, ToggleRight } from 'lucide-react';
+import SpectrogramPlugin from 'wavesurfer.js/dist/plugins/spectrogram.esm.js';
+import { Play, Pause, Square, ToggleLeft, ToggleRight, Activity, Waves } from 'lucide-react';
 
 interface Props {
   filepath: string;
@@ -8,8 +9,11 @@ interface Props {
   filename: string;
 }
 
+type ActiveTab = 'waveform' | 'spectrogram';
+
 export default function WaveformPlayer({ filepath, outputFilepath, filename }: Props): JSX.Element {
-  const containerRef = useRef<HTMLDivElement>(null);
+  const waveformRef = useRef<HTMLDivElement>(null);
+  const spectrogramRef = useRef<HTMLDivElement>(null);
   const wsRef = useRef<WaveSurfer | null>(null);
 
   const [isPlaying, setIsPlaying] = useState(false);
@@ -17,11 +21,12 @@ export default function WaveformPlayer({ filepath, outputFilepath, filename }: P
   const [showOutput, setShowOutput] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
+  const [activeTab, setActiveTab] = useState<ActiveTab>('waveform');
 
   const activeFile = showOutput && outputFilepath ? outputFilepath : filepath;
 
   useEffect(() => {
-    if (!containerRef.current) return;
+    if (!waveformRef.current || !spectrogramRef.current) return;
 
     wsRef.current?.destroy();
     setIsReady(false);
@@ -29,8 +34,15 @@ export default function WaveformPlayer({ filepath, outputFilepath, filename }: P
     setCurrentTime(0);
     setDuration(0);
 
+    const specPlugin = SpectrogramPlugin.create({
+      container: spectrogramRef.current,
+      height: 100,
+      labels: false,
+      colorMap: 'roseus',
+    });
+
     const ws = WaveSurfer.create({
-      container: containerRef.current,
+      container: waveformRef.current,
       waveColor: '#7c3aed',
       progressColor: '#a78bfa',
       cursorColor: '#ffffff40',
@@ -40,6 +52,7 @@ export default function WaveformPlayer({ filepath, outputFilepath, filename }: P
       height: 56,
       normalize: true,
       interact: true,
+      plugins: [specPlugin],
     });
 
     ws.load(`tauri://localhost/${activeFile.replace(/\\/g, '/')}`);
@@ -78,6 +91,7 @@ export default function WaveformPlayer({ filepath, outputFilepath, filename }: P
 
   return (
     <div className="flex flex-col gap-2">
+      {/* Header row: filename + A/B toggle */}
       <div className="flex items-center justify-between">
         <span className="text-[10px] text-white/40 uppercase tracking-wider truncate max-w-[200px]">
           {showOutput && outputFilepath ? `${filename} (enhanced)` : filename}
@@ -94,11 +108,50 @@ export default function WaveformPlayer({ filepath, outputFilepath, filename }: P
         )}
       </div>
 
+      {/* Tab bar */}
+      <div className="flex gap-1">
+        <button
+          onClick={() => setActiveTab('waveform')}
+          className={`flex items-center gap-1 px-2 py-0.5 rounded text-[10px] transition-colors ${
+            activeTab === 'waveform'
+              ? 'bg-violet-600 text-white'
+              : 'bg-white/10 text-white/50 hover:bg-white/20'
+          }`}
+        >
+          <Waves size={10} />
+          Waveform
+        </button>
+        <button
+          onClick={() => setActiveTab('spectrogram')}
+          className={`flex items-center gap-1 px-2 py-0.5 rounded text-[10px] transition-colors ${
+            activeTab === 'spectrogram'
+              ? 'bg-violet-600 text-white'
+              : 'bg-white/10 text-white/50 hover:bg-white/20'
+          }`}
+        >
+          <Activity size={10} />
+          Spectrogram
+        </button>
+      </div>
+
+      {/* Waveform container — always in DOM, hidden when spectrogram is active */}
       <div
-        ref={containerRef}
-        className="rounded-lg overflow-hidden bg-white/5 border border-white/10"
+        ref={waveformRef}
+        className={`rounded-lg overflow-hidden bg-white/5 border border-white/10 transition-all ${
+          activeTab === 'waveform' ? 'block' : 'hidden'
+        }`}
       />
 
+      {/* Spectrogram container — always in DOM (plugin attaches here), hidden when waveform is active */}
+      <div
+        ref={spectrogramRef}
+        className={`rounded-lg overflow-hidden bg-black/40 border border-white/10 transition-all ${
+          activeTab === 'spectrogram' ? 'block' : 'hidden'
+        }`}
+        style={{ height: '100px' }}
+      />
+
+      {/* Playback controls */}
       <div className="flex items-center gap-2">
         <button
           onClick={togglePlay}

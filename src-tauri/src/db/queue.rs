@@ -163,6 +163,41 @@ pub fn update_job_output_filepath(conn: &Connection, id: &str, filepath: &str) -
     Ok(())
 }
 
+pub fn get_recent_jobs(conn: &Connection, limit: i64) -> Result<Vec<QueueJob>> {
+    let mut stmt = conn.prepare(
+        "SELECT id, filename, filepath, destination, size_bytes, media_type, status,
+                progress, error_message, output_format, bitrate, output_filepath, created_at, updated_at
+         FROM queue_jobs
+         WHERE status IN ('done', 'error')
+         ORDER BY updated_at DESC
+         LIMIT ?1",
+    )?;
+
+    let jobs = stmt
+        .query_map([limit], |row| {
+            Ok(QueueJob {
+                id: row.get(0)?,
+                filename: row.get(1)?,
+                filepath: row.get(2)?,
+                destination: row.get(3)?,
+                size_bytes: row.get(4)?,
+                media_type: row.get(5)?,
+                status: row.get(6)?,
+                progress: row.get(7)?,
+                error_message: row.get(8)?,
+                output_format: row.get::<_, Option<String>>(9)?
+                    .unwrap_or_else(|| "wav".to_string()),
+                bitrate: row.get::<_, Option<String>>(10)?.unwrap_or_default(),
+                output_filepath: row.get(11)?,
+                created_at: row.get(12)?,
+                updated_at: row.get(13)?,
+            })
+        })?
+        .collect::<Result<Vec<_>>>()?;
+
+    Ok(jobs)
+}
+
 pub fn count_active_jobs_by_type(conn: &Connection, media_type: &str) -> Result<i64> {
     conn.query_row(
         "SELECT COUNT(*) FROM queue_jobs

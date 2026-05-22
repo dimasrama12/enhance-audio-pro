@@ -1,0 +1,54 @@
+{
+  "app": { "title": "Enhance Audio Pro" },
+  "toolbar": {
+    "search": "ファイルを検索...",
+    "filter": "フィルター",
+    "enhance": "強化",
+    "enhancing": "強化中...",
+    "separate": "ステム分離",
+    "separating": "分離中...",
+    "convert": "変換",
+    "converting": "変換中...",
+    "clearQueue": "キューをクリア",
+    "applyFormat": "保留中のすべてのファイルにフォーマットを適用",
+    "viewTable": "テーブル表示",
+    "viewGrid": "グリッド表示"
+  },
+  "queue": {
+    "empty": "キューにファイルがありません。音声または動画ファイルをドロップしてください。",
+    "col": { "index": "#", "filename": "ファイル名", "destination": "出力先", "size": "サイズ", "type": "種類", "output": "出力", "bitrate": "ビットレート", "status": "ステータス" }
+  },
+  "status": { "pending": "保留中", "processing": "処理中", "done": "完了", "error": "エラー" },
+  "settings": {
+    "title": "設定",
+    "appearance": "外観",
+    "theme": "テーマ",
+    "dark": "ダーク",
+    "light": "ライト",
+    "output": "出力",
+    "outputFolder": "デフォルト出力フォルダー",
+    "notSet": "未設定",
+    "language": "言語",
+    "enhancement": "強化",
+    "strengthLabel": "強化強度",
+    "strengthHint": "高いほど = より積極的なノイズ除去"
+  },
+  "manipulation": {
+    "tools": "操作ツール",
+    "tabs": { "trim": "トリミング", "speed": "速度", "pitch": "ピッチ", "volume": "音量", "fade": "フェード", "merge": "結合", "loop": "ループ", "eq": "EQ", "waveform": "波形" }
+  },
+  "help": {
+    "title": "ユーザーガイド",
+    "close": "閉じる",
+    "sections": {
+      "gettingStarted": "はじめに", "gettingStartedContent": "音声または動画ファイルをドロップゾーンにドラッグします。",
+      "enhance": "音声強化", "enhanceContent": "保留中のファイルを選択し、強化をクリックしてノイズを除去します。",
+      "separate": "ステム分離", "separateContent": "ステム分離をクリックして、音声をボーカル・ドラム・ベース・その他に分割します。",
+      "convert": "フォーマット変換", "convertContent": "出力フォーマットを選択して変換をクリックします。",
+      "manipulation": "オーディオ操作", "manipulationContent": "キューの行をクリックして操作パネルを開きます。",
+      "waveform": "波形プレビュー", "waveformContent": "処理済みファイルを選択して波形を表示します。",
+      "keyboard": "キーボードショートカット", "keyboardContent": "Ctrl+A: 全選択 | Escape: 選択解除 | Delete: 削除 | E: 強化 | S: 分離 | C: 変換"
+    }
+  },
+  "dropzone": { "drop": "音声または動画ファイルをここにドロップ", "browse": "またはクリックして参照", "limit": "バッチ制限に達しました — 最大 30 音声 / 10 動画" }
+}

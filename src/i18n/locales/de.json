@@ -1,0 +1,54 @@
+{
+  "app": { "title": "Enhance Audio Pro" },
+  "toolbar": {
+    "search": "Dateien suchen...",
+    "filter": "Filtern",
+    "enhance": "Verbessern",
+    "enhancing": "Wird verbessert...",
+    "separate": "Stems trennen",
+    "separating": "Wird getrennt...",
+    "convert": "Konvertieren",
+    "converting": "Wird konvertiert...",
+    "clearQueue": "Warteschlange leeren",
+    "applyFormat": "Format auf alle ausstehenden Dateien anwenden",
+    "viewTable": "Tabellenansicht",
+    "viewGrid": "Rasteransicht"
+  },
+  "queue": {
+    "empty": "Keine Dateien in der Warteschlange. Audio- oder Videodateien hierher ziehen.",
+    "col": { "index": "#", "filename": "Dateiname", "destination": "Ziel", "size": "Größe", "type": "Typ", "output": "Ausgabe", "bitrate": "Bitrate", "status": "Status" }
+  },
+  "status": { "pending": "Ausstehend", "processing": "Verarbeitung", "done": "Fertig", "error": "Fehler" },
+  "settings": {
+    "title": "Einstellungen",
+    "appearance": "Erscheinungsbild",
+    "theme": "Design",
+    "dark": "Dunkel",
+    "light": "Hell",
+    "output": "Ausgabe",
+    "outputFolder": "Standard-Ausgabeordner",
+    "notSet": "Nicht festgelegt",
+    "language": "Sprache",
+    "enhancement": "Verbesserung",
+    "strengthLabel": "Verbesserungsstärke",
+    "strengthHint": "Höher = aggressivere Rauschunterdrückung"
+  },
+  "manipulation": {
+    "tools": "Bearbeitungswerkzeuge",
+    "tabs": { "trim": "Zuschneiden", "speed": "Geschwindigkeit", "pitch": "Tonhöhe", "volume": "Lautstärke", "fade": "Überblendung", "merge": "Zusammenführen", "loop": "Schleife", "eq": "EQ", "waveform": "Wellenform" }
+  },
+  "help": {
+    "title": "Benutzerhandbuch",
+    "close": "Schließen",
+    "sections": {
+      "gettingStarted": "Erste Schritte", "gettingStartedContent": "Audio- oder Videodateien in die Ablagezone ziehen.",
+      "enhance": "Sprachverbesserung", "enhanceContent": "Ausstehende Dateien auswählen und auf Verbessern klicken.",
+      "separate": "Stem-Trennung", "separateContent": "Auf Stems trennen klicken, um Audio in Gesang, Schlagzeug, Bass und andere aufzuteilen.",
+      "convert": "Formatkonvertierung", "convertContent": "Ausgabeformat wählen und auf Konvertieren klicken.",
+      "manipulation": "Audio-Bearbeitung", "manipulationContent": "Auf eine Zeile der Warteschlange klicken, um das Bearbeitungsfeld zu öffnen.",
+      "waveform": "Wellenformvorschau", "waveformContent": "Eine verarbeitete Datei auswählen, um deren Wellenform anzuzeigen.",
+      "keyboard": "Tastenkürzel", "keyboardContent": "Strg+A: Alle auswählen | Escape: Auswahl aufheben | Entf: Entfernen | E: Verbessern | S: Trennen | C: Konvertieren"
+    }
+  },
+  "dropzone": { "drop": "Audio- oder Videodateien hier ablegen", "browse": "oder klicken zum Durchsuchen", "limit": "Batch-Limit erreicht — max. 30 Audio / 10 Video" }
+}

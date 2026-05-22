@@ -1,13 +1,15 @@
 import { useState } from 'react';
-import { Music, Video, Settings } from 'lucide-react';
+import { Music, Video, Settings, Clock } from 'lucide-react';
 import { clsx } from 'clsx';
 import SettingsPanel from '@/components/SettingsPanel';
+import HistoryPanel from '@/components/HistoryPanel';
 
 type Tab = 'audio' | 'video';
 
 export default function Sidebar(): JSX.Element {
   const [activeTab, setActiveTab] = useState<Tab>('audio');
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [historyOpen, setHistoryOpen] = useState(false);
 
   const tabs: { id: Tab; label: string; Icon: typeof Music }[] = [
     { id: 'audio', label: 'Audio', Icon: Music },
@@ -32,12 +34,24 @@ export default function Sidebar(): JSX.Element {
         ))}
         <div className="flex-1" />
         <button
-          onClick={() => setSettingsOpen(true)}
+          onClick={() => { setHistoryOpen((v) => !v); setSettingsOpen(false); }}
+          className={clsx(
+            'p-2 rounded-lg transition-colors',
+            historyOpen ? 'bg-violet-600 text-white' : 'text-white/50 hover:text-white hover:bg-white/10'
+          )}
+          title="Recent files"
+        >
+          <Clock size={18} />
+        </button>
+        <button
+          onClick={() => { setSettingsOpen(true); setHistoryOpen(false); }}
           className="p-2 rounded-lg text-white/50 hover:text-white hover:bg-white/10 transition-colors"
+          title="Settings"
         >
           <Settings size={18} />
         </button>
       </aside>
+      <HistoryPanel open={historyOpen} onClose={() => setHistoryOpen(false)} />
       <SettingsPanel open={settingsOpen} onClose={() => setSettingsOpen(false)} />
     </>
   );

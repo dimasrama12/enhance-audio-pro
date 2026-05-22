@@ -10,7 +10,7 @@ use commands::convert::{convert_files, set_bitrate, set_output_format};
 use commands::download::start_model_download;
 use commands::manipulate::{apply_eq, loop_audio, manipulate_audio, merge_audio};
 use commands::process::process_queue;
-use commands::queue::{add_files, get_queue};
+use commands::queue::{add_files, get_queue, get_recent_history};
 use commands::separate::separate_stems;
 use commands::settings::{get_settings, save_settings};
 
@@ -66,6 +66,7 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             add_files,
             get_queue,
+            get_recent_history,
             get_settings,
             save_settings,
             process_queue,

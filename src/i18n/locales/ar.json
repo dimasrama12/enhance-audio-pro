@@ -1,0 +1,65 @@
+{
+  "app": { "title": "Enhance Audio Pro" },
+  "toolbar": {
+    "search": "بحث عن ملفات...",
+    "filter": "تصفية",
+    "enhance": "تحسين",
+    "enhancing": "جارٍ التحسين...",
+    "separate": "فصل المسارات",
+    "separating": "جارٍ الفصل...",
+    "convert": "تحويل",
+    "converting": "جارٍ التحويل...",
+    "clearQueue": "مسح قائمة الانتظار",
+    "applyFormat": "تطبيق التنسيق على جميع الملفات المعلقة",
+    "viewTable": "عرض الجدول",
+    "viewGrid": "عرض الشبكة"
+  },
+  "queue": {
+    "empty": "لا توجد ملفات في قائمة الانتظار. اسحب ملفات صوتية أو مرئية للبدء.",
+    "col": { "index": "#", "filename": "اسم الملف", "destination": "الوجهة", "size": "الحجم", "type": "النوع", "output": "الإخراج", "bitrate": "معدل البت", "status": "الحالة" }
+  },
+  "status": { "pending": "معلق", "processing": "جارٍ المعالجة", "done": "مكتمل", "error": "خطأ" },
+  "settings": {
+    "title": "الإعدادات",
+    "appearance": "المظهر",
+    "theme": "السمة",
+    "dark": "داكن",
+    "light": "فاتح",
+    "output": "الإخراج",
+    "outputFolder": "مجلد الإخراج الافتراضي",
+    "notSet": "غير محدد",
+    "language": "اللغة",
+    "enhancement": "التحسين",
+    "strengthLabel": "قوة التحسين",
+    "strengthHint": "أعلى = إزالة ضوضاء أكثر قوة"
+  },
+  "manipulation": {
+    "tools": "أدوات المعالجة",
+    "tabs": { "trim": "قص", "speed": "السرعة", "pitch": "درجة الصوت", "volume": "مستوى الصوت", "fade": "تلاشي", "merge": "دمج", "loop": "تكرار", "eq": "معادل الصوت", "waveform": "شكل الموجة" }
+  },
+  "help": {
+    "title": "دليل المستخدم",
+    "close": "إغلاق",
+    "sections": {
+      "gettingStarted": "البدء",
+      "gettingStartedContent": "اسحب ملفات صوتية أو مرئية إلى منطقة الإسقاط. تُضاف الملفات إلى قائمة الانتظار.",
+      "enhance": "تحسين الصوت",
+      "enhanceContent": "حدد الملفات المعلقة وانقر تحسين لإزالة الضوضاء الخلفية.",
+      "separate": "فصل المسارات",
+      "separateContent": "انقر فصل المسارات لتقسيم الصوت إلى صوت، طبول، باس وغيرها.",
+      "convert": "تحويل التنسيق",
+      "convertContent": "اختر تنسيق الإخراج ثم انقر تحويل. يدعم WAV وMP3 وFLAC وAAC وOGG وOPUS وM4A.",
+      "manipulation": "معالجة الصوت",
+      "manipulationContent": "انقر على أي صف في قائمة الانتظار لفتح لوحة المعالجة.",
+      "waveform": "معاينة شكل الموجة",
+      "waveformContent": "حدد ملفاً تمت معالجته لرؤية شكل موجته.",
+      "keyboard": "اختصارات لوحة المفاتيح",
+      "keyboardContent": "Ctrl+A: تحديد الكل | Escape: إلغاء التحديد | Delete: إزالة | E: تحسين | S: فصل | C: تحويل"
+    }
+  },
+  "dropzone": {
+    "drop": "اسحب ملفات صوتية أو مرئية هنا",
+    "browse": "أو انقر للتصفح",
+    "limit": "تم بلوغ الحد الأقصى للدفعة — 30 صوتياً / 10 مرئياً كحد أقصى"
+  }
+}

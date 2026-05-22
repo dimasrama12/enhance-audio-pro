@@ -1,0 +1,65 @@
+{
+  "app": { "title": "Enhance Audio Pro" },
+  "toolbar": {
+    "search": "Tìm kiếm tệp...",
+    "filter": "Lọc",
+    "enhance": "Nâng cao",
+    "enhancing": "Đang nâng cao...",
+    "separate": "Tách Stem",
+    "separating": "Đang tách...",
+    "convert": "Chuyển đổi",
+    "converting": "Đang chuyển đổi...",
+    "clearQueue": "Xóa hàng đợi",
+    "applyFormat": "Áp dụng định dạng cho tất cả tệp đang chờ",
+    "viewTable": "Chế độ xem bảng",
+    "viewGrid": "Chế độ xem lưới"
+  },
+  "queue": {
+    "empty": "Không có tệp nào trong hàng đợi. Kéo thả tệp âm thanh hoặc video vào đây.",
+    "col": { "index": "#", "filename": "Tên tệp", "destination": "Đích", "size": "Kích thước", "type": "Loại", "output": "Đầu ra", "bitrate": "Bitrate", "status": "Trạng thái" }
+  },
+  "status": { "pending": "Đang chờ", "processing": "Đang xử lý", "done": "Hoàn thành", "error": "Lỗi" },
+  "settings": {
+    "title": "Cài đặt",
+    "appearance": "Giao diện",
+    "theme": "Chủ đề",
+    "dark": "Tối",
+    "light": "Sáng",
+    "output": "Đầu ra",
+    "outputFolder": "Thư mục đầu ra mặc định",
+    "notSet": "Chưa đặt",
+    "language": "Ngôn ngữ",
+    "enhancement": "Nâng cao",
+    "strengthLabel": "Cường độ nâng cao",
+    "strengthHint": "Cao hơn = loại bỏ tiếng ồn mạnh hơn"
+  },
+  "manipulation": {
+    "tools": "công cụ xử lý",
+    "tabs": { "trim": "Cắt", "speed": "Tốc độ", "pitch": "Cao độ", "volume": "Âm lượng", "fade": "Mờ dần", "merge": "Ghép", "loop": "Lặp", "eq": "EQ", "waveform": "Dạng sóng" }
+  },
+  "help": {
+    "title": "Hướng dẫn người dùng",
+    "close": "Đóng",
+    "sections": {
+      "gettingStarted": "Bắt đầu",
+      "gettingStartedContent": "Kéo thả tệp âm thanh hoặc video vào vùng thả. Tệp sẽ được thêm vào hàng đợi.",
+      "enhance": "Nâng cao giọng nói",
+      "enhanceContent": "Chọn các tệp đang chờ và nhấn Nâng cao để loại bỏ tiếng ồn nền.",
+      "separate": "Tách Stem",
+      "separateContent": "Nhấn Tách Stem để chia âm thanh thành giọng hát, trống, bass và các phần khác.",
+      "convert": "Chuyển đổi định dạng",
+      "convertContent": "Chọn định dạng đầu ra rồi nhấn Chuyển đổi. Hỗ trợ WAV, MP3, FLAC, AAC, OGG, OPUS, M4A.",
+      "manipulation": "Xử lý âm thanh",
+      "manipulationContent": "Nhấn vào bất kỳ hàng nào trong hàng đợi để mở bảng xử lý.",
+      "waveform": "Xem trước dạng sóng",
+      "waveformContent": "Chọn tệp đã xử lý để xem dạng sóng của nó.",
+      "keyboard": "Phím tắt",
+      "keyboardContent": "Ctrl+A: Chọn tất cả | Escape: Bỏ chọn | Delete: Xóa | E: Nâng cao | S: Tách | C: Chuyển đổi"
+    }
+  },
+  "dropzone": {
+    "drop": "Kéo tệp âm thanh hoặc video vào đây",
+    "browse": "hoặc nhấp để duyệt",
+    "limit": "Đã đạt giới hạn lô — tối đa 30 âm thanh / 10 video"
+  }
+}

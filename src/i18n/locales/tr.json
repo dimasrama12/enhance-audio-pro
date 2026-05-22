@@ -1,0 +1,65 @@
+{
+  "app": { "title": "Enhance Audio Pro" },
+  "toolbar": {
+    "search": "Dosya ara...",
+    "filter": "Filtrele",
+    "enhance": "Geliştir",
+    "enhancing": "Geliştiriliyor...",
+    "separate": "Stem Ayır",
+    "separating": "Ayrılıyor...",
+    "convert": "Dönüştür",
+    "converting": "Dönüştürülüyor...",
+    "clearQueue": "Kuyruğu temizle",
+    "applyFormat": "Bekleyen tüm dosyalara format uygula",
+    "viewTable": "Tablo görünümü",
+    "viewGrid": "Izgara görünümü"
+  },
+  "queue": {
+    "empty": "Kuyrukta dosya yok. Başlamak için yukarıya ses veya video dosyaları bırakın.",
+    "col": { "index": "#", "filename": "Dosya adı", "destination": "Hedef", "size": "Boyut", "type": "Tür", "output": "Çıktı", "bitrate": "Bit hızı", "status": "Durum" }
+  },
+  "status": { "pending": "Bekliyor", "processing": "İşleniyor", "done": "Tamamlandı", "error": "Hata" },
+  "settings": {
+    "title": "Ayarlar",
+    "appearance": "Görünüm",
+    "theme": "Tema",
+    "dark": "Koyu",
+    "light": "Açık",
+    "output": "Çıktı",
+    "outputFolder": "Varsayılan çıktı klasörü",
+    "notSet": "Ayarlanmadı",
+    "language": "Dil",
+    "enhancement": "Geliştirme",
+    "strengthLabel": "Geliştirme gücü",
+    "strengthHint": "Daha yüksek = daha agresif gürültü giderme"
+  },
+  "manipulation": {
+    "tools": "manipülasyon araçları",
+    "tabs": { "trim": "Kırp", "speed": "Hız", "pitch": "Perde", "volume": "Ses", "fade": "Solma", "merge": "Birleştir", "loop": "Döngü", "eq": "EQ", "waveform": "Dalga formu" }
+  },
+  "help": {
+    "title": "Kullanıcı Kılavuzu",
+    "close": "Kapat",
+    "sections": {
+      "gettingStarted": "Başlarken",
+      "gettingStartedContent": "Ses veya video dosyalarını bırakma alanına sürükleyin. Dosyalar kuyruğa eklenir.",
+      "enhance": "Konuşma Geliştirme",
+      "enhanceContent": "Bekleyen dosyaları seçin ve arka plan gürültüsünü kaldırmak için Geliştir'e tıklayın.",
+      "separate": "Stem Ayırma",
+      "separateContent": "Sesi vokal, davul, bas ve diğerlerine bölmek için Stem Ayır'a tıklayın.",
+      "convert": "Format Dönüştürme",
+      "convertContent": "Çıktı formatı seçin ve Dönüştür'e tıklayın. WAV, MP3, FLAC, AAC, OGG, OPUS, M4A desteklenir.",
+      "manipulation": "Ses Manipülasyonu",
+      "manipulationContent": "Manipülasyon panelini açmak için herhangi bir kuyruk satırına tıklayın.",
+      "waveform": "Dalga Formu Önizlemesi",
+      "waveformContent": "Dalga formunu görmek için işlenmiş bir dosya seçin.",
+      "keyboard": "Klavye Kısayolları",
+      "keyboardContent": "Ctrl+A: Tümünü seç | Escape: Seçimi kaldır | Delete: Kaldır | E: Geliştir | S: Ayır | C: Dönüştür"
+    }
+  },
+  "dropzone": {
+    "drop": "Ses veya video dosyalarını buraya bırakın",
+    "browse": "veya taramak için tıklayın",
+    "limit": "Toplu iş sınırına ulaşıldı — maks. 30 ses / 10 video"
+  }
+}

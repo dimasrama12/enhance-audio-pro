@@ -2,7 +2,7 @@ use std::path::Path;
 use tauri::State;
 
 use crate::commands::IpcResponse;
-use crate::db::queue::{count_active_jobs_by_type, get_all_jobs, insert_job, QueueJob};
+use crate::db::queue::{count_active_jobs_by_type, get_all_jobs, get_recent_jobs, insert_job, QueueJob};
 use crate::AppState;
 
 const MAX_AUDIO: i64 = 30;
@@ -81,6 +81,19 @@ pub fn get_queue(state: State<AppState>) -> IpcResponse<Vec<QueueJob>> {
     };
 
     match get_all_jobs(&conn) {
+        Ok(jobs) => IpcResponse { success: true, data: Some(jobs), error: None },
+        Err(e) => IpcResponse { success: false, data: None, error: Some(e.to_string()) },
+    }
+}
+
+#[tauri::command]
+pub fn get_recent_history(state: State<AppState>) -> IpcResponse<Vec<QueueJob>> {
+    let conn = match state.db.lock() {
+        Ok(c) => c,
+        Err(e) => return IpcResponse { success: false, data: None, error: Some(e.to_string()) },
+    };
+
+    match get_recent_jobs(&conn, 50) {
         Ok(jobs) => IpcResponse { success: true, data: Some(jobs), error: None },
         Err(e) => IpcResponse { success: false, data: None, error: Some(e.to_string()) },
     }

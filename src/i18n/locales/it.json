@@ -1,0 +1,65 @@
+{
+  "app": { "title": "Enhance Audio Pro" },
+  "toolbar": {
+    "search": "Cerca file...",
+    "filter": "Filtra",
+    "enhance": "Migliora",
+    "enhancing": "Miglioramento...",
+    "separate": "Separa Stem",
+    "separating": "Separazione...",
+    "convert": "Converti",
+    "converting": "Conversione...",
+    "clearQueue": "Svuota coda",
+    "applyFormat": "Applica formato a tutti i file in attesa",
+    "viewTable": "Vista tabella",
+    "viewGrid": "Vista griglia"
+  },
+  "queue": {
+    "empty": "Nessun file in coda. Trascina file audio o video qui sopra per iniziare.",
+    "col": { "index": "#", "filename": "Nome file", "destination": "Destinazione", "size": "Dimensione", "type": "Tipo", "output": "Output", "bitrate": "Bitrate", "status": "Stato" }
+  },
+  "status": { "pending": "In attesa", "processing": "Elaborazione", "done": "Completato", "error": "Errore" },
+  "settings": {
+    "title": "Impostazioni",
+    "appearance": "Aspetto",
+    "theme": "Tema",
+    "dark": "Scuro",
+    "light": "Chiaro",
+    "output": "Output",
+    "outputFolder": "Cartella di output predefinita",
+    "notSet": "Non impostata",
+    "language": "Lingua",
+    "enhancement": "Miglioramento",
+    "strengthLabel": "Intensità miglioramento",
+    "strengthHint": "Più alto = rimozione rumore più aggressiva"
+  },
+  "manipulation": {
+    "tools": "strumenti di manipolazione",
+    "tabs": { "trim": "Taglia", "speed": "Velocità", "pitch": "Tono", "volume": "Volume", "fade": "Dissolvenza", "merge": "Unisci", "loop": "Loop", "eq": "EQ", "waveform": "Forma d'onda" }
+  },
+  "help": {
+    "title": "Guida Utente",
+    "close": "Chiudi",
+    "sections": {
+      "gettingStarted": "Inizia",
+      "gettingStartedContent": "Trascina file audio o video nella zona di rilascio. I file vengono aggiunti alla coda.",
+      "enhance": "Miglioramento vocale",
+      "enhanceContent": "Seleziona i file in attesa e clicca Migliora per rimuovere il rumore di fondo.",
+      "separate": "Separazione Stem",
+      "separateContent": "Clicca Separa Stem per dividere l'audio in voce, batteria, basso e altro.",
+      "convert": "Conversione formato",
+      "convertContent": "Scegli un formato di output e clicca Converti. Supporta WAV, MP3, FLAC, AAC, OGG, OPUS, M4A.",
+      "manipulation": "Manipolazione audio",
+      "manipulationContent": "Clicca su qualsiasi riga della coda per aprire il pannello di manipolazione.",
+      "waveform": "Anteprima forma d'onda",
+      "waveformContent": "Seleziona un file elaborato per vedere la sua forma d'onda.",
+      "keyboard": "Scorciatoie da tastiera",
+      "keyboardContent": "Ctrl+A: Seleziona tutto | Escape: Deseleziona | Delete: Rimuovi | E: Migliora | S: Separa | C: Converti"
+    }
+  },
+  "dropzone": {
+    "drop": "Trascina qui file audio o video",
+    "browse": "o clicca per sfogliare",
+    "limit": "Limite batch raggiunto — max 30 audio / 10 video"
+  }
+}

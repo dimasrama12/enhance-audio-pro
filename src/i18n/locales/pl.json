@@ -1,0 +1,65 @@
+{
+  "app": { "title": "Enhance Audio Pro" },
+  "toolbar": {
+    "search": "Szukaj plików...",
+    "filter": "Filtruj",
+    "enhance": "Ulepsz",
+    "enhancing": "Ulepszanie...",
+    "separate": "Rozdziel ścieżki",
+    "separating": "Rozdzielanie...",
+    "convert": "Konwertuj",
+    "converting": "Konwertowanie...",
+    "clearQueue": "Wyczyść kolejkę",
+    "applyFormat": "Zastosuj format do wszystkich oczekujących plików",
+    "viewTable": "Widok tabeli",
+    "viewGrid": "Widok siatki"
+  },
+  "queue": {
+    "empty": "Brak plików w kolejce. Upuść pliki audio lub wideo powyżej, aby zacząć.",
+    "col": { "index": "#", "filename": "Nazwa pliku", "destination": "Cel", "size": "Rozmiar", "type": "Typ", "output": "Wyjście", "bitrate": "Bitrate", "status": "Status" }
+  },
+  "status": { "pending": "Oczekujący", "processing": "Przetwarzanie", "done": "Ukończono", "error": "Błąd" },
+  "settings": {
+    "title": "Ustawienia",
+    "appearance": "Wygląd",
+    "theme": "Motyw",
+    "dark": "Ciemny",
+    "light": "Jasny",
+    "output": "Wyjście",
+    "outputFolder": "Domyślny folder wyjściowy",
+    "notSet": "Nie ustawiono",
+    "language": "Język",
+    "enhancement": "Ulepszenie",
+    "strengthLabel": "Siła ulepszenia",
+    "strengthHint": "Wyższa = bardziej agresywne usuwanie szumów"
+  },
+  "manipulation": {
+    "tools": "narzędzia manipulacji",
+    "tabs": { "trim": "Przytnij", "speed": "Prędkość", "pitch": "Wysokość tonu", "volume": "Głośność", "fade": "Zanikanie", "merge": "Scal", "loop": "Pętla", "eq": "EQ", "waveform": "Fala" }
+  },
+  "help": {
+    "title": "Przewodnik użytkownika",
+    "close": "Zamknij",
+    "sections": {
+      "gettingStarted": "Pierwsze kroki",
+      "gettingStartedContent": "Upuść pliki audio lub wideo w strefie upuszczania. Pliki są dodawane do kolejki.",
+      "enhance": "Poprawa mowy",
+      "enhanceContent": "Zaznacz oczekujące pliki i kliknij Ulepsz, aby usunąć hałas tła.",
+      "separate": "Rozdzielanie ścieżek",
+      "separateContent": "Kliknij Rozdziel ścieżki, aby podzielić audio na wokale, perkusję, bas i inne.",
+      "convert": "Konwersja formatu",
+      "convertContent": "Wybierz format wyjściowy i kliknij Konwertuj. Obsługuje WAV, MP3, FLAC, AAC, OGG, OPUS, M4A.",
+      "manipulation": "Manipulacja dźwiękiem",
+      "manipulationContent": "Kliknij dowolny wiersz kolejki, aby otworzyć panel manipulacji.",
+      "waveform": "Podgląd fali",
+      "waveformContent": "Wybierz przetworzony plik, aby zobaczyć jego formę fali.",
+      "keyboard": "Skróty klawiaturowe",
+      "keyboardContent": "Ctrl+A: Zaznacz wszystko | Escape: Odznacz | Delete: Usuń | E: Ulepsz | S: Rozdziel | C: Konwertuj"
+    }
+  },
+  "dropzone": {
+    "drop": "Upuść tutaj pliki audio lub wideo",
+    "browse": "lub kliknij, aby przeglądać",
+    "limit": "Osiągnięto limit partii — maks. 30 audio / 10 wideo"
+  }
+}

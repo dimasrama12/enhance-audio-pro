@@ -1,0 +1,74 @@
+{
+  "app": { "title": "Enhance Audio Pro" },
+  "toolbar": {
+    "search": "Cari file...",
+    "filter": "Filter",
+    "enhance": "Tingkatkan",
+    "enhancing": "Meningkatkan...",
+    "separate": "Pisahkan Stem",
+    "separating": "Memisahkan...",
+    "convert": "Konversi",
+    "converting": "Mengonversi...",
+    "clearQueue": "Hapus antrean",
+    "applyFormat": "Terapkan format ke semua file tertunda",
+    "viewTable": "Tampilan tabel",
+    "viewGrid": "Tampilan grid"
+  },
+  "queue": {
+    "empty": "Tidak ada file dalam antrean. Seret file audio atau video ke sini.",
+    "col": {
+      "index": "#",
+      "filename": "Nama File",
+      "destination": "Tujuan",
+      "size": "Ukuran",
+      "type": "Tipe",
+      "output": "Output",
+      "bitrate": "Bitrate",
+      "status": "Status"
+    }
+  },
+  "status": { "pending": "Tertunda", "processing": "Diproses", "done": "Selesai", "error": "Error" },
+  "settings": {
+    "title": "Pengaturan",
+    "appearance": "Tampilan",
+    "theme": "Tema",
+    "dark": "Gelap",
+    "light": "Terang",
+    "output": "Output",
+    "outputFolder": "Folder Output Default",
+    "notSet": "Belum diatur",
+    "language": "Bahasa",
+    "enhancement": "Peningkatan",
+    "strengthLabel": "Kekuatan Peningkatan",
+    "strengthHint": "Lebih tinggi = penghapusan noise lebih agresif"
+  },
+  "manipulation": {
+    "tools": "alat manipulasi",
+    "tabs": { "trim": "Potong", "speed": "Kecepatan", "pitch": "Nada", "volume": "Volume", "fade": "Fade", "merge": "Gabung", "loop": "Loop", "eq": "EQ", "waveform": "Gelombang" }
+  },
+  "help": {
+    "title": "Panduan Pengguna",
+    "close": "Tutup",
+    "sections": {
+      "gettingStarted": "Memulai",
+      "gettingStartedContent": "Seret file audio atau video ke zona drop.",
+      "enhance": "Peningkatan Suara",
+      "enhanceContent": "Pilih file tertunda dan klik Tingkatkan untuk menghapus kebisingan latar belakang.",
+      "separate": "Pemisahan Stem",
+      "separateContent": "Klik Pisahkan Stem untuk memisahkan audio menjadi vokal, drum, bass, dan lainnya.",
+      "convert": "Konversi Format",
+      "convertContent": "Pilih format output lalu klik Konversi.",
+      "manipulation": "Manipulasi Audio",
+      "manipulationContent": "Klik baris antrean untuk membuka panel manipulasi.",
+      "waveform": "Pratinjau Gelombang",
+      "waveformContent": "Pilih file yang diproses untuk melihat gelombangnya.",
+      "keyboard": "Pintasan Keyboard",
+      "keyboardContent": "Ctrl+A: Pilih semua | Escape: Batalkan pilihan | Delete: Hapus | E: Tingkatkan | S: Pisahkan | C: Konversi"
+    }
+  },
+  "dropzone": {
+    "drop": "Seret file audio atau video ke sini",
+    "browse": "atau klik untuk menjelajah",
+    "limit": "Batas batch tercapai — maks 30 audio / 10 video"
+  }
+}

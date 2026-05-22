@@ -1,0 +1,65 @@
+{
+  "app": { "title": "Enhance Audio Pro" },
+  "toolbar": {
+    "search": "Bestanden zoeken...",
+    "filter": "Filter",
+    "enhance": "Verbeteren",
+    "enhancing": "Verbeteren...",
+    "separate": "Stems splitsen",
+    "separating": "Splitsen...",
+    "convert": "Converteren",
+    "converting": "Converteren...",
+    "clearQueue": "Wachtrij wissen",
+    "applyFormat": "Formaat toepassen op alle wachtende bestanden",
+    "viewTable": "Tabelweergave",
+    "viewGrid": "Rasterweergave"
+  },
+  "queue": {
+    "empty": "Geen bestanden in wachtrij. Sleep audio- of videobestanden hierboven om te beginnen.",
+    "col": { "index": "#", "filename": "Bestandsnaam", "destination": "Bestemming", "size": "Grootte", "type": "Type", "output": "Uitvoer", "bitrate": "Bitrate", "status": "Status" }
+  },
+  "status": { "pending": "In behandeling", "processing": "Verwerken", "done": "Klaar", "error": "Fout" },
+  "settings": {
+    "title": "Instellingen",
+    "appearance": "Uiterlijk",
+    "theme": "Thema",
+    "dark": "Donker",
+    "light": "Licht",
+    "output": "Uitvoer",
+    "outputFolder": "Standaard uitvoermap",
+    "notSet": "Niet ingesteld",
+    "language": "Taal",
+    "enhancement": "Verbetering",
+    "strengthLabel": "Verbeteringssterkte",
+    "strengthHint": "Hoger = agressievere ruisonderdrukking"
+  },
+  "manipulation": {
+    "tools": "bewerkingstools",
+    "tabs": { "trim": "Knippen", "speed": "Snelheid", "pitch": "Toonhoogte", "volume": "Volume", "fade": "Fade", "merge": "Samenvoegen", "loop": "Herhalen", "eq": "EQ", "waveform": "Golfvorm" }
+  },
+  "help": {
+    "title": "Gebruikershandleiding",
+    "close": "Sluiten",
+    "sections": {
+      "gettingStarted": "Aan de slag",
+      "gettingStartedContent": "Sleep audio- of videobestanden naar de dropzone. Bestanden worden toegevoegd aan de wachtrij.",
+      "enhance": "Spraakverbetering",
+      "enhanceContent": "Selecteer wachtende bestanden en klik op Verbeteren om achtergrondgeluid te verwijderen.",
+      "separate": "Stems splitsen",
+      "separateContent": "Klik op Stems splitsen om audio te verdelen in zang, drums, bas en overige.",
+      "convert": "Formaat converteren",
+      "convertContent": "Kies een uitvoerformaat en klik op Converteren. Ondersteunt WAV, MP3, FLAC, AAC, OGG, OPUS, M4A.",
+      "manipulation": "Audiobew erking",
+      "manipulationContent": "Klik op een rij in de wachtrij om het bewerkingspaneel te openen.",
+      "waveform": "Golfvormvoorbeeld",
+      "waveformContent": "Selecteer een verwerkt bestand om de golfvorm te bekijken.",
+      "keyboard": "Sneltoetsen",
+      "keyboardContent": "Ctrl+A: Alles selecteren | Escape: Deselecteren | Delete: Verwijderen | E: Verbeteren | S: Splitsen | C: Converteren"
+    }
+  },
+  "dropzone": {
+    "drop": "Sleep hier audio- of videobestanden",
+    "browse": "of klik om te bladeren",
+    "limit": "Batchlimiet bereikt — max. 30 audio / 10 video"
+  }
+}

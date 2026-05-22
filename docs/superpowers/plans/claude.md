@@ -114,9 +114,9 @@
 ## Phase 7 — Extended Features (next)
 
 - [ ] Task 1: Auto-save project state — Zustand persist middleware for UI state (queue, selection, panel state)
-- [ ] Task 2: Spectrogram view — frequency domain visualization in WaveformPlayer (second tab alongside waveform)
-- [ ] Task 3: Multi-language translations — fill translation strings for all 17 languages (currently only en.json has real content)
+- [x] Task 2: Spectrogram view — SpectrogramPlugin (WaveSurfer v7) added to WaveformPlayer; Waveform/Spectrogram tab toggle; always-in-DOM containers toggled via CSS; roseus colormap; 100px height
+- [x] Task 3: Multi-language translations — 10 new locale files created (pt, ko, ru, ar, hi, it, nl, pl, tr, vi); all 17 languages imported + registered in i18n/index.ts; 31/31 Vitest passing
 - [ ] Task 4: macOS packaging — .dmg / .app bundle target in tauri.conf.json + CI workflow
 - [ ] Task 5: Custom output folder picker — Tauri dialog plugin integrated into SettingsPanel
-- [ ] Task 6: History / recent files panel — sidebar panel showing previously processed files from SQLite
+- [x] Task 6: History / recent files panel — HistoryPanel.tsx (slide-in from sidebar, Clock icon, shows last 50 done/error jobs); get_recent_jobs in db/queue.rs; get_recent_history Tauri command; invokeGetRecentHistory IPC wrapper; Clock button in Sidebar; cargo check clean
 - [ ] Task 7: Drag-to-reorder queue items — DnD reordering with position column in SQLite

@@ -1,0 +1,54 @@
+{
+  "app": { "title": "Enhance Audio Pro" },
+  "toolbar": {
+    "search": "搜索文件...",
+    "filter": "筛选",
+    "enhance": "增强",
+    "enhancing": "增强中...",
+    "separate": "分离音轨",
+    "separating": "分离中...",
+    "convert": "转换",
+    "converting": "转换中...",
+    "clearQueue": "清空队列",
+    "applyFormat": "将格式应用到所有待处理文件",
+    "viewTable": "表格视图",
+    "viewGrid": "网格视图"
+  },
+  "queue": {
+    "empty": "队列中没有文件。拖放音频或视频文件即可开始。",
+    "col": { "index": "#", "filename": "文件名", "destination": "目标", "size": "大小", "type": "类型", "output": "输出", "bitrate": "比特率", "status": "状态" }
+  },
+  "status": { "pending": "待处理", "processing": "处理中", "done": "完成", "error": "错误" },
+  "settings": {
+    "title": "设置",
+    "appearance": "外观",
+    "theme": "主题",
+    "dark": "深色",
+    "light": "浅色",
+    "output": "输出",
+    "outputFolder": "默认输出文件夹",
+    "notSet": "未设置",
+    "language": "语言",
+    "enhancement": "增强",
+    "strengthLabel": "增强强度",
+    "strengthHint": "越高 = 噪声消除越激进"
+  },
+  "manipulation": {
+    "tools": "音频操作工具",
+    "tabs": { "trim": "裁剪", "speed": "速度", "pitch": "音调", "volume": "音量", "fade": "淡化", "merge": "合并", "loop": "循环", "eq": "均衡器", "waveform": "波形" }
+  },
+  "help": {
+    "title": "用户指南",
+    "close": "关闭",
+    "sections": {
+      "gettingStarted": "入门", "gettingStartedContent": "将音频或视频文件拖放到拖放区。",
+      "enhance": "语音增强", "enhanceContent": "选择待处理文件并点击增强以消除背景噪声。",
+      "separate": "音轨分离", "separateContent": "点击分离音轨将音频分为人声、鼓、贝斯和其他部分。",
+      "convert": "格式转换", "convertContent": "选择输出格式，然后点击转换。",
+      "manipulation": "音频操作", "manipulationContent": "点击队列行以打开操作面板。",
+      "waveform": "波形预览", "waveformContent": "选择已处理的文件查看其波形。",
+      "keyboard": "键盘快捷键", "keyboardContent": "Ctrl+A: 全选 | Escape: 取消选择 | Delete: 删除 | E: 增强 | S: 分离 | C: 转换"
+    }
+  },
+  "dropzone": { "drop": "将音频或视频文件拖放到此处", "browse": "或点击浏览", "limit": "已达批量限制 — 最多 30 个音频 / 10 个视频" }
+}

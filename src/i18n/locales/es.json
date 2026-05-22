@@ -1,0 +1,54 @@
+{
+  "app": { "title": "Enhance Audio Pro" },
+  "toolbar": {
+    "search": "Buscar archivos...",
+    "filter": "Filtrar",
+    "enhance": "Mejorar",
+    "enhancing": "Mejorando...",
+    "separate": "Separar pistas",
+    "separating": "Separando...",
+    "convert": "Convertir",
+    "converting": "Convirtiendo...",
+    "clearQueue": "Limpiar cola",
+    "applyFormat": "Aplicar formato a todos los archivos pendientes",
+    "viewTable": "Vista de tabla",
+    "viewGrid": "Vista de cuadrícula"
+  },
+  "queue": {
+    "empty": "No hay archivos en la cola. Suelta archivos de audio o video aquí.",
+    "col": { "index": "#", "filename": "Nombre de archivo", "destination": "Destino", "size": "Tamaño", "type": "Tipo", "output": "Salida", "bitrate": "Tasa de bits", "status": "Estado" }
+  },
+  "status": { "pending": "Pendiente", "processing": "Procesando", "done": "Listo", "error": "Error" },
+  "settings": {
+    "title": "Ajustes",
+    "appearance": "Apariencia",
+    "theme": "Tema",
+    "dark": "Oscuro",
+    "light": "Claro",
+    "output": "Salida",
+    "outputFolder": "Carpeta de salida predeterminada",
+    "notSet": "No establecida",
+    "language": "Idioma",
+    "enhancement": "Mejora",
+    "strengthLabel": "Intensidad de mejora",
+    "strengthHint": "Mayor = eliminación de ruido más agresiva"
+  },
+  "manipulation": {
+    "tools": "herramientas de manipulación",
+    "tabs": { "trim": "Recortar", "speed": "Velocidad", "pitch": "Tono", "volume": "Volumen", "fade": "Fundido", "merge": "Combinar", "loop": "Bucle", "eq": "EC", "waveform": "Forma de onda" }
+  },
+  "help": {
+    "title": "Guía del usuario",
+    "close": "Cerrar",
+    "sections": {
+      "gettingStarted": "Primeros pasos", "gettingStartedContent": "Arrastra archivos de audio o video a la zona de soltar.",
+      "enhance": "Mejora de voz", "enhanceContent": "Selecciona archivos pendientes y haz clic en Mejorar.",
+      "separate": "Separación de pistas", "separateContent": "Haz clic en Separar pistas para dividir el audio en voces, batería, bajo y otros.",
+      "convert": "Conversión de formato", "convertContent": "Elige un formato de salida y haz clic en Convertir.",
+      "manipulation": "Manipulación de audio", "manipulationContent": "Haz clic en una fila de la cola para abrir el panel de manipulación.",
+      "waveform": "Vista previa de forma de onda", "waveformContent": "Selecciona un archivo procesado para ver su forma de onda.",
+      "keyboard": "Atajos de teclado", "keyboardContent": "Ctrl+A: Seleccionar todo | Escape: Deseleccionar | Suprimir: Eliminar | E: Mejorar | S: Separar | C: Convertir"
+    }
+  },
+  "dropzone": { "drop": "Suelta archivos de audio o video aquí", "browse": "o haz clic para explorar", "limit": "Límite de lote alcanzado — máx. 30 audio / 10 video" }
+}
