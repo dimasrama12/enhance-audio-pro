@@ -353,14 +353,18 @@ chore    : [configuration changes, tooling, etc.]
 - [x] Frontend tests: 31/31 Vitest tests passing
       → Phase 6 COMPLETE ✓
 
-## Phase 7 (next)
-- [ ] Auto-save project state (Zustand persist middleware for UI state)
-- [ ] Spectrogram view (frequency domain visualization)
-- [ ] Multi-language translations (fill en.json translations for all 17 languages)
-- [ ] macOS packaging (.dmg / .app)
-- [ ] Custom output folder picker (Tauri dialog plugin)
-- [ ] History / recent files panel
-- [ ] Drag-to-reorder queue items
+## Phase 7 — Completed Tasks (2026-05-22)
+- [x] Task 1: Auto-save project state — useQueueStore + useSettingsStore wrapped with Zustand persist middleware
+      (queue persists: filter, viewMode; settings persists: theme, language, enhancementStrength)
+- [x] Task 2: Spectrogram view — SpectrogramPlugin integrated in WaveformPlayer; Waveform/Spectrogram tab toggle
+- [x] Task 3: Multi-language translations — 17 locale JSON files created and registered in i18n/index.ts
+- [x] Task 4: macOS packaging — tauri.conf.json bundle targets: ["msi", "dmg", "app"]
+- [x] Task 5: Custom output folder picker — SettingsPanel uses @tauri-apps/plugin-dialog open() with directory:true
+- [x] Task 6: History / recent files panel — HistoryPanel.tsx with Tauri IPC; Clock icon toggle in Sidebar
+- [x] Task 7: Drag-to-reorder queue items — @dnd-kit/core + @dnd-kit/sortable; GripVertical handle on table rows
+      and grid cards; reorderJobs(activeId, overId) action added to useQueueStore
+      → 33/33 Vitest tests passing
+      → Phase 7 COMPLETE ✓
 ```
 
 ---
