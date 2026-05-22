@@ -301,24 +301,66 @@ chore    : [configuration changes, tooling, etc.]
       → 20/20 Vitest tests passing
       → Phase 4 COMPLETE ✓
 
-## Phase 5 (next)
-- [ ] Audio Manipulation Tools: Trim/Cut, Speed, Pitch, Volume/dB Boost, Auto Fade In/Out
-- [ ] Audio Merging & Crossfade — drag-and-drop track timeline
-- [ ] Audio Looping — custom loop generator (extend clip to N hours)
-- [ ] Advanced EQ — 11-band sliders + 17 presets (Classic, Dance, Rock, etc.)
-- [ ] Waveform / Spectrogram visualization
-- [ ] Playback controls (real-time preview, A/B original vs enhanced toggle)
-- [ ] Enhancement strength slider
+# Phase 5 — Completed Tasks (2026-05-22)
+- [x] Phase 5 design spec written and approved
+      → docs/superpowers/specs/2026-05-22-phase5-audio-manipulation-design.md
+- [x] Phase 5 implementation plan written
+      → docs/superpowers/plans/2026-05-22-phase5-audio-manipulation.md
+- [x] Python: processors/manipulate_audio.py — trim, speed, pitch, volume, fade (ffmpeg)
+      → 7/7 Pytest tests passing (TDD)
+- [x] Python: processors/merge_audio.py — concat+acrossfade, stream_loop (ffmpeg)
+      → 6/6 Pytest tests passing (TDD)
+- [x] Python: processors/equalizer.py — parametric EQ + 18 presets (ffmpeg)
+      → 6/6 Pytest tests passing (TDD)
+- [x] Python: routers/manipulate.py — POST /manipulate, /merge, /loop, /eq
+      → 6/6 Pytest tests passing (TDD)
+- [x] Python: main.py — manipulate router registered; 51/51 Pytest tests passing total
+- [x] Rust: commands/manipulate.rs — manipulate_audio, merge_audio, loop_audio, apply_eq
+- [x] Rust: commands/mod.rs — pub mod manipulate added
+- [x] Rust: lib.rs — all 4 manipulation commands registered in invoke_handler; cargo check clean
+- [x] Frontend: ipc.ts — invokeManipulateAudio, invokeMergeAudio, invokeLoopAudio, invokeApplyEQ wrappers
+- [x] Frontend: useQueueStore.ts — selectedJobId + setSelectedJob state
+- [x] Frontend: QueueGrid.tsx — row click selects/deselects job (highlight on selected)
+- [x] Frontend: EQPanel.tsx — 11-band vertical sliders + 18 preset selector + reset button
+- [x] Frontend: ManipulationPanel.tsx — 8-tab collapsible panel (Trim/Speed/Pitch/Volume/Fade/Merge/Loop/EQ)
+      → slides up with AnimatePresence when a job is selected
+- [x] Frontend: App.tsx — ManipulationPanel mounted below QueueGrid
+      → 20/20 Vitest tests passing
+      → Phase 5 COMPLETE ✓
 
-## Phase 6
-- [ ] Multi-select queue (Ctrl+Click individual, Shift+Click range)
-- [ ] Grid View / List View toggle
-- [ ] Localization — 17 languages
-- [ ] Custom keyboard shortcuts
-- [ ] Built-in user guide / documentation panel
-- [ ] Auto-save project state
-- [ ] Export bitrate/quality options
+# Phase 6 — Completed Tasks (2026-05-22)
+- [x] Phase 6 design spec and implementation plan
+- [x] Waveform / Spectrogram visualization — WaveformPlayer.tsx (WaveSurfer.js, 56px waveform bar)
+- [x] Playback controls — Play/Pause/Stop + time display in Waveform tab
+- [x] A/B original vs enhanced toggle — enabled when job status is 'done' and output_filepath exists
+- [x] Enhancement strength slider — 0–100 range in SettingsPanel, maps to DeepFilterNet atten_lim_db (0–40 dB)
+- [x] Multi-select queue — Ctrl+Click (toggle), Shift+Click (range), exclusive click
+      → selectedJobIds: string[] replaces selectedJobId in useQueueStore
+      → primarySelectedId() computed getter for ManipulationPanel backward compat
+- [x] Grid View / List View toggle — LayoutGrid/LayoutList button in QueueToolbar; card grid layout
+- [x] Localization framework — i18next + react-i18next; English base strings in en.json
+      → SUPPORTED_LANGUAGES array: 17 languages (en, id, zh, es, de, fr, ja, pt, ko, ru, ar, hi, it, nl, pl, tr, vi)
+      → SettingsPanel language selector wired to i18n.changeLanguage
+- [x] Custom keyboard shortcuts — useKeyboardShortcuts hook
+      → Ctrl+A: select all | Escape: deselect | Delete: remove selected | E: Enhance | S: Separate | C: Convert
+- [x] Built-in user guide — HelpPanel.tsx (7 collapsible sections, triggered from TitleBar help icon)
+- [x] Export bitrate/quality options — BitrateSelect per row (Auto/64k/96k/128k/192k/256k/320k)
+      → bitrate column added to SQLite; set_bitrate Rust command; -b:a flag in ffmpeg convert
+- [x] output_filepath tracking — Python sends output_filepath in done callback; stored in DB + frontend state
+      → Rust: StatusPayload.output_filepath, update_job_output_filepath helper
+- [x] Backend: enhance.py accepts strength (float 0.0–1.0); convert.py reads bitrate from DB
+      → 56/56 Pytest tests passing
+- [x] Frontend tests: 31/31 Vitest tests passing
+      → Phase 6 COMPLETE ✓
+
+## Phase 7 (next)
+- [ ] Auto-save project state (Zustand persist middleware for UI state)
+- [ ] Spectrogram view (frequency domain visualization)
+- [ ] Multi-language translations (fill en.json translations for all 17 languages)
 - [ ] macOS packaging (.dmg / .app)
+- [ ] Custom output folder picker (Tauri dialog plugin)
+- [ ] History / recent files panel
+- [ ] Drag-to-reorder queue items
 ```
 
 ---
