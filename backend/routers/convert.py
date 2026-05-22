@@ -35,7 +35,7 @@ async def _process_jobs(job_ids: List[str], callback_url: str) -> None:
         try:
             conn = sqlite3.connect(str(db_path))
             row = conn.execute(
-                "SELECT filepath, destination, filename, output_format, bitrate FROM queue_jobs WHERE id = ?",
+                "SELECT filepath, destination, filename, output_format, bitrate, sample_rate FROM queue_jobs WHERE id = ?",
                 (job_id,),
             ).fetchone()
             conn.close()
@@ -43,26 +43,27 @@ async def _process_jobs(job_ids: List[str], callback_url: str) -> None:
             if row is None:
                 continue
 
-            filepath, destination, filename, output_format, bitrate = row
+            filepath, destination, filename, output_format, bitrate, sample_rate = row
             output_format = output_format or "wav"
             bitrate = bitrate or ""
+            sample_rate = sample_rate or ""
             stem = pathlib.Path(filename).stem
             out_dir = pathlib.Path(destination) if destination else pathlib.Path(filepath).parent
             out_dir.mkdir(parents=True, exist_ok=True)
             out_path = out_dir / f"{stem}_converted.{output_format}"
 
-            def _sync_convert(src: str, dst: str, jid: str, br: str) -> None:
+            def _sync_convert(src: str, dst: str, jid: str, br: str, sr: str) -> None:
                 def _cb(pct: int) -> None:
                     httpx.post(
                         f"{callback_url}/callback/progress",
                         json={"job_id": jid, "percent": pct},
                         timeout=5,
                     )
-                convert_file(src, dst, _cb, bitrate=br)
+                convert_file(src, dst, _cb, bitrate=br, sample_rate=sr)
 
             await loop.run_in_executor(
                 None,
-                lambda fp=filepath, op=str(out_path), jid=job_id, br=bitrate: _sync_convert(fp, op, jid, br),
+                lambda fp=filepath, op=str(out_path), jid=job_id, br=bitrate, sr=sample_rate: _sync_convert(fp, op, jid, br, sr),
             )
 
             async with httpx.AsyncClient(timeout=5) as client:

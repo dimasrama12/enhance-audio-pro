@@ -17,6 +17,7 @@ pub struct QueueJob {
     pub output_format: String,
     pub bitrate: String,
     pub output_filepath: Option<String>,
+    pub sample_rate: String,
     pub created_at: String,
     pub updated_at: String,
 }
@@ -51,6 +52,7 @@ pub fn insert_job(
         output_format: "wav".to_string(),
         bitrate: String::new(),
         output_filepath: None,
+        sample_rate: "44100".to_string(),
         created_at: now.clone(),
         updated_at: now,
     })
@@ -59,7 +61,8 @@ pub fn insert_job(
 pub fn get_all_jobs(conn: &Connection) -> Result<Vec<QueueJob>> {
     let mut stmt = conn.prepare(
         "SELECT id, filename, filepath, destination, size_bytes, media_type, status,
-                progress, error_message, output_format, bitrate, output_filepath, created_at, updated_at
+                progress, error_message, output_format, bitrate, output_filepath,
+                sample_rate, created_at, updated_at
          FROM queue_jobs ORDER BY created_at ASC",
     )?;
 
@@ -79,8 +82,9 @@ pub fn get_all_jobs(conn: &Connection) -> Result<Vec<QueueJob>> {
                     .unwrap_or_else(|| "wav".to_string()),
                 bitrate: row.get::<_, Option<String>>(10)?.unwrap_or_default(),
                 output_filepath: row.get(11)?,
-                created_at: row.get(12)?,
-                updated_at: row.get(13)?,
+                sample_rate: row.get::<_, Option<String>>(12)?.unwrap_or_else(|| "44100".to_string()),
+                created_at: row.get(13)?,
+                updated_at: row.get(14)?,
             })
         })?
         .collect::<Result<Vec<_>>>()?;
@@ -91,7 +95,8 @@ pub fn get_all_jobs(conn: &Connection) -> Result<Vec<QueueJob>> {
 pub fn get_job_by_id(conn: &Connection, id: &str) -> Result<Option<QueueJob>> {
     let mut stmt = conn.prepare(
         "SELECT id, filename, filepath, destination, size_bytes, media_type, status,
-                progress, error_message, output_format, bitrate, output_filepath, created_at, updated_at
+                progress, error_message, output_format, bitrate, output_filepath,
+                sample_rate, created_at, updated_at
          FROM queue_jobs WHERE id = ?1",
     )?;
 
@@ -110,8 +115,9 @@ pub fn get_job_by_id(conn: &Connection, id: &str) -> Result<Option<QueueJob>> {
                 .unwrap_or_else(|| "wav".to_string()),
             bitrate: row.get::<_, Option<String>>(10)?.unwrap_or_default(),
             output_filepath: row.get(11)?,
-            created_at: row.get(12)?,
-            updated_at: row.get(13)?,
+            sample_rate: row.get::<_, Option<String>>(12)?.unwrap_or_else(|| "44100".to_string()),
+            created_at: row.get(13)?,
+            updated_at: row.get(14)?,
         })
     })?;
 
@@ -154,6 +160,15 @@ pub fn update_job_bitrate(conn: &Connection, id: &str, bitrate: &str) -> Result<
     Ok(())
 }
 
+pub fn update_job_sample_rate(conn: &Connection, id: &str, sample_rate: &str) -> Result<()> {
+    let now = Utc::now().to_rfc3339();
+    conn.execute(
+        "UPDATE queue_jobs SET sample_rate = ?1, updated_at = ?2 WHERE id = ?3",
+        params![sample_rate, now, id],
+    )?;
+    Ok(())
+}
+
 pub fn update_job_output_filepath(conn: &Connection, id: &str, filepath: &str) -> Result<()> {
     let now = Utc::now().to_rfc3339();
     conn.execute(
@@ -166,7 +181,8 @@ pub fn update_job_output_filepath(conn: &Connection, id: &str, filepath: &str) -
 pub fn get_recent_jobs(conn: &Connection, limit: i64) -> Result<Vec<QueueJob>> {
     let mut stmt = conn.prepare(
         "SELECT id, filename, filepath, destination, size_bytes, media_type, status,
-                progress, error_message, output_format, bitrate, output_filepath, created_at, updated_at
+                progress, error_message, output_format, bitrate, output_filepath,
+                sample_rate, created_at, updated_at
          FROM queue_jobs
          WHERE status IN ('done', 'error')
          ORDER BY updated_at DESC
@@ -189,8 +205,9 @@ pub fn get_recent_jobs(conn: &Connection, limit: i64) -> Result<Vec<QueueJob>> {
                     .unwrap_or_else(|| "wav".to_string()),
                 bitrate: row.get::<_, Option<String>>(10)?.unwrap_or_default(),
                 output_filepath: row.get(11)?,
-                created_at: row.get(12)?,
-                updated_at: row.get(13)?,
+                sample_rate: row.get::<_, Option<String>>(12)?.unwrap_or_else(|| "44100".to_string()),
+                created_at: row.get(13)?,
+                updated_at: row.get(14)?,
             })
         })?
         .collect::<Result<Vec<_>>>()?;

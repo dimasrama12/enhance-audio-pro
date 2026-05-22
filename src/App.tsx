@@ -11,6 +11,7 @@ import QueueToolbar from '@/components/QueueToolbar';
 import QueueGrid from '@/components/QueueGrid';
 import ManipulationPanel from '@/components/ManipulationPanel';
 import HelpPanel from '@/components/HelpPanel';
+import QueueStatusBar from '@/components/QueueStatusBar';
 import { useKeyboardShortcuts } from '@/hooks/useKeyboardShortcuts';
 
 export default function App(): JSX.Element {
@@ -53,6 +54,7 @@ export default function App(): JSX.Element {
         <main className="flex flex-col flex-1 overflow-hidden p-4 gap-3">
           <DropZone />
           <QueueToolbar />
+          <QueueStatusBar />
           <QueueGrid />
           <ManipulationPanel />
         </main>

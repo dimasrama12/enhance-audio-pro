@@ -28,6 +28,7 @@ export default function SettingsPanel({ open, onClose }: Props): JSX.Element {
       language: store.language,
       setupComplete: store.setupComplete,
       enhancementStrength: store.enhancementStrength,
+      filenameTemplate: store.filenameTemplate,
       ...patch,
     };
     store.setSettings(next);
@@ -108,6 +109,18 @@ export default function SettingsPanel({ open, onClose }: Props): JSX.Element {
                     <FolderOpen size={16} />
                   </button>
                 </div>
+              </section>
+              <section>
+                <h3 className="text-xs font-semibold uppercase text-white/40 mb-3">Output Filename</h3>
+                <label className="text-sm block mb-2">Template</label>
+                <input
+                  type="text"
+                  value={store.filenameTemplate}
+                  onChange={(e) => save({ filenameTemplate: e.target.value })}
+                  placeholder="{name}_enhanced"
+                  className="w-full px-3 py-1.5 bg-white/10 rounded-lg text-sm text-white outline-none focus:ring-1 focus:ring-violet-500 transition"
+                />
+                <p className="text-[10px] text-white/30 mt-1">Tokens: <code>{'{name}'}</code>, <code>{'{date}'}</code>, <code>{'{format}'}</code></p>
               </section>
               <section>
                 <h3 className="text-xs font-semibold uppercase text-white/40 mb-3">{t('settings.language')}</h3>

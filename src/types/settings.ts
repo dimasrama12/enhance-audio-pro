@@ -4,6 +4,7 @@ export interface AppSettings {
   language: string;
   setupComplete: boolean;
   enhancementStrength: number;
+  filenameTemplate: string;
 }
 
 export const DEFAULT_SETTINGS: AppSettings = {
@@ -12,4 +13,5 @@ export const DEFAULT_SETTINGS: AppSettings = {
   language: 'en',
   setupComplete: false,
   enhancementStrength: 50,
+  filenameTemplate: '{name}_enhanced',
 };

@@ -6,7 +6,8 @@ mod commands;
 mod db;
 mod sidecar;
 
-use commands::convert::{convert_files, set_bitrate, set_output_format};
+use commands::convert::{convert_files, set_bitrate, set_output_format, set_sample_rate};
+use commands::record::save_recording;
 use commands::download::start_model_download;
 use commands::manipulate::{apply_eq, loop_audio, manipulate_audio, merge_audio};
 use commands::process::process_queue;
@@ -75,6 +76,8 @@ pub fn run() {
             convert_files,
             set_output_format,
             set_bitrate,
+            set_sample_rate,
+            save_recording,
             manipulate_audio,
             merge_audio,
             loop_audio,

@@ -67,6 +67,22 @@ pub fn set_bitrate(
 }
 
 #[tauri::command]
+pub fn set_sample_rate(
+    state: State<'_, AppState>,
+    job_id: String,
+    sample_rate: String,
+) -> IpcResponse<()> {
+    let conn = match state.db.lock() {
+        Ok(c) => c,
+        Err(e) => return IpcResponse { success: false, data: None, error: Some(e.to_string()) },
+    };
+    match db_queue::update_job_sample_rate(&conn, &job_id, &sample_rate) {
+        Ok(()) => IpcResponse { success: true, data: Some(()), error: None },
+        Err(e) => IpcResponse { success: false, data: None, error: Some(e.to_string()) },
+    }
+}
+
+#[tauri::command]
 pub fn set_output_format(
     state: State<'_, AppState>,
     job_id: String,

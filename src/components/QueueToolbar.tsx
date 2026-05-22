@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { Play, Scissors, Search, Trash2, RefreshCw, LayoutList, LayoutGrid } from 'lucide-react';
+import RecordButton from '@/components/RecordButton';
 import { useQueueStore } from '@/stores/useQueueStore';
 import { useSettingsStore } from '@/stores/useSettingsStore';
 import {
@@ -140,6 +141,7 @@ export default function QueueToolbar(): JSX.Element {
       >
         {viewMode === 'table' ? <LayoutGrid size={16} /> : <LayoutList size={16} />}
       </button>
+      <RecordButton />
       <button
         onClick={clearQueue}
         title="Clear queue"

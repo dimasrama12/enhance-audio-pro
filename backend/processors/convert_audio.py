@@ -22,11 +22,14 @@ def convert_file(
     output_path: str,
     progress_cb: Callable[[int], None],
     bitrate: str = "",
+    sample_rate: str = "",
 ) -> None:
     progress_cb(10)
     cmd = [_ffmpeg_exe(), "-y", "-i", input_path, "-vn"]
     if bitrate:
         cmd += ["-b:a", bitrate]
+    if sample_rate:
+        cmd += ["-ar", sample_rate]
     cmd.append(output_path)
     result = subprocess.run(cmd, capture_output=True, text=True)
     if result.returncode != 0:

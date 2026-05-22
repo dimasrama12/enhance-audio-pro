@@ -10,6 +10,7 @@ interface SettingsState extends AppSettings {
   setOutputFolder: (folder: string) => void;
   setLanguage: (language: string) => void;
   setEnhancementStrength: (v: number) => void;
+  setFilenameTemplate: (t: string) => void;
   markSetupComplete: () => void;
   setInitialized: (v: boolean) => void;
 }
@@ -24,6 +25,7 @@ export const useSettingsStore = create<SettingsState>()(
       setOutputFolder: (outputFolder) => set({ outputFolder }),
       setLanguage: (language) => set({ language }),
       setEnhancementStrength: (enhancementStrength) => set({ enhancementStrength }),
+      setFilenameTemplate: (filenameTemplate) => set({ filenameTemplate }),
       markSetupComplete: () => set({ setupComplete: true }),
       setInitialized: (initialized) => set({ initialized }),
     }),
@@ -33,6 +35,7 @@ export const useSettingsStore = create<SettingsState>()(
         theme: state.theme,
         language: state.language,
         enhancementStrength: state.enhancementStrength,
+        filenameTemplate: state.filenameTemplate,
       }),
     }
   )

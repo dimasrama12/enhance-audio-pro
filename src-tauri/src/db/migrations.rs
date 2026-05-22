@@ -33,5 +33,9 @@ pub fn run_migrations(conn: &Connection) -> Result<()> {
     let _ = conn.execute_batch(
         "ALTER TABLE queue_jobs ADD COLUMN output_filepath TEXT;",
     );
+    // Phase 8: per-job sample rate
+    let _ = conn.execute_batch(
+        "ALTER TABLE queue_jobs ADD COLUMN sample_rate TEXT NOT NULL DEFAULT '44100';",
+    );
     Ok(())
 }

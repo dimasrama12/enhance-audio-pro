@@ -66,3 +66,11 @@ export async function invokeLoopAudio(jobId: string, targetDurationSec: number):
 export async function invokeApplyEQ(jobId: string, gains: number[]): Promise<IpcResponse<null>> {
   return invoke<IpcResponse<null>>('apply_eq', { jobId, gains });
 }
+
+export async function invokeSetSampleRate(jobId: string, sampleRate: string): Promise<IpcResponse<null>> {
+  return invoke<IpcResponse<null>>('set_sample_rate', { jobId, sampleRate });
+}
+
+export async function invokeSaveRecording(bytes: number[], filename: string): Promise<IpcResponse<string>> {
+  return invoke<IpcResponse<string>>('save_recording', { bytes, filename });
+}

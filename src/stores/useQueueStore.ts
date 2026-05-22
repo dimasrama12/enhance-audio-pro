@@ -28,6 +28,7 @@ interface QueueState {
   selectAllJobs: () => void;
   clearSelection: () => void;
   primarySelectedId: () => string | null;
+  setSampleRate: (id: string, rate: string) => void;
   // Reorder
   reorderJobs: (activeId: string, overId: string) => void;
   // View
@@ -122,6 +123,11 @@ export const useQueueStore = create<QueueState>()(
     const { selectedJobIds } = get();
     return selectedJobIds[0] ?? null;
   },
+
+  setSampleRate: (id, rate) =>
+    set((s) => ({
+      jobs: s.jobs.map((j) => (j.id === id ? { ...j, sample_rate: rate } : j)),
+    })),
 
   reorderJobs: (activeId, overId) =>
     set((s) => {

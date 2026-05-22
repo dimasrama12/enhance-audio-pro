@@ -148,12 +148,26 @@ export default function ManipulationPanel(): JSX.Element {
                 <span className="text-violet-400 font-medium">{selectedJob.filename}</span>
                 {' '}— manipulation tools
               </span>
-              <button
-                onClick={() => setSelectedJob(null)}
-                className="p-1 rounded-md text-white/30 hover:text-white hover:bg-white/10 transition-colors"
-              >
-                <X size={12} />
-              </button>
+              <div className="flex items-center gap-1">
+                <button
+                  onClick={() => {
+                    setTrimStart(0); setTrimEnd(30); setSpeed(1.0); setSemitones(0);
+                    setDbGain(0); setFadeIn(2); setFadeOut(2); setFadeDuration(60);
+                    setCrossfade(0); setMergeIds([]); setLoopHours(1);
+                    setEqGains(Array(11).fill(0));
+                  }}
+                  title="Reset all values to defaults"
+                  className="px-2 py-0.5 text-[10px] rounded text-white/30 hover:text-white hover:bg-white/10 transition-colors"
+                >
+                  Reset All
+                </button>
+                <button
+                  onClick={() => setSelectedJob(null)}
+                  className="p-1 rounded-md text-white/30 hover:text-white hover:bg-white/10 transition-colors"
+                >
+                  <X size={12} />
+                </button>
+              </div>
             </div>
 
             {/* Tabs */}

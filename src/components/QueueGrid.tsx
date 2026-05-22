@@ -21,7 +21,7 @@ import {
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { useQueueStore } from '@/stores/useQueueStore';
-import { invokeSetOutputFormat, invokeSetBitrate } from '@/lib/ipc';
+import { invokeSetOutputFormat, invokeSetBitrate, invokeSetSampleRate } from '@/lib/ipc';
 import type { QueueJob, JobStatus } from '@/types/queue';
 
 const STATUS_COLORS: Record<JobStatus, string> = {
@@ -33,6 +33,7 @@ const STATUS_COLORS: Record<JobStatus, string> = {
 
 const FORMAT_OPTIONS = ['wav', 'mp3', 'flac', 'aac', 'ogg', 'opus', 'm4a'];
 const BITRATE_OPTIONS = ['', '64k', '96k', '128k', '192k', '256k', '320k'];
+const SAMPLE_RATE_OPTIONS = ['', '22050', '44100', '48000', '96000'];
 
 function formatBytes(n: number): string {
   if (n < 1024) return `${n} B`;
@@ -103,6 +104,31 @@ function BitrateSelect({ job }: { job: QueueJob }): JSX.Element {
   );
 }
 
+function SampleRateSelect({ job }: { job: QueueJob }): JSX.Element {
+  const setSampleRate = useQueueStore((s) => s.setSampleRate);
+
+  async function handleChange(e: React.ChangeEvent<HTMLSelectElement>): Promise<void> {
+    e.stopPropagation();
+    const sr = e.target.value;
+    setSampleRate(job.id, sr);
+    await invokeSetSampleRate(job.id, sr);
+  }
+
+  return (
+    <select
+      value={job.sample_rate || ''}
+      onChange={handleChange}
+      onClick={(e) => e.stopPropagation()}
+      disabled={job.status !== 'pending'}
+      className="bg-white/10 text-white text-xs rounded px-2 py-0.5 outline-none focus:ring-1 focus:ring-violet-500 disabled:opacity-40 transition"
+    >
+      {SAMPLE_RATE_OPTIONS.map((r) => (
+        <option key={r} value={r} className="bg-neutral-800">{r ? `${r} Hz` : 'Auto'}</option>
+      ))}
+    </select>
+  );
+}
+
 function SortableJobRow({ job, index, isSelected, onSelect }: {
   job: QueueJob;
   index: number;
@@ -146,6 +172,9 @@ function SortableJobRow({ job, index, isSelected, onSelect }: {
       </td>
       <td className="px-4 py-2 w-24">
         <BitrateSelect job={job} />
+      </td>
+      <td className="px-4 py-2 w-24">
+        <SampleRateSelect job={job} />
       </td>
       <td className={clsx('px-4 py-2 text-xs font-medium capitalize w-36', STATUS_COLORS[job.status])}>
         <span title={job.status === 'error' ? (job.error_message ?? undefined) : undefined}>
@@ -295,13 +324,14 @@ export default function QueueGrid(): JSX.Element {
             <th className="px-4 py-2 w-16">Type</th>
             <th className="px-4 py-2 w-24">Format</th>
             <th className="px-4 py-2 w-24">Bitrate</th>
+            <th className="px-4 py-2 w-24">Sample Hz</th>
             <th className="px-4 py-2 w-36">Status</th>
           </tr>
         </thead>
         <tbody>
           {jobs.length === 0 ? (
             <tr>
-              <td colSpan={9} className="px-4 py-16 text-center text-white/30 text-sm">
+              <td colSpan={10} className="px-4 py-16 text-center text-white/30 text-sm">
                 No files in queue. Drop audio or video files above to get started.
               </td>
             </tr>
