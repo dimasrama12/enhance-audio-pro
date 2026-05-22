@@ -111,12 +111,14 @@
 
 ---
 
-## Phase 7 — Extended Features (next)
+## Phase 7 — Extended Features (2026-05-22) ✓ COMPLETE
 
-- [ ] Task 1: Auto-save project state — Zustand persist middleware for UI state (queue, selection, panel state)
+- [x] Task 1: Auto-save project state — useQueueStore + useSettingsStore wrapped with Zustand persist middleware; queue persists filter + viewMode; settings persists theme, language, enhancementStrength
 - [x] Task 2: Spectrogram view — SpectrogramPlugin (WaveSurfer v7) added to WaveformPlayer; Waveform/Spectrogram tab toggle; always-in-DOM containers toggled via CSS; roseus colormap; 100px height
-- [x] Task 3: Multi-language translations — 10 new locale files created (pt, ko, ru, ar, hi, it, nl, pl, tr, vi); all 17 languages imported + registered in i18n/index.ts; 31/31 Vitest passing
-- [ ] Task 4: macOS packaging — .dmg / .app bundle target in tauri.conf.json + CI workflow
-- [ ] Task 5: Custom output folder picker — Tauri dialog plugin integrated into SettingsPanel
+- [x] Task 3: Multi-language translations — 10 new locale files created (pt, ko, ru, ar, hi, it, nl, pl, tr, vi); all 17 languages imported + registered in i18n/index.ts; 33/33 Vitest passing
+- [x] Task 4: macOS packaging — tauri.conf.json bundle targets updated to ["msi", "dmg", "app"]
+- [x] Task 5: Custom output folder picker — SettingsPanel uses @tauri-apps/plugin-dialog open() with directory:true; browseFolder writes to store + invokeSaveSettings
 - [x] Task 6: History / recent files panel — HistoryPanel.tsx (slide-in from sidebar, Clock icon, shows last 50 done/error jobs); get_recent_jobs in db/queue.rs; get_recent_history Tauri command; invokeGetRecentHistory IPC wrapper; Clock button in Sidebar; cargo check clean
-- [ ] Task 7: Drag-to-reorder queue items — DnD reordering with position column in SQLite
+- [x] Task 7: Drag-to-reorder queue items — @dnd-kit/core + @dnd-kit/sortable installed; GripVertical drag handle on table rows and grid cards; reorderJobs(activeId, overId) action in useQueueStore; PointerSensor with distance:5 activation constraint
+
+**Result:** 33/33 Vitest · 56/56 Pytest · cargo check clean
