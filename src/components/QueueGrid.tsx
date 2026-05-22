@@ -38,6 +38,7 @@ function FormatSelect({ job }: { job: QueueJob }): JSX.Element {
   const setOutputFormat = useQueueStore((s) => s.setOutputFormat);
 
   async function handleChange(e: React.ChangeEvent<HTMLSelectElement>): Promise<void> {
+    e.stopPropagation();
     const fmt = e.target.value;
     setOutputFormat(job.id, fmt);
     await invokeSetOutputFormat(job.id, fmt);
@@ -47,6 +48,7 @@ function FormatSelect({ job }: { job: QueueJob }): JSX.Element {
     <select
       value={job.output_format}
       onChange={handleChange}
+      onClick={(e) => e.stopPropagation()}
       disabled={job.status !== 'pending'}
       className="bg-white/10 text-white text-xs rounded px-2 py-0.5 outline-none focus:ring-1 focus:ring-violet-500 disabled:opacity-40 transition"
     >
@@ -59,14 +61,25 @@ function FormatSelect({ job }: { job: QueueJob }): JSX.Element {
   );
 }
 
-function JobRow({ job, index }: { job: QueueJob; index: number }): JSX.Element {
+function JobRow({ job, index, isSelected, onSelect }: {
+  job: QueueJob;
+  index: number;
+  isSelected: boolean;
+  onSelect: () => void;
+}): JSX.Element {
   return (
     <motion.tr
       initial={{ opacity: 0, y: -6 }}
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0 }}
       transition={{ delay: index * 0.03 }}
-      className="border-b border-white/5 hover:bg-white/5 transition-colors"
+      onClick={onSelect}
+      className={clsx(
+        'border-b border-white/5 cursor-pointer transition-colors',
+        isSelected
+          ? 'bg-violet-600/20 border-violet-500/30 hover:bg-violet-600/25'
+          : 'hover:bg-white/5',
+      )}
     >
       <td className="px-4 py-2 text-white/30 text-xs w-10">{index + 1}</td>
       <td className="px-4 py-2 text-sm text-white truncate max-w-[180px]">{job.filename}</td>
@@ -90,6 +103,8 @@ export default function QueueGrid(): JSX.Element {
   const jobs = useQueueStore((s) => s.filteredJobs());
   const setProgress = useQueueStore((s) => s.setProgress);
   const setStatus = useQueueStore((s) => s.setStatus);
+  const selectedJobId = useQueueStore((s) => s.selectedJobId);
+  const setSelectedJob = useQueueStore((s) => s.setSelectedJob);
 
   useEffect(() => {
     const unlistenProgress = listen<{ jobId: string; percent: number }>(
@@ -132,7 +147,15 @@ export default function QueueGrid(): JSX.Element {
                 </td>
               </tr>
             ) : (
-              jobs.map((job, i) => <JobRow key={job.id} job={job} index={i} />)
+              jobs.map((job, i) => (
+                <JobRow
+                  key={job.id}
+                  job={job}
+                  index={i}
+                  isSelected={selectedJobId === job.id}
+                  onSelect={() => setSelectedJob(selectedJobId === job.id ? null : job.id)}
+                />
+              ))
             )}
           </AnimatePresence>
         </tbody>

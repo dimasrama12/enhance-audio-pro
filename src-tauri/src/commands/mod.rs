@@ -1,5 +1,6 @@
 pub mod convert;
 pub mod download;
+pub mod manipulate;
 pub mod process;
 pub mod queue;
 pub mod separate;

@@ -8,6 +8,7 @@ import Sidebar from '@/components/Sidebar';
 import DropZone from '@/components/DropZone';
 import QueueToolbar from '@/components/QueueToolbar';
 import QueueGrid from '@/components/QueueGrid';
+import ManipulationPanel from '@/components/ManipulationPanel';
 
 export default function App(): JSX.Element {
   const { theme, setupComplete, setSettings, setInitialized } = useSettingsStore();
@@ -41,6 +42,7 @@ export default function App(): JSX.Element {
           <DropZone />
           <QueueToolbar />
           <QueueGrid />
+          <ManipulationPanel />
         </main>
       </div>
     </div>

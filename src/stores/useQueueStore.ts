@@ -5,6 +5,7 @@ interface QueueState {
   jobs: QueueJob[];
   filter: string;
   searchQuery: string;
+  selectedJobId: string | null;
   setJobs: (jobs: QueueJob[]) => void;
   addJobs: (jobs: QueueJob[]) => void;
   setFilter: (filter: string) => void;
@@ -14,17 +15,19 @@ interface QueueState {
   setProgress: (id: string, percent: number) => void;
   setStatus: (id: string, status: JobStatus, errorMessage?: string) => void;
   setOutputFormat: (id: string, format: string) => void;
+  setSelectedJob: (id: string | null) => void;
 }
 
 export const useQueueStore = create<QueueState>((set, get) => ({
   jobs: [],
   filter: 'all',
   searchQuery: '',
+  selectedJobId: null,
   setJobs: (jobs) => set({ jobs }),
   addJobs: (newJobs) => set((s) => ({ jobs: [...s.jobs, ...newJobs] })),
   setFilter: (filter) => set({ filter }),
   setSearchQuery: (searchQuery) => set({ searchQuery }),
-  clearQueue: () => set({ jobs: [] }),
+  clearQueue: () => set({ jobs: [], selectedJobId: null }),
   filteredJobs: () => {
     const { jobs, filter, searchQuery } = get();
     return jobs
@@ -45,4 +48,5 @@ export const useQueueStore = create<QueueState>((set, get) => ({
     set((s) => ({
       jobs: s.jobs.map((j) => (j.id === id ? { ...j, output_format: format } : j)),
     })),
+  setSelectedJob: (id) => set({ selectedJobId: id }),
 }));

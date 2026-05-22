@@ -38,3 +38,23 @@ export async function invokeConvertFiles(jobIds: string[]): Promise<IpcResponse<
 export async function invokeSetOutputFormat(jobId: string, format: string): Promise<IpcResponse<null>> {
   return invoke<IpcResponse<null>>('set_output_format', { jobId, format });
 }
+
+export async function invokeManipulateAudio(
+  jobId: string,
+  operation: string,
+  params: Record<string, number>,
+): Promise<IpcResponse<null>> {
+  return invoke<IpcResponse<null>>('manipulate_audio', { jobId, operation, params });
+}
+
+export async function invokeMergeAudio(jobIds: string[], crossfadeSec: number): Promise<IpcResponse<null>> {
+  return invoke<IpcResponse<null>>('merge_audio', { jobIds, crossfadeSec });
+}
+
+export async function invokeLoopAudio(jobId: string, targetDurationSec: number): Promise<IpcResponse<null>> {
+  return invoke<IpcResponse<null>>('loop_audio', { jobId, targetDurationSec });
+}
+
+export async function invokeApplyEQ(jobId: string, gains: number[]): Promise<IpcResponse<null>> {
+  return invoke<IpcResponse<null>>('apply_eq', { jobId, gains });
+}
