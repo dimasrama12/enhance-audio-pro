@@ -122,3 +122,15 @@
 - [x] Task 7: Drag-to-reorder queue items — @dnd-kit/core + @dnd-kit/sortable installed; GripVertical drag handle on table rows and grid cards; reorderJobs(activeId, overId) action in useQueueStore; PointerSensor with distance:5 activation constraint
 
 **Result:** 33/33 Vitest · 56/56 Pytest · cargo check clean
+
+---
+
+## Phase 8 — Quality, Recording, PRD Completion (2026-05-22) ✓ COMPLETE
+
+- [x] Task 1: QueueStatusBar — live pill counters (total / pending / processing / done / error) shown between toolbar and grid; hidden when queue is empty
+- [x] Task 2: Sample rate selector per-job — sample_rate TEXT DEFAULT '44100' migration; update_job_sample_rate in db/queue.rs; set_sample_rate Rust command; setSampleRate store action; invokeSetSampleRate IPC; SampleRateSelect in QueueGrid (Auto/22050/44100/48000/96000 Hz); Python convert.py passes -ar flag to ffmpeg
+- [x] Task 3: Custom output filename template — filenameTemplate: string in AppSettings + DEFAULT_SETTINGS; setFilenameTemplate + persist in useSettingsStore; SettingsPanel template input with {name}/{date}/{format} token hints
+- [x] Task 4: Reset All Editing button — ManipulationPanel header button resets all 11 manipulation state values to defaults in one click
+- [x] Task 5: In-app audio recording — RecordButton.tsx (MediaRecorder API → Blob → Uint8Array → invokeSaveRecording → invokeAddFiles); save_recording Rust command writes bytes to temp dir and returns path; RecordButton in QueueToolbar with red pulse animation while active
+
+**Result:** 33/33 Vitest · 56/56 Pytest · cargo check clean
