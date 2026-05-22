@@ -1,5 +1,6 @@
 import { motion, AnimatePresence } from 'framer-motion';
-import { X } from 'lucide-react';
+import { X, FolderOpen } from 'lucide-react';
+import { open } from '@tauri-apps/plugin-dialog';
 import { useSettingsStore } from '@/stores/useSettingsStore';
 import { invokeSaveSettings } from '@/lib/ipc';
 import { SUPPORTED_LANGUAGES } from '@/i18n';
@@ -12,6 +13,13 @@ interface Props { open: boolean; onClose: () => void; }
 export default function SettingsPanel({ open, onClose }: Props): JSX.Element {
   const store = useSettingsStore();
   const { t } = useTranslation();
+
+  const browseFolder = async (): Promise<void> => {
+    const selected = await open({ directory: true, multiple: false, title: 'Select Output Folder' });
+    if (typeof selected === 'string' && selected) {
+      await save({ outputFolder: selected });
+    }
+  };
 
   const save = async (patch: Partial<AppSettings>): Promise<void> => {
     const next: AppSettings = {
@@ -87,10 +95,19 @@ export default function SettingsPanel({ open, onClose }: Props): JSX.Element {
               <section>
                 <h3 className="text-xs font-semibold uppercase text-white/40 mb-3">{t('settings.output')}</h3>
                 <label className="text-sm block mb-2">{t('settings.outputFolder')}</label>
-                <input
-                  type="text" readOnly value={store.outputFolder || t('settings.notSet')}
-                  className="w-full px-3 py-1.5 bg-white/10 rounded-lg text-sm text-white/60 outline-none"
-                />
+                <div className="flex gap-2">
+                  <input
+                    type="text" readOnly value={store.outputFolder || t('settings.notSet')}
+                    className="flex-1 px-3 py-1.5 bg-white/10 rounded-lg text-sm text-white/60 outline-none truncate"
+                  />
+                  <button
+                    onClick={browseFolder}
+                    title="Browse folder"
+                    className="p-1.5 rounded-lg bg-white/10 hover:bg-white/20 text-white/60 hover:text-white transition-colors shrink-0"
+                  >
+                    <FolderOpen size={16} />
+                  </button>
+                </div>
               </section>
               <section>
                 <h3 className="text-xs font-semibold uppercase text-white/40 mb-3">{t('settings.language')}</h3>

@@ -82,24 +82,15 @@ Target Platforms: Windows (.exe) and macOS (.dmg / .app)
 9. DEVELOPMENT STRATEGY & ROADMAP
 ----------------------------------------------------------------------
 * Phase 1: Core UI structure, routing, settings, and drag-and-drop file ingestion.
-  [STATUS: COMPLETE — 2026-05-20]
-  [COMPLETED: Full scaffold, TypeScript types, file validation, Zustand stores, IPC wrappers, 7 UI components, Tauri v2 Rust scaffold, SQLite, IPC commands, Python sidecar, dev run — 16/16 tests passing]
+  [STATUS: IN PROGRESS — Tasks 1-6 of 13 COMPLETE — 2026-05-20]
+  [COMPLETED: Vite+React scaffold, TypeScript types, file validation (TDD), Zustand stores (TDD), IPC wrappers, all 7 UI components — 16/16 tests passing]
+  [REMAINING: Tasks 7-13 — Tauri Rust backend, SQLite, Tauri commands, Python sidecar, icons, dev run]
   [PLAN: docs/superpowers/plans/2026-05-20-phase1-scaffold.md]
   [SPEC: docs/superpowers/specs/2026-05-20-enhance-audio-pro-design.md]
-* Phase 2: Speech Enhancement (DeepFilterNet3) — axum callback server, model wizard, process queue.
-  [STATUS: COMPLETE — 2026-05-21]
-  [COMPLETED: Rust callback server, DB migration, process_queue + start_model_download commands, DeepFilterNet3 processor, /enhance + /wizard/download endpoints, QueueGrid progress bar, SetupWizard — 19/19 Vitest + 11/11 Pytest passing]
-  [SPEC: docs/superpowers/specs/2026-05-21-phase2-speech-enhancement-design.md]
-* Phase 3: Stem Separation (Demucs htdemucs_ft) — vocals, drums, bass, other per audio file.
-  [STATUS: COMPLETE — 2026-05-22]
-  [COMPLETED: Demucs processor, /separate endpoint, separate_stems Tauri command, Separate Stems button in QueueToolbar — 18/18 Pytest + 19/19 Vitest passing]
-  [SPEC: docs/superpowers/specs/2026-05-21-phase3-stem-separation-design.md]
-* Phase 4: PyInstaller packaging + ffmpeg conversion + batch limits + output format selector.
-  [STATUS: COMPLETE — 2026-05-22]
-  [COMPLETED: ffmpeg processor, /convert endpoint, output_format DB column, per-file and global format selectors, 30 audio/10 video batch limits, PyInstaller build.spec, MSI bundle config — 25/25 Pytest + 20/20 Vitest passing]
-  [PLAN: docs/superpowers/plans/2026-05-22-phase4-packaging-conversion.md]
-* Phase 5: Audio editing tools (Trimming, EQ, Merging, Pitch, Speed, Loop, Crossfade).
-* Phase 6: Final polish — A/B preview, localization (17 languages), keyboard shortcuts, macOS packaging.
+* Phase 2: Integration of the Python Backend for core AI processing (Speech Enhance & Stem Separation).
+* Phase 3: Building the queue system, batch processing logic, and file conversion.
+* Phase 4: Implementing Audio editing tools (Trimming, EQ, Merging, Pitch, Speed).
+* Phase 5: Final polish, animations, localization, and packaging the executable for Windows and macOS.
 
 10. SUGGESTIONS (FEATURES YOU MIGHT HAVE MISSED)
 ----------------------------------------------------------------------

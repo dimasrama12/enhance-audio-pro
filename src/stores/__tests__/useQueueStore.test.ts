@@ -153,4 +153,22 @@ describe('useQueueStore', () => {
     useQueueStore.getState().setViewMode('grid');
     expect(useQueueStore.getState().viewMode).toBe('grid');
   });
+
+  it('reorderJobs moves a job from one position to another', () => {
+    useQueueStore.setState({
+      jobs: [makeJob({ id: 'a' }), makeJob({ id: 'b' }), makeJob({ id: 'c' })],
+    });
+    useQueueStore.getState().reorderJobs('a', 'c');
+    const ids = useQueueStore.getState().jobs.map((j) => j.id);
+    expect(ids).toEqual(['b', 'c', 'a']);
+  });
+
+  it('reorderJobs is a no-op when active and over are the same', () => {
+    useQueueStore.setState({
+      jobs: [makeJob({ id: 'a' }), makeJob({ id: 'b' })],
+    });
+    useQueueStore.getState().reorderJobs('a', 'a');
+    const ids = useQueueStore.getState().jobs.map((j) => j.id);
+    expect(ids).toEqual(['a', 'b']);
+  });
 });

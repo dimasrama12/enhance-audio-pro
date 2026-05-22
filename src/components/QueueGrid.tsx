@@ -2,6 +2,24 @@ import { useEffect } from 'react';
 import { listen } from '@tauri-apps/api/event';
 import { motion, AnimatePresence } from 'framer-motion';
 import { clsx } from 'clsx';
+import { GripVertical } from 'lucide-react';
+import {
+  DndContext,
+  closestCenter,
+  PointerSensor,
+  KeyboardSensor,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+} from '@dnd-kit/core';
+import {
+  SortableContext,
+  sortableKeyboardCoordinates,
+  useSortable,
+  verticalListSortingStrategy,
+  rectSortingStrategy,
+} from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
 import { useQueueStore } from '@/stores/useQueueStore';
 import { invokeSetOutputFormat, invokeSetBitrate } from '@/lib/ipc';
 import type { QueueJob, JobStatus } from '@/types/queue';
@@ -85,26 +103,39 @@ function BitrateSelect({ job }: { job: QueueJob }): JSX.Element {
   );
 }
 
-function JobRow({ job, index, isSelected, onSelect }: {
+function SortableJobRow({ job, index, isSelected, onSelect }: {
   job: QueueJob;
   index: number;
   isSelected: boolean;
   onSelect: (e: React.MouseEvent) => void;
 }): JSX.Element {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: job.id });
+
   return (
-    <motion.tr
-      initial={{ opacity: 0, y: -6 }}
-      animate={{ opacity: 1, y: 0 }}
-      exit={{ opacity: 0 }}
-      transition={{ delay: index * 0.03 }}
+    <tr
+      ref={setNodeRef}
+      style={{ transform: CSS.Transform.toString(transform), transition }}
       onClick={onSelect}
       className={clsx(
         'border-b border-white/5 cursor-pointer transition-colors select-none',
+        isDragging ? 'opacity-40 bg-violet-600/10' : '',
         isSelected
           ? 'bg-violet-600/20 border-violet-500/30 hover:bg-violet-600/25'
           : 'hover:bg-white/5',
       )}
     >
+      <td className="px-2 py-2 w-8">
+        <button
+          {...listeners}
+          {...attributes}
+          onClick={(e) => e.stopPropagation()}
+          className="text-white/20 hover:text-white/60 transition-colors cursor-grab active:cursor-grabbing"
+          tabIndex={-1}
+          aria-label="Drag to reorder"
+        >
+          <GripVertical size={14} />
+        </button>
+      </td>
       <td className="px-4 py-2 text-white/30 text-xs w-10">{index + 1}</td>
       <td className="px-4 py-2 text-sm text-white truncate max-w-[180px]">{job.filename}</td>
       <td className="px-4 py-2 text-xs text-white/50 truncate max-w-[130px]">{job.destination || '—'}</td>
@@ -122,30 +153,42 @@ function JobRow({ job, index, isSelected, onSelect }: {
         </span>
         {job.status === 'processing' && <ProgressBar percent={job.progress} />}
       </td>
-    </motion.tr>
+    </tr>
   );
 }
 
-function JobCard({ job, isSelected, onSelect }: {
+function SortableJobCard({ job, isSelected, onSelect }: {
   job: QueueJob;
   isSelected: boolean;
   onSelect: (e: React.MouseEvent) => void;
 }): JSX.Element {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: job.id });
+
   return (
-    <motion.div
-      initial={{ opacity: 0, scale: 0.97 }}
-      animate={{ opacity: 1, scale: 1 }}
-      exit={{ opacity: 0, scale: 0.97 }}
+    <div
+      ref={setNodeRef}
+      style={{ transform: CSS.Transform.toString(transform), transition }}
       onClick={onSelect}
       className={clsx(
         'rounded-xl p-3 border cursor-pointer transition-colors select-none',
+        isDragging ? 'opacity-40' : '',
         isSelected
           ? 'bg-violet-600/20 border-violet-500/40'
-          : 'bg-white/5 border-white/10 hover:bg-white/8',
+          : 'bg-white/5 border-white/10 hover:bg-white/[0.08]',
       )}
     >
       <div className="flex items-start justify-between gap-2 mb-2">
-        <span className="text-sm text-white font-medium truncate">{job.filename}</span>
+        <button
+          {...listeners}
+          {...attributes}
+          onClick={(e) => e.stopPropagation()}
+          className="text-white/20 hover:text-white/60 transition-colors cursor-grab active:cursor-grabbing shrink-0 mt-0.5"
+          tabIndex={-1}
+          aria-label="Drag to reorder"
+        >
+          <GripVertical size={14} />
+        </button>
+        <span className="text-sm text-white font-medium truncate flex-1">{job.filename}</span>
         <span className={clsx('text-xs font-medium capitalize shrink-0', STATUS_COLORS[job.status])}>
           {job.status}
         </span>
@@ -157,7 +200,7 @@ function JobCard({ job, isSelected, onSelect }: {
         {job.bitrate && <span>{job.bitrate}</span>}
       </div>
       {job.status === 'processing' && <ProgressBar percent={job.progress} />}
-    </motion.div>
+    </div>
   );
 }
 
@@ -166,9 +209,15 @@ export default function QueueGrid(): JSX.Element {
   const setProgress = useQueueStore((s) => s.setProgress);
   const setStatus = useQueueStore((s) => s.setStatus);
   const setOutputFilepath = useQueueStore((s) => s.setOutputFilepath);
+  const reorderJobs = useQueueStore((s) => s.reorderJobs);
   const selectedJobIds = useQueueStore((s) => s.selectedJobIds);
   const { setSelectedJob, toggleSelectJob, rangeSelectJobs } = useQueueStore();
   const viewMode = useQueueStore((s) => s.viewMode);
+
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
+  );
 
   useEffect(() => {
     const unlistenProgress = listen<{ jobId: string; percent: number }>(
@@ -199,6 +248,13 @@ export default function QueueGrid(): JSX.Element {
     }
   }
 
+  function handleDragEnd(event: DragEndEvent): void {
+    const { active, over } = event;
+    if (over && active.id !== over.id) {
+      reorderJobs(String(active.id), String(over.id));
+    }
+  }
+
   if (viewMode === 'grid') {
     return (
       <div className="flex-1 overflow-auto">
@@ -207,18 +263,20 @@ export default function QueueGrid(): JSX.Element {
             No files in queue. Drop audio or video files above to get started.
           </div>
         ) : (
-          <div className="grid grid-cols-2 gap-2 p-1">
-            <AnimatePresence>
-              {jobs.map((job) => (
-                <JobCard
-                  key={job.id}
-                  job={job}
-                  isSelected={selectedJobIds.includes(job.id)}
-                  onSelect={(e) => handleRowClick(e, job.id)}
-                />
-              ))}
-            </AnimatePresence>
-          </div>
+          <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+            <SortableContext items={jobs.map((j) => j.id)} strategy={rectSortingStrategy}>
+              <div className="grid grid-cols-2 gap-2 p-1">
+                {jobs.map((job) => (
+                  <SortableJobCard
+                    key={job.id}
+                    job={job}
+                    isSelected={selectedJobIds.includes(job.id)}
+                    onSelect={(e) => handleRowClick(e, job.id)}
+                  />
+                ))}
+              </div>
+            </SortableContext>
+          </DndContext>
         )}
       </div>
     );
@@ -229,6 +287,7 @@ export default function QueueGrid(): JSX.Element {
       <table className="w-full text-left table-fixed">
         <thead>
           <tr className="border-b border-white/10 text-white/40 text-xs uppercase tracking-wider sticky top-0 bg-neutral-900/80 backdrop-blur">
+            <th className="px-2 py-2 w-8" />
             <th className="px-4 py-2 w-10">#</th>
             <th className="px-4 py-2">Filename</th>
             <th className="px-4 py-2">Destination</th>
@@ -240,25 +299,29 @@ export default function QueueGrid(): JSX.Element {
           </tr>
         </thead>
         <tbody>
-          <AnimatePresence>
-            {jobs.length === 0 ? (
-              <tr>
-                <td colSpan={8} className="px-4 py-16 text-center text-white/30 text-sm">
-                  No files in queue. Drop audio or video files above to get started.
-                </td>
-              </tr>
-            ) : (
-              jobs.map((job, i) => (
-                <JobRow
-                  key={job.id}
-                  job={job}
-                  index={i}
-                  isSelected={selectedJobIds.includes(job.id)}
-                  onSelect={(e) => handleRowClick(e, job.id)}
-                />
-              ))
-            )}
-          </AnimatePresence>
+          {jobs.length === 0 ? (
+            <tr>
+              <td colSpan={9} className="px-4 py-16 text-center text-white/30 text-sm">
+                No files in queue. Drop audio or video files above to get started.
+              </td>
+            </tr>
+          ) : (
+            <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+              <SortableContext items={jobs.map((j) => j.id)} strategy={verticalListSortingStrategy}>
+                <AnimatePresence>
+                  {jobs.map((job, i) => (
+                    <SortableJobRow
+                      key={job.id}
+                      job={job}
+                      index={i}
+                      isSelected={selectedJobIds.includes(job.id)}
+                      onSelect={(e) => handleRowClick(e, job.id)}
+                    />
+                  ))}
+                </AnimatePresence>
+              </SortableContext>
+            </DndContext>
+          )}
         </tbody>
       </table>
     </div>

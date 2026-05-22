@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import { persist } from 'zustand/middleware';
 import type { QueueJob, JobStatus } from '@/types/queue';
 
 export type ViewMode = 'table' | 'grid';
@@ -27,11 +28,15 @@ interface QueueState {
   selectAllJobs: () => void;
   clearSelection: () => void;
   primarySelectedId: () => string | null;
+  // Reorder
+  reorderJobs: (activeId: string, overId: string) => void;
   // View
   setViewMode: (mode: ViewMode) => void;
 }
 
-export const useQueueStore = create<QueueState>((set, get) => ({
+export const useQueueStore = create<QueueState>()(
+  persist(
+    (set, get) => ({
   jobs: [],
   filter: 'all',
   searchQuery: '',
@@ -118,5 +123,22 @@ export const useQueueStore = create<QueueState>((set, get) => ({
     return selectedJobIds[0] ?? null;
   },
 
+  reorderJobs: (activeId, overId) =>
+    set((s) => {
+      const oldIndex = s.jobs.findIndex((j) => j.id === activeId);
+      const newIndex = s.jobs.findIndex((j) => j.id === overId);
+      if (oldIndex === -1 || newIndex === -1) return s;
+      const newJobs = [...s.jobs];
+      const [item] = newJobs.splice(oldIndex, 1);
+      newJobs.splice(newIndex, 0, item);
+      return { jobs: newJobs };
+    }),
+
   setViewMode: (viewMode) => set({ viewMode }),
-}));
+    }),
+    {
+      name: 'queue-ui-prefs',
+      partialize: (state) => ({ filter: state.filter, viewMode: state.viewMode }),
+    }
+  )
+);
