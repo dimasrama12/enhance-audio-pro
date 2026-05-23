@@ -368,5 +368,22 @@ All major architecture decisions finalized during brainstorming sessions (May 18
 - **Fix:** Added `-C link-arg=-BC:/Users/User/.rustup/toolchains/stable-x86_64-pc-windows-gnu/lib/rustlib/x86_64-pc-windows-gnu/bin/gcc-ld/` to `rustflags` in `.cargo/config.toml`. This tells MinGW GCC to find `ld.lld.exe` in the Rust toolchain's `gcc-ld/` directory where the relative path to `rust-lld.exe` is correct
 - **tauri-dev.bat PATH:** Prepends `gcc-ld/` and `bin/` from rustup toolchain before `%PATH%` as belt-and-suspenders
 
+### 18.13 CI/CD Pipeline Fixes (2026-05-23)
+Root cause of v0.1.0 release failure: `No module named pytest` on the GitHub Actions runner.
+Full list of fixes applied (commit 4991a04):
+
+| Problem | Fix |
+|---|---|
+| `pytest` not installed on CI runner | Added `pytest>=8.0.0` to `backend/requirements.txt` |
+| `demucs`, `einops`, `julius`, `soundfile`, `python-multipart` missing from requirements.txt | Added all five; they were referenced in `build.spec` but never installed |
+| `.cargo/config.toml` `target-dir = D:\cargo_build\...` applied on CI, redirecting MSI artifacts away from `src-tauri/target/` where the upload step looks | Removed `target-dir` from config.toml; local dev still uses D: drive via `tauri-dev.bat` env var |
+| GNU toolchain rustflags had hardcoded `C:/Users/User/.rustup/...` path — invalid on CI | Switched CI workflow to `stable-x86_64-pc-windows-msvc`; GNU rustflags in config.toml are ignored for MSVC builds |
+| CI sidecar binary name was `backend-x86_64-pc-windows-gnu.exe`; MSVC target expects `msvc` triple | Updated workflow copy step to produce `backend-x86_64-pc-windows-msvc.exe` |
+| `build-app.ps1` did not set CARGO_TARGET_DIR and had hardcoded MSI path | Script now defaults CARGO_TARGET_DIR to D:\cargo_build and derives MSI dir from it |
+
+- **Local dev:** still uses GNU toolchain via `tauri-dev.bat` (sets CARGO_TARGET_DIR + PATH)
+- **CI:** uses MSVC (no MinGW required, no hardcoded paths)
+- **Sidecar naming:** Tauri's `externalBin: ["binaries/backend"]` auto-appends the target triple, so both local (gnu) and CI (msvc) binaries coexist without config changes
+
 ---
 _This CLAUDE.md is customized specifically for the Enhance Audio Pro project. Update this file's contents whenever there are architectural changes or completed feature progress._
