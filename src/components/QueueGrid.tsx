@@ -235,6 +235,7 @@ function SortableJobCard({ job, isSelected, onSelect }: {
 
 export default function QueueGrid(): JSX.Element {
   const jobs = useQueueStore((s) => s.filteredJobs());
+  const groups = useQueueStore((s) => s.groupedFilteredJobs());
   const setProgress = useQueueStore((s) => s.setProgress);
   const setStatus = useQueueStore((s) => s.setStatus);
   const setOutputFilepath = useQueueStore((s) => s.setOutputFilepath);
@@ -242,6 +243,7 @@ export default function QueueGrid(): JSX.Element {
   const selectedJobIds = useQueueStore((s) => s.selectedJobIds);
   const { setSelectedJob, toggleSelectJob, rangeSelectJobs } = useQueueStore();
   const viewMode = useQueueStore((s) => s.viewMode);
+  const groupByFormat = useQueueStore((s) => s.groupByFormat);
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
@@ -291,6 +293,30 @@ export default function QueueGrid(): JSX.Element {
           <div className="flex items-center justify-center h-32 text-white/30 text-sm">
             No files in queue. Drop audio or video files above to get started.
           </div>
+        ) : groupByFormat ? (
+          <div className="flex flex-col gap-4 p-1">
+            {groups.map((group) => (
+              <div key={group.label}>
+                <div className="text-xs font-semibold uppercase text-white/40 px-1 pb-1.5 border-b border-white/10 mb-2">
+                  {group.label} <span className="text-white/25 font-normal">({group.jobs.length})</span>
+                </div>
+                <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+                  <SortableContext items={group.jobs.map((j) => j.id)} strategy={rectSortingStrategy}>
+                    <div className="grid grid-cols-2 gap-2">
+                      {group.jobs.map((job) => (
+                        <SortableJobCard
+                          key={job.id}
+                          job={job}
+                          isSelected={selectedJobIds.includes(job.id)}
+                          onSelect={(e) => handleRowClick(e, job.id)}
+                        />
+                      ))}
+                    </div>
+                  </SortableContext>
+                </DndContext>
+              </div>
+            ))}
+          </div>
         ) : (
           <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
             <SortableContext items={jobs.map((j) => j.id)} strategy={rectSortingStrategy}>
@@ -311,23 +337,27 @@ export default function QueueGrid(): JSX.Element {
     );
   }
 
+  const tableHeader = (
+    <thead>
+      <tr className="border-b border-white/10 text-white/40 text-xs uppercase tracking-wider sticky top-0 bg-neutral-900/80 backdrop-blur">
+        <th className="px-2 py-2 w-8" />
+        <th className="px-4 py-2 w-10">#</th>
+        <th className="px-4 py-2">Filename</th>
+        <th className="px-4 py-2">Destination</th>
+        <th className="px-4 py-2 w-20">Size</th>
+        <th className="px-4 py-2 w-16">Type</th>
+        <th className="px-4 py-2 w-24">Format</th>
+        <th className="px-4 py-2 w-24">Bitrate</th>
+        <th className="px-4 py-2 w-24">Sample Hz</th>
+        <th className="px-4 py-2 w-36">Status</th>
+      </tr>
+    </thead>
+  );
+
   return (
     <div className="flex-1 overflow-auto rounded-xl bg-white/5">
       <table className="w-full text-left table-fixed">
-        <thead>
-          <tr className="border-b border-white/10 text-white/40 text-xs uppercase tracking-wider sticky top-0 bg-neutral-900/80 backdrop-blur">
-            <th className="px-2 py-2 w-8" />
-            <th className="px-4 py-2 w-10">#</th>
-            <th className="px-4 py-2">Filename</th>
-            <th className="px-4 py-2">Destination</th>
-            <th className="px-4 py-2 w-20">Size</th>
-            <th className="px-4 py-2 w-16">Type</th>
-            <th className="px-4 py-2 w-24">Format</th>
-            <th className="px-4 py-2 w-24">Bitrate</th>
-            <th className="px-4 py-2 w-24">Sample Hz</th>
-            <th className="px-4 py-2 w-36">Status</th>
-          </tr>
-        </thead>
+        {tableHeader}
         <tbody>
           {jobs.length === 0 ? (
             <tr>
@@ -335,6 +365,33 @@ export default function QueueGrid(): JSX.Element {
                 No files in queue. Drop audio or video files above to get started.
               </td>
             </tr>
+          ) : groupByFormat ? (
+            <>
+              {groups.map((group, gi) => (
+                <>
+                  <tr key={`group-${gi}`}>
+                    <td colSpan={10} className="px-4 pt-3 pb-1 text-xs font-semibold uppercase text-violet-400/70">
+                      {group.label} <span className="text-white/25 font-normal">({group.jobs.length})</span>
+                    </td>
+                  </tr>
+                  <DndContext key={`dnd-${gi}`} sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+                    <SortableContext items={group.jobs.map((j) => j.id)} strategy={verticalListSortingStrategy}>
+                      <AnimatePresence>
+                        {group.jobs.map((job, i) => (
+                          <SortableJobRow
+                            key={job.id}
+                            job={job}
+                            index={i}
+                            isSelected={selectedJobIds.includes(job.id)}
+                            onSelect={(e) => handleRowClick(e, job.id)}
+                          />
+                        ))}
+                      </AnimatePresence>
+                    </SortableContext>
+                  </DndContext>
+                </>
+              ))}
+            </>
           ) : (
             <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
               <SortableContext items={jobs.map((j) => j.id)} strategy={verticalListSortingStrategy}>

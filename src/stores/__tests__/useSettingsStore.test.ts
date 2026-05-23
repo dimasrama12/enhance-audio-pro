@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { useSettingsStore } from '../useSettingsStore';
-import { DEFAULT_SETTINGS } from '@/types/settings';
+import { DEFAULT_SETTINGS, DEFAULT_KEYBOARD_SHORTCUTS } from '@/types/settings';
 
 describe('useSettingsStore', () => {
   beforeEach(() => {
@@ -33,5 +33,17 @@ describe('useSettingsStore', () => {
   it('setEnhancementStrength updates strength', () => {
     useSettingsStore.getState().setEnhancementStrength(75);
     expect(useSettingsStore.getState().enhancementStrength).toBe(75);
+  });
+
+  it('has default keyboard shortcuts', () => {
+    const sc = useSettingsStore.getState().keyboardShortcuts;
+    expect(sc.enhance).toBe(DEFAULT_KEYBOARD_SHORTCUTS.enhance);
+    expect(sc.convert).toBe(DEFAULT_KEYBOARD_SHORTCUTS.convert);
+  });
+
+  it('setKeyboardShortcuts updates shortcuts', () => {
+    const updated = { ...DEFAULT_KEYBOARD_SHORTCUTS, enhance: 'Ctrl+E' };
+    useSettingsStore.getState().setKeyboardShortcuts(updated);
+    expect(useSettingsStore.getState().keyboardShortcuts.enhance).toBe('Ctrl+E');
   });
 });

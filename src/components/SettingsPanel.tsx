@@ -7,6 +7,7 @@ import { SUPPORTED_LANGUAGES } from '@/i18n';
 import { useTranslation } from 'react-i18next';
 import i18n from '@/i18n';
 import type { AppSettings } from '@/types/settings';
+import KeyboardShortcutsPanel from '@/components/KeyboardShortcutsPanel';
 
 interface Props { open: boolean; onClose: () => void; }
 
@@ -134,6 +135,7 @@ export default function SettingsPanel({ open, onClose }: Props): JSX.Element {
                   ))}
                 </select>
               </section>
+              <KeyboardShortcutsPanel />
             </div>
           </motion.aside>
         </>

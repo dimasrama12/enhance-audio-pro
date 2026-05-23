@@ -39,8 +39,8 @@ export async function invokeSeparateStems(jobIds: string[]): Promise<IpcResponse
   return invoke<IpcResponse<null>>('separate_stems', { jobIds });
 }
 
-export async function invokeConvertFiles(jobIds: string[]): Promise<IpcResponse<null>> {
-  return invoke<IpcResponse<null>>('convert_files', { jobIds });
+export async function invokeConvertFiles(jobIds: string[], filenameTemplate?: string): Promise<IpcResponse<null>> {
+  return invoke<IpcResponse<null>>('convert_files', { jobIds, filenameTemplate: filenameTemplate ?? '' });
 }
 
 export async function invokeSetOutputFormat(jobId: string, format: string): Promise<IpcResponse<null>> {

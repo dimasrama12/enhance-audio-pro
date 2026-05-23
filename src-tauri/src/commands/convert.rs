@@ -10,6 +10,7 @@ pub fn convert_files(
     state: State<'_, AppState>,
     app_handle: AppHandle,
     job_ids: Vec<String>,
+    filename_template: Option<String>,
 ) -> IpcResponse<()> {
     if job_ids.is_empty() {
         return IpcResponse { success: true, data: Some(()), error: None };
@@ -40,6 +41,7 @@ pub fn convert_files(
     let payload = json!({
         "job_ids": updated_ids,
         "callback_url": format!("http://127.0.0.1:{}", callback_port),
+        "filename_template": filename_template.unwrap_or_default(),
     });
 
     tauri::async_runtime::spawn(async move {

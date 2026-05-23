@@ -2,6 +2,7 @@ import asyncio
 import os
 import pathlib
 import sqlite3
+from datetime import date
 from typing import List
 
 import httpx
@@ -17,16 +18,27 @@ router = APIRouter()
 class ConvertRequest(BaseModel):
     job_ids: List[str]
     callback_url: str
+    filename_template: str = ""
+
+
+def apply_filename_template(template: str, stem: str, fmt: str) -> str:
+    """Replace {name}, {date}, {format} tokens; falls back to stem_converted."""
+    if not template:
+        return f"{stem}_converted"
+    result = template.replace("{name}", stem)
+    result = result.replace("{date}", date.today().isoformat())
+    result = result.replace("{format}", fmt)
+    return result or f"{stem}_converted"
 
 
 @router.post("/convert")
 async def convert_jobs(req: ConvertRequest, background_tasks: BackgroundTasks) -> JSONResponse:
     if req.job_ids:
-        background_tasks.add_task(_process_jobs, req.job_ids, req.callback_url)
+        background_tasks.add_task(_process_jobs, req.job_ids, req.callback_url, req.filename_template)
     return JSONResponse(status_code=202, content={"detail": "Processing started."})
 
 
-async def _process_jobs(job_ids: List[str], callback_url: str) -> None:
+async def _process_jobs(job_ids: List[str], callback_url: str, filename_template: str = "") -> None:
     loop = asyncio.get_running_loop()
     appdata = os.environ.get("APPDATA", str(pathlib.Path.home()))
     db_path = pathlib.Path(appdata) / "enhance-audio-pro" / "app.db"
@@ -50,7 +62,8 @@ async def _process_jobs(job_ids: List[str], callback_url: str) -> None:
             stem = pathlib.Path(filename).stem
             out_dir = pathlib.Path(destination) if destination else pathlib.Path(filepath).parent
             out_dir.mkdir(parents=True, exist_ok=True)
-            out_path = out_dir / f"{stem}_converted.{output_format}"
+            out_stem = apply_filename_template(filename_template, stem, output_format)
+            out_path = out_dir / f"{out_stem}.{output_format}"
 
             def _sync_convert(src: str, dst: str, jid: str, br: str, sr: str) -> None:
                 def _cb(pct: int) -> None:

@@ -4,18 +4,22 @@ import type { QueueJob, JobStatus } from '@/types/queue';
 
 export type ViewMode = 'table' | 'grid';
 
+export interface JobGroup { label: string; jobs: QueueJob[]; }
+
 interface QueueState {
   jobs: QueueJob[];
   filter: string;
   searchQuery: string;
   selectedJobIds: string[];
   viewMode: ViewMode;
+  groupByFormat: boolean;
   setJobs: (jobs: QueueJob[]) => void;
   addJobs: (jobs: QueueJob[]) => void;
   setFilter: (filter: string) => void;
   setSearchQuery: (query: string) => void;
   clearQueue: () => void;
   filteredJobs: () => QueueJob[];
+  groupedFilteredJobs: () => JobGroup[];
   setProgress: (id: string, percent: number) => void;
   setStatus: (id: string, status: JobStatus, errorMessage?: string) => void;
   setOutputFormat: (id: string, format: string) => void;
@@ -33,6 +37,7 @@ interface QueueState {
   reorderJobs: (activeId: string, overId: string) => void;
   // View
   setViewMode: (mode: ViewMode) => void;
+  setGroupByFormat: (v: boolean) => void;
 }
 
 export const useQueueStore = create<QueueState>()(
@@ -43,6 +48,7 @@ export const useQueueStore = create<QueueState>()(
   searchQuery: '',
   selectedJobIds: [],
   viewMode: 'table',
+  groupByFormat: false,
 
   setJobs: (jobs) => set({ jobs }),
   addJobs: (newJobs) => set((s) => ({ jobs: [...s.jobs, ...newJobs] })),
@@ -55,6 +61,19 @@ export const useQueueStore = create<QueueState>()(
     return jobs
       .filter((j) => filter === 'all' || j.status === filter)
       .filter((j) => !searchQuery || j.filename.toLowerCase().includes(searchQuery.toLowerCase()));
+  },
+
+  groupedFilteredJobs: () => {
+    const filtered = get().filteredJobs();
+    const map = new Map<string, QueueJob[]>();
+    for (const job of filtered) {
+      const ext = job.filename.includes('.') ? job.filename.split('.').pop()!.toUpperCase() : 'UNKNOWN';
+      if (!map.has(ext)) map.set(ext, []);
+      map.get(ext)!.push(job);
+    }
+    return Array.from(map.entries())
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([label, jobs]) => ({ label, jobs }));
   },
 
   setProgress: (id, percent) =>
@@ -141,10 +160,12 @@ export const useQueueStore = create<QueueState>()(
     }),
 
   setViewMode: (viewMode) => set({ viewMode }),
+
+  setGroupByFormat: (groupByFormat) => set({ groupByFormat }),
     }),
     {
       name: 'queue-ui-prefs',
-      partialize: (state) => ({ filter: state.filter, viewMode: state.viewMode }),
+      partialize: (state) => ({ filter: state.filter, viewMode: state.viewMode, groupByFormat: state.groupByFormat }),
     }
   )
 );

@@ -1,9 +1,11 @@
 import { useState } from 'react';
-import { Play, Scissors, Search, Trash2, RefreshCw, LayoutList, LayoutGrid } from 'lucide-react';
+import { Play, Scissors, Search, Trash2, RefreshCw, LayoutList, LayoutGrid, FolderOpen, Layers } from 'lucide-react';
+import { open } from '@tauri-apps/plugin-dialog';
 import RecordButton from '@/components/RecordButton';
 import { useQueueStore } from '@/stores/useQueueStore';
 import { useSettingsStore } from '@/stores/useSettingsStore';
 import {
+  invokeAddFiles,
   invokeProcessQueue,
   invokeSeparateStems,
   invokeConvertFiles,
@@ -20,9 +22,10 @@ const FILTERS = [
 const FORMAT_OPTIONS = ['wav', 'mp3', 'flac', 'aac', 'ogg', 'opus', 'm4a'];
 
 export default function QueueToolbar(): JSX.Element {
-  const { filter, searchQuery, setFilter, setSearchQuery, clearQueue, jobs, setOutputFormat, viewMode, setViewMode } =
+  const { filter, searchQuery, setFilter, setSearchQuery, clearQueue, jobs, addJobs, setOutputFormat, viewMode, setViewMode, groupByFormat, setGroupByFormat } =
     useQueueStore();
   const enhancementStrength = useSettingsStore((s) => s.enhancementStrength);
+  const filenameTemplate = useSettingsStore((s) => s.filenameTemplate);
 
   const [isProcessing, setIsProcessing] = useState(false);
   const [isSeparating, setIsSeparating] = useState(false);
@@ -48,7 +51,19 @@ export default function QueueToolbar(): JSX.Element {
   async function handleConvert(): Promise<void> {
     if (!canAct) return;
     setIsConverting(true);
-    try { await invokeConvertFiles(pendingIds); } finally { setIsConverting(false); }
+    try { await invokeConvertFiles(pendingIds, filenameTemplate); } finally { setIsConverting(false); }
+  }
+
+  async function handleOpenFiles(): Promise<void> {
+    const selected = await open({
+      multiple: true,
+      filters: [{ name: 'Audio / Video', extensions: ['mp3','wav','flac','aac','ogg','opus','m4a','wma','mp4','mkv','mov','avi','webm','flv'] }],
+      title: 'Add Files to Queue',
+    });
+    const paths = Array.isArray(selected) ? selected : selected ? [selected] : [];
+    if (paths.length === 0) return;
+    const res = await invokeAddFiles(paths);
+    if (res.success && res.data) addJobs(res.data);
   }
 
   async function handleApplyFormat(): Promise<void> {
@@ -140,6 +155,20 @@ export default function QueueToolbar(): JSX.Element {
         className="p-2 rounded-lg text-white/50 hover:text-white hover:bg-white/10 transition-colors"
       >
         {viewMode === 'table' ? <LayoutGrid size={16} /> : <LayoutList size={16} />}
+      </button>
+      <button
+        onClick={handleOpenFiles}
+        title="Open files [Ctrl+O]"
+        className="p-2 rounded-lg text-white/50 hover:text-white hover:bg-white/10 transition-colors"
+      >
+        <FolderOpen size={16} />
+      </button>
+      <button
+        onClick={() => setGroupByFormat(!groupByFormat)}
+        title={groupByFormat ? 'Ungroup by format' : 'Group by format'}
+        className={`p-2 rounded-lg transition-colors ${groupByFormat ? 'text-violet-400 bg-violet-600/20' : 'text-white/50 hover:text-white hover:bg-white/10'}`}
+      >
+        <Layers size={16} />
       </button>
       <RecordButton />
       <button

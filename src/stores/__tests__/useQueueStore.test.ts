@@ -15,6 +15,7 @@ const makeJob = (overrides: Partial<QueueJob> = {}): QueueJob => ({
   output_format: 'wav',
   bitrate: '',
   output_filepath: null,
+  sample_rate: '',
   created_at: '2026-05-20T00:00:00Z',
   updated_at: '2026-05-20T00:00:00Z',
   ...overrides,
@@ -23,7 +24,7 @@ const makeJob = (overrides: Partial<QueueJob> = {}): QueueJob => ({
 describe('useQueueStore', () => {
   beforeEach(() => {
     useQueueStore.setState({
-      jobs: [], filter: 'all', searchQuery: '', selectedJobIds: [], viewMode: 'table',
+      jobs: [], filter: 'all', searchQuery: '', selectedJobIds: [], viewMode: 'table', groupByFormat: false,
     });
   });
 
@@ -170,5 +171,43 @@ describe('useQueueStore', () => {
     useQueueStore.getState().reorderJobs('a', 'a');
     const ids = useQueueStore.getState().jobs.map((j) => j.id);
     expect(ids).toEqual(['a', 'b']);
+  });
+
+  it('setGroupByFormat toggles groupByFormat', () => {
+    expect(useQueueStore.getState().groupByFormat).toBe(false);
+    useQueueStore.getState().setGroupByFormat(true);
+    expect(useQueueStore.getState().groupByFormat).toBe(true);
+  });
+
+  it('groupedFilteredJobs groups jobs by input file extension', () => {
+    useQueueStore.setState({
+      jobs: [
+        makeJob({ id: '1', filename: 'a.mp3' }),
+        makeJob({ id: '2', filename: 'b.mp3' }),
+        makeJob({ id: '3', filename: 'c.wav' }),
+      ],
+      filter: 'all',
+      searchQuery: '',
+    });
+    const groups = useQueueStore.getState().groupedFilteredJobs();
+    expect(groups).toHaveLength(2);
+    const mp3Group = groups.find((g) => g.label === 'MP3');
+    expect(mp3Group?.jobs).toHaveLength(2);
+    const wavGroup = groups.find((g) => g.label === 'WAV');
+    expect(wavGroup?.jobs).toHaveLength(1);
+  });
+
+  it('groupedFilteredJobs sorts groups alphabetically', () => {
+    useQueueStore.setState({
+      jobs: [
+        makeJob({ id: '1', filename: 'z.wav' }),
+        makeJob({ id: '2', filename: 'a.mp3' }),
+      ],
+      filter: 'all',
+      searchQuery: '',
+    });
+    const groups = useQueueStore.getState().groupedFilteredJobs();
+    expect(groups[0].label).toBe('MP3');
+    expect(groups[1].label).toBe('WAV');
   });
 });

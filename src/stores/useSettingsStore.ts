@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import type { AppSettings } from '@/types/settings';
+import type { AppSettings, KeyboardShortcutMap } from '@/types/settings';
 import { DEFAULT_SETTINGS } from '@/types/settings';
 
 interface SettingsState extends AppSettings {
@@ -11,6 +11,7 @@ interface SettingsState extends AppSettings {
   setLanguage: (language: string) => void;
   setEnhancementStrength: (v: number) => void;
   setFilenameTemplate: (t: string) => void;
+  setKeyboardShortcuts: (shortcuts: KeyboardShortcutMap) => void;
   markSetupComplete: () => void;
   setInitialized: (v: boolean) => void;
 }
@@ -26,6 +27,7 @@ export const useSettingsStore = create<SettingsState>()(
       setLanguage: (language) => set({ language }),
       setEnhancementStrength: (enhancementStrength) => set({ enhancementStrength }),
       setFilenameTemplate: (filenameTemplate) => set({ filenameTemplate }),
+      setKeyboardShortcuts: (keyboardShortcuts) => set({ keyboardShortcuts }),
       markSetupComplete: () => set({ setupComplete: true }),
       setInitialized: (initialized) => set({ initialized }),
     }),
@@ -36,6 +38,7 @@ export const useSettingsStore = create<SettingsState>()(
         language: state.language,
         enhancementStrength: state.enhancementStrength,
         filenameTemplate: state.filenameTemplate,
+        keyboardShortcuts: state.keyboardShortcuts,
       }),
     }
   )
