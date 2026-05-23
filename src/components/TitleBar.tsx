@@ -21,6 +21,8 @@ export default function TitleBar({ onHelpOpen }: Props): JSX.Element {
       language: store.language,
       setupComplete: store.setupComplete,
       enhancementStrength: store.enhancementStrength,
+      filenameTemplate: store.filenameTemplate,
+      keyboardShortcuts: store.keyboardShortcuts,
     };
     await invokeSaveSettings(settings);
   };

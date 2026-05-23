@@ -1,6 +1,6 @@
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, FolderOpen } from 'lucide-react';
-import { open } from '@tauri-apps/plugin-dialog';
+import { open as openDialog } from '@tauri-apps/plugin-dialog';
 import { useSettingsStore } from '@/stores/useSettingsStore';
 import { invokeSaveSettings } from '@/lib/ipc';
 import { SUPPORTED_LANGUAGES } from '@/i18n';
@@ -16,7 +16,7 @@ export default function SettingsPanel({ open, onClose }: Props): JSX.Element {
   const { t } = useTranslation();
 
   const browseFolder = async (): Promise<void> => {
-    const selected = await open({ directory: true, multiple: false, title: 'Select Output Folder' });
+    const selected = await openDialog({ directory: true, multiple: false, title: 'Select Output Folder' });
     if (typeof selected === 'string' && selected) {
       await save({ outputFolder: selected });
     }
@@ -30,6 +30,7 @@ export default function SettingsPanel({ open, onClose }: Props): JSX.Element {
       setupComplete: store.setupComplete,
       enhancementStrength: store.enhancementStrength,
       filenameTemplate: store.filenameTemplate,
+      keyboardShortcuts: store.keyboardShortcuts,
       ...patch,
     };
     store.setSettings(next);

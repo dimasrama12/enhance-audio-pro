@@ -46,6 +46,9 @@ export default function SetupWizard(): JSX.Element {
           outputFolder: store.outputFolder,
           language: store.language,
           setupComplete: true,
+          enhancementStrength: store.enhancementStrength,
+          filenameTemplate: store.filenameTemplate,
+          keyboardShortcuts: store.keyboardShortcuts,
         });
       }
     );
