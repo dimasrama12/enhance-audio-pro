@@ -219,13 +219,29 @@ chore    : [configuration changes, tooling, etc.]
       → lld linker fixed: -B gcc-ld/ rustflag routes GCC to correct Rust toolchain lld-wrapper
       → Phase 1 COMPLETE ✓
 
-# Not Started (Phase 2+)
+# Phases 2–8 — All Complete (2026-05-21 → 2026-05-23)
+- [x] Phase 2: Speech enhancement — DeepFilterNet3, CUDA/CPU, Setup Wizard download wiring
+- [x] Phase 3: Stem separation — Demucs htdemucs_ft, vocals/drums/bass/other output stems
+- [x] Phase 4: Conversion & packaging — 7-format converter, batch limits, PyInstaller spec, MSI target
+- [x] Phase 5: Audio manipulation tools — Trim, Speed, Pitch, Volume, Fade, Merge, Loop, 11-band EQ
+- [x] Phase 6: Polish & localization — WaveformPlayer, A/B toggle, multi-select, 17-language i18n, HelpPanel
+- [x] Phase 7: Extended features — auto-save state, spectrogram, history panel, drag-to-reorder
+- [x] Phase 8: Quality & recording — status bar, sample rate, filename template, recording, shortcuts, grouping
+      → Full spec docs in docs/superpowers/specs/
 
-# Not Started (Phase 2+)
-- [ ] AI Audio Enhancement Backend logic (Phase 2)
-- [ ] Stem Separation Backend logic (Phase 2)
-- [ ] Audio Manipulation Tools (Trim, EQ, Loop) (Phase 4)
-- [ ] Setup Wizard model download wiring (Phase 2)
+# Phase 9 — Build Pipeline & Distribution (2026-05-23)
+- [x] Task 1: scripts/build-backend.ps1 — PyInstaller sidecar build + copy to binaries dir
+- [x] Task 2: scripts/build-app.ps1 — full orchestration: backend → tests → tauri build → MSI
+- [x] Task 3: package.json — build:backend and build:full npm scripts
+- [x] Task 4: .github/workflows/release.yml — CI/CD on v* tags, produces MSI release asset
+- [x] Task 5: CHANGELOG.md — v0.1.0 release notes for all Phase 1–9 features
+- [x] Task 6: Spec docs created for phases 4, 6, 7, 8, 9 in docs/superpowers/specs/
+      → Phase 9 COMPLETE ✓ — PROJECT FEATURE-COMPLETE
+
+# Test Coverage (final)
+- 38/38 Vitest (frontend)
+- 65/65 Pytest (backend)
+- cargo check clean
 ```
 
 ---
