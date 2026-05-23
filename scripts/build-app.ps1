@@ -19,7 +19,7 @@ if (-not $env:CARGO_TARGET_DIR) {
     Write-Host "CARGO_TARGET_DIR defaulted to $env:CARGO_TARGET_DIR"
 }
 
-Write-Host "=== Enhance Audio Pro — Full Build ==="
+Write-Host "=== Enhance Audio Pro - Full Build ==="
 Write-Host "Root: $Root"
 
 # Step 1: Build Python sidecar
@@ -64,5 +64,5 @@ if ($Msi) {
     Write-Host "Size:      $([math]::Round($Msi.Length / 1MB, 1)) MB"
 } else {
     Write-Host ""
-    Write-Host "=== BUILD COMPLETE (MSI path not found — check src-tauri/target/release/bundle/) ==="
+    Write-Host "=== BUILD COMPLETE (MSI path not found - check src-tauri/target/release/bundle/) ==="
 }
