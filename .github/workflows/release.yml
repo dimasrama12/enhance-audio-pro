@@ -30,11 +30,10 @@ jobs:
           node-version: '20'
           cache: 'npm'
 
-      - name: Setup Rust (stable GNU)
+      - name: Setup Rust (stable MSVC)
         uses: dtolnay/rust-toolchain@stable
         with:
-          toolchain: stable-x86_64-pc-windows-gnu
-          targets: x86_64-pc-windows-gnu
+          toolchain: stable-x86_64-pc-windows-msvc
 
       - name: Cache Rust build
         uses: actions/cache@v4
@@ -53,8 +52,7 @@ jobs:
         working-directory: backend
         run: |
           python -m PyInstaller build.spec --distpath dist --workpath build --noconfirm
-          copy dist\backend.exe ..\src-tauri\binaries\backend-x86_64-pc-windows-gnu.exe
-        shell: cmd
+          Copy-Item dist\backend.exe ..\src-tauri\binaries\backend-x86_64-pc-windows-msvc.exe
 
       - name: Install npm dependencies
         run: npm ci
@@ -67,10 +65,7 @@ jobs:
         run: python -m pytest tests/ -q --no-header -p no:langsmith
 
       - name: Build Tauri MSI
-        env:
-          CARGO_TARGET_DIR: D:\cargo_build\enhance-audio-pro
         run: npm run tauri build
-        timeout-minutes: 60
 
       - name: Upload MSI artifact
         uses: actions/upload-artifact@v4
