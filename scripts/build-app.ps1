@@ -1,9 +1,8 @@
 # Full production build: Python sidecar + Tauri MSI
-# Output: src-tauri/target/release/bundle/msi/*.msi
+# Output: <CARGO_TARGET_DIR>/release/bundle/msi/*.msi  (or src-tauri/target if not set)
 #
 # Prerequisites:
 #   python 3.11, pip, pyinstaller, node 20, npm, rust stable-x86_64-pc-windows-gnu
-#   CARGO_TARGET_DIR should point to a drive with enough space (see CLAUDE.md §18.12)
 #   Run from the repo root: .\scripts\build-app.ps1
 
 param(
@@ -13,6 +12,12 @@ param(
 
 $ErrorActionPreference = "Stop"
 $Root = Split-Path -Parent $PSScriptRoot
+
+# Default to D: drive for Rust artifacts to avoid filling C: (see CLAUDE.md §18.12)
+if (-not $env:CARGO_TARGET_DIR) {
+    $env:CARGO_TARGET_DIR = "D:\cargo_build\enhance-audio-pro"
+    Write-Host "CARGO_TARGET_DIR defaulted to $env:CARGO_TARGET_DIR"
+}
 
 Write-Host "=== Enhance Audio Pro — Full Build ==="
 Write-Host "Root: $Root"
@@ -49,7 +54,8 @@ if (-not $?) { Pop-Location; Write-Error "Tauri build failed"; exit 1 }
 Pop-Location
 
 # Report output
-$MsiDir = Join-Path $Root "src-tauri\target\release\bundle\msi"
+$TargetRoot = if ($env:CARGO_TARGET_DIR) { $env:CARGO_TARGET_DIR } else { Join-Path $Root "src-tauri\target" }
+$MsiDir = Join-Path $TargetRoot "release\bundle\msi"
 $Msi = Get-ChildItem $MsiDir -Filter "*.msi" -ErrorAction SilentlyContinue | Select-Object -First 1
 if ($Msi) {
     Write-Host ""
