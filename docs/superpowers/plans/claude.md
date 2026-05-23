@@ -132,5 +132,22 @@
 - [x] Task 3: Custom output filename template — filenameTemplate: string in AppSettings + DEFAULT_SETTINGS; setFilenameTemplate + persist in useSettingsStore; SettingsPanel template input with {name}/{date}/{format} token hints
 - [x] Task 4: Reset All Editing button — ManipulationPanel header button resets all 11 manipulation state values to defaults in one click
 - [x] Task 5: In-app audio recording — RecordButton.tsx (MediaRecorder API → Blob → Uint8Array → invokeSaveRecording → invokeAddFiles); save_recording Rust command writes bytes to temp dir and returns path; RecordButton in QueueToolbar with red pulse animation while active
+- [x] Task 6: Keyboard shortcuts customization — KeyboardShortcutMap type in settings.ts; KeyboardShortcutsPanel.tsx (rebindable hotkeys table); useKeyboardShortcuts reads bindings from useSettingsStore; KeyboardShortcutsPanel in SettingsPanel
+- [x] Task 7: Queue format grouping — groupByFormat: boolean in useQueueStore; setGroupByFormat action with persist; QueueGrid grouped sections by output_format; toggle button in QueueToolbar
+- [x] Task 8: Filename template wired end-to-end — convert router applies template; convert_files Rust command passes filename_template; test coverage for template feature
 
-**Result:** 33/33 Vitest · 56/56 Pytest · cargo check clean
+**Result:** 38/38 Vitest · 65/65 Pytest · cargo check clean
+
+---
+
+## Phase 9 — Build Pipeline & Release Distribution (2026-05-23) ✓ COMPLETE
+
+- [x] Task 1: `scripts/build-backend.ps1` — PowerShell script: pip install → pyinstaller build.spec → copy dist/backend.exe to src-tauri/binaries/backend-x86_64-pc-windows-gnu.exe
+- [x] Task 2: `scripts/build-app.ps1` — Orchestration script: calls build-backend.ps1 → runs npm run tauri build → reports output MSI path
+- [x] Task 3: `package.json` — add `build:backend` and `build:full` npm scripts
+- [x] Task 4: `.github/workflows/release.yml` — GitHub Actions: trigger on v* tags; setup Python 3.11 + Node 20 + Rust GNU; build backend exe; build Tauri MSI; upload as release asset
+- [x] Task 5: `CHANGELOG.md` — v0.1.0 release notes summarising all Phase 1–9 features
+- [x] Task 6: Spec docs written for phases 4, 6, 7, 8, 9 in docs/superpowers/specs/
+- [x] Task 7: CLAUDE.md + master plan updated, committed and pushed to GitHub
+
+**Result:** 38/38 Vitest · 65/65 Pytest · cargo check clean — PROJECT FEATURE-COMPLETE
