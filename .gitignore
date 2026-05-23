@@ -28,10 +28,13 @@ dist-info/
 pip-wheel-metadata/
 *.spec
 !backend/backend.spec
+!backend/build.dev.spec
 
 # PyInstaller
 backend/dist/
 backend/build/
+backend/dist-dev/
+backend/build-dev/
 backend/dist_build/
 backend/build_tmp/
 
