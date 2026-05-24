@@ -79,7 +79,10 @@ async fn handle_wizard(State(s): State<CallbackState>, Json(p): Json<WizardPaylo
         "progress" => {
             let _ = s.app.emit(
                 "wizard://progress",
-                json!({ "percent": p.percent.unwrap_or(0) }),
+                json!({
+                    "percent": p.percent.unwrap_or(0),
+                    "message": p.message.as_deref().unwrap_or(""),
+                }),
             );
         }
         "complete" => {

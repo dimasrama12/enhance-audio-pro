@@ -29,7 +29,7 @@ async def _run_download(callback_url: str) -> None:
             async with httpx.AsyncClient(timeout=10) as client:
                 await client.post(
                     f"{callback_url}/callback/wizard",
-                    json={"event": "error", "message": str(exc)},
+                    json={"type": "error", "message": str(exc)},
                 )
         except Exception:
             pass
@@ -42,20 +42,20 @@ def _sync_download(callback_url: str) -> None:
     )
     models_dir.mkdir(parents=True, exist_ok=True)
 
-    _report(callback_url, {"event": "progress", "percent": 5, "message": "Starting model download..."})
+    _report(callback_url, {"type": "progress", "percent": 5, "message": "Starting model download..."})
 
     os.environ.setdefault("DFHOME", str(models_dir))
 
-    _report(callback_url, {"event": "progress", "percent": 20, "message": "Initialising DeepFilterNet..."})
+    _report(callback_url, {"type": "progress", "percent": 20, "message": "Initialising DeepFilterNet..."})
 
     from df.enhance import init_df
 
-    _report(callback_url, {"event": "progress", "percent": 50, "message": "Loading model weights..."})
+    _report(callback_url, {"type": "progress", "percent": 50, "message": "Loading model weights..."})
 
     init_df()
 
-    _report(callback_url, {"event": "progress", "percent": 95, "message": "Finalising..."})
-    _report(callback_url, {"event": "complete", "message": "Model ready."})
+    _report(callback_url, {"type": "progress", "percent": 95, "message": "Finalising..."})
+    _report(callback_url, {"type": "complete", "message": "Model ready."})
 
 
 def _report(callback_url: str, payload: dict) -> None:
