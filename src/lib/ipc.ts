@@ -35,6 +35,10 @@ export async function invokeStartModelDownload(): Promise<IpcResponse<null>> {
   return invoke<IpcResponse<null>>('start_model_download');
 }
 
+export async function invokeCheckModelStatus(): Promise<IpcResponse<boolean>> {
+  return invoke<IpcResponse<boolean>>('check_model_status');
+}
+
 export async function invokeSeparateStems(jobIds: string[]): Promise<IpcResponse<null>> {
   return invoke<IpcResponse<null>>('separate_stems', { jobIds });
 }

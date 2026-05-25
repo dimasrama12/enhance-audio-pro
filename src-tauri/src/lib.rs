@@ -8,7 +8,7 @@ mod sidecar;
 
 use commands::convert::{convert_files, set_bitrate, set_output_format, set_sample_rate};
 use commands::record::save_recording;
-use commands::download::start_model_download;
+use commands::download::{check_model_status, start_model_download};
 use commands::manipulate::{apply_eq, loop_audio, manipulate_audio, merge_audio};
 use commands::process::process_queue;
 use commands::queue::{add_files, get_queue, get_recent_history};
@@ -72,6 +72,7 @@ pub fn run() {
             save_settings,
             process_queue,
             start_model_download,
+            check_model_status,
             separate_stems,
             convert_files,
             set_output_format,

@@ -45,7 +45,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   theme: 'dark',
   outputFolder: '',
   language: 'en',
-  setupComplete: false,
+  setupComplete: true,
   enhancementStrength: 50,
   filenameTemplate: '{name}_enhanced',
   keyboardShortcuts: { ...DEFAULT_KEYBOARD_SHORTCUTS },

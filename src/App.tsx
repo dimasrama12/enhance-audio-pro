@@ -3,7 +3,6 @@ import { useSettingsStore } from '@/stores/useSettingsStore';
 import { useQueueStore } from '@/stores/useQueueStore';
 import { invokeGetSettings, invokeGetQueue } from '@/lib/ipc';
 import i18n from '@/i18n';
-import SetupWizard from '@/components/SetupWizard';
 import TitleBar from '@/components/TitleBar';
 import Sidebar from '@/components/Sidebar';
 import DropZone from '@/components/DropZone';
@@ -15,7 +14,7 @@ import QueueStatusBar from '@/components/QueueStatusBar';
 import { useKeyboardShortcuts } from '@/hooks/useKeyboardShortcuts';
 
 export default function App(): JSX.Element {
-  const { theme, setupComplete, language, setSettings, setInitialized } = useSettingsStore();
+  const { theme, language, setSettings, setInitialized } = useSettingsStore();
   const { setJobs } = useQueueStore();
   const [helpOpen, setHelpOpen] = useState(false);
 
@@ -43,8 +42,6 @@ export default function App(): JSX.Element {
       i18n.changeLanguage(language);
     }
   }, [language]);
-
-  if (!setupComplete) return <SetupWizard />;
 
   return (
     <div className="flex flex-col h-screen bg-neutral-900 text-white overflow-hidden">

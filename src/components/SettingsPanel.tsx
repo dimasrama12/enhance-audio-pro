@@ -1,19 +1,64 @@
+import { useEffect, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, FolderOpen } from 'lucide-react';
+import { X, FolderOpen, Download, CheckCircle2, AlertCircle } from 'lucide-react';
+import { listen, UnlistenFn } from '@tauri-apps/api/event';
 import { open as openDialog } from '@tauri-apps/plugin-dialog';
 import { useSettingsStore } from '@/stores/useSettingsStore';
-import { invokeSaveSettings } from '@/lib/ipc';
+import { invokeSaveSettings, invokeStartModelDownload, invokeCheckModelStatus } from '@/lib/ipc';
 import { SUPPORTED_LANGUAGES } from '@/i18n';
 import { useTranslation } from 'react-i18next';
 import i18n from '@/i18n';
 import type { AppSettings } from '@/types/settings';
 import KeyboardShortcutsPanel from '@/components/KeyboardShortcutsPanel';
 
+type DownloadState = 'idle' | 'checking' | 'installed' | 'downloading' | 'error';
+
 interface Props { open: boolean; onClose: () => void; }
 
 export default function SettingsPanel({ open, onClose }: Props): JSX.Element {
   const store = useSettingsStore();
   const { t } = useTranslation();
+  const [dlState, setDlState] = useState<DownloadState>('idle');
+  const [dlProgress, setDlProgress] = useState(0);
+  const [dlMessage, setDlMessage] = useState('');
+  const [dlError, setDlError] = useState('');
+  const unlistenRef = useRef<UnlistenFn[]>([]);
+
+  useEffect(() => {
+    return () => { unlistenRef.current.forEach((fn) => fn()); };
+  }, []);
+
+  useEffect(() => {
+    if (open && dlState === 'idle') {
+      setDlState('checking');
+      invokeCheckModelStatus().then((res) => {
+        setDlState(res.data === true ? 'installed' : 'idle');
+      }).catch(() => setDlState('idle'));
+    }
+  }, [open]);
+
+  async function handleDownload(): Promise<void> {
+    setDlState('downloading');
+    setDlProgress(0);
+    setDlMessage('Starting download…');
+    setDlError('');
+
+    const unP = await listen<{ percent: number; message: string }>('wizard://progress', (e) => {
+      setDlProgress(e.payload.percent);
+      setDlMessage(e.payload.message);
+    });
+    const unC = await listen<{ message: string }>('wizard://complete', () => {
+      setDlProgress(100);
+      setDlMessage('Models ready!');
+      setDlState('installed');
+    });
+    const unE = await listen<{ message: string }>('wizard://error', (e) => {
+      setDlState('error');
+      setDlError(e.payload.message);
+    });
+    unlistenRef.current = [unP, unC, unE];
+    await invokeStartModelDownload();
+  }
 
   const browseFolder = async (): Promise<void> => {
     const selected = await openDialog({ directory: true, multiple: false, title: 'Select Output Folder' });
@@ -136,6 +181,61 @@ export default function SettingsPanel({ open, onClose }: Props): JSX.Element {
                   ))}
                 </select>
               </section>
+              <section>
+                <h3 className="text-xs font-semibold uppercase text-white/40 mb-3">AI Models</h3>
+                <div className="flex flex-col gap-3">
+                  <div className="flex items-center justify-between text-sm">
+                    <span>DeepFilterNet (noise removal)</span>
+                    <span className="text-white/40 text-xs">~200 MB</span>
+                  </div>
+
+                  {dlState === 'checking' && (
+                    <p className="text-xs text-white/40">Checking…</p>
+                  )}
+
+                  {dlState === 'installed' && (
+                    <div className="flex items-center gap-2 text-emerald-400 text-xs">
+                      <CheckCircle2 size={14} />
+                      <span>Installed — saved to D:\enhance-audio-pro-data\models</span>
+                    </div>
+                  )}
+
+                  {(dlState === 'idle' || dlState === 'error') && (
+                    <>
+                      {dlState === 'error' && (
+                        <div className="flex items-start gap-2 p-2 rounded-lg bg-red-500/10 text-red-400 text-xs">
+                          <AlertCircle size={13} className="shrink-0 mt-0.5" />
+                          <span>{dlError}</span>
+                        </div>
+                      )}
+                      <button
+                        onClick={handleDownload}
+                        className="flex items-center justify-center gap-2 w-full py-2 rounded-lg bg-violet-600 hover:bg-violet-500 text-sm font-medium transition-colors"
+                      >
+                        <Download size={14} />
+                        {dlState === 'error' ? 'Retry Download' : 'Download Model'}
+                      </button>
+                    </>
+                  )}
+
+                  {dlState === 'downloading' && (
+                    <div className="flex flex-col gap-2">
+                      <div className="flex justify-between text-xs text-white/50">
+                        <span>{dlMessage}</span>
+                        <span>{dlProgress}%</span>
+                      </div>
+                      <div className="h-1.5 w-full rounded-full bg-white/10 overflow-hidden">
+                        <motion.div
+                          className="h-full rounded-full bg-violet-500"
+                          animate={{ width: `${dlProgress}%` }}
+                          transition={{ duration: 0.4, ease: 'easeOut' }}
+                        />
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </section>
+
               <KeyboardShortcutsPanel />
             </div>
           </motion.aside>

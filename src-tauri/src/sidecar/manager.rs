@@ -9,16 +9,31 @@ pub fn available_port() -> u16 {
         .unwrap_or(8765)
 }
 
+/// Resolve the AI model storage directory.
+/// Prefers D:\enhance-audio-pro-data\models if D: is available, otherwise
+/// falls back to %APPDATA%\enhance-audio-pro\models.
+pub fn models_dir() -> String {
+    let d_path = std::path::Path::new("D:\\");
+    if d_path.exists() {
+        r"D:\enhance-audio-pro-data\models".to_string()
+    } else {
+        let appdata = std::env::var("APPDATA").unwrap_or_else(|_| ".".to_string());
+        format!(r"{}\enhance-audio-pro\models", appdata)
+    }
+}
+
 pub fn spawn(
     app: &AppHandle,
     port: u16,
     callback_port: u16,
 ) -> Result<(), Box<dyn std::error::Error>> {
+    let models = models_dir();
     app.shell()
         .sidecar("backend")
         .map_err(|e| e.to_string())?
         .env("BACKEND_PORT", port.to_string())
         .env("CALLBACK_PORT", callback_port.to_string())
+        .env("MODELS_DIR", models)
         .spawn()
         .map_err(|e| e.to_string())?;
     Ok(())
