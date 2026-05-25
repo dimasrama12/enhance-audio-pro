@@ -1,17 +1,14 @@
 import { useState } from 'react';
 import { Music, Video, Settings, Clock } from 'lucide-react';
 import { clsx } from 'clsx';
-import SettingsPanel from '@/components/SettingsPanel';
 import HistoryPanel from '@/components/HistoryPanel';
-
-type Tab = 'audio' | 'video';
+import { useUIStore, type AppTab } from '@/stores/useUIStore';
 
 export default function Sidebar(): JSX.Element {
-  const [activeTab, setActiveTab] = useState<Tab>('audio');
-  const [settingsOpen, setSettingsOpen] = useState(false);
+  const { activeTab, setActiveTab, openSettings } = useUIStore();
   const [historyOpen, setHistoryOpen] = useState(false);
 
-  const tabs: { id: Tab; label: string; Icon: typeof Music }[] = [
+  const tabs: { id: AppTab; label: string; Icon: typeof Music }[] = [
     { id: 'audio', label: 'Audio', Icon: Music },
     { id: 'video', label: 'Video', Icon: Video },
   ];
@@ -34,7 +31,7 @@ export default function Sidebar(): JSX.Element {
         ))}
         <div className="flex-1" />
         <button
-          onClick={() => { setHistoryOpen((v) => !v); setSettingsOpen(false); }}
+          onClick={() => setHistoryOpen((v) => !v)}
           className={clsx(
             'p-2 rounded-lg transition-colors',
             historyOpen ? 'bg-violet-600 text-white' : 'text-white/50 hover:text-white hover:bg-white/10'
@@ -44,15 +41,14 @@ export default function Sidebar(): JSX.Element {
           <Clock size={18} />
         </button>
         <button
-          onClick={() => { setSettingsOpen(true); setHistoryOpen(false); }}
+          onClick={openSettings}
           className="p-2 rounded-lg text-white/50 hover:text-white hover:bg-white/10 transition-colors"
-          title="Settings"
+          title="Settings (Ctrl+,)"
         >
           <Settings size={18} />
         </button>
       </aside>
       <HistoryPanel open={historyOpen} onClose={() => setHistoryOpen(false)} />
-      <SettingsPanel open={settingsOpen} onClose={() => setSettingsOpen(false)} />
     </>
   );
 }

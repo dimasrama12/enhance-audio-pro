@@ -11,6 +11,7 @@ interface QueueState {
   filter: string;
   searchQuery: string;
   selectedJobIds: string[];
+  lockedJobIds: string[];
   viewMode: ViewMode;
   groupByFormat: boolean;
   setJobs: (jobs: QueueJob[]) => void;
@@ -33,6 +34,11 @@ interface QueueState {
   clearSelection: () => void;
   primarySelectedId: () => string | null;
   setSampleRate: (id: string, rate: string) => void;
+  // Lock
+  lockJobs: (ids: string[]) => void;
+  unlockJobs: (ids: string[]) => void;
+  lockAllJobs: () => void;
+  unlockAllJobs: () => void;
   // Reorder
   reorderJobs: (activeId: string, overId: string) => void;
   // View
@@ -47,6 +53,7 @@ export const useQueueStore = create<QueueState>()(
   filter: 'all',
   searchQuery: '',
   selectedJobIds: [],
+  lockedJobIds: [],
   viewMode: 'table',
   groupByFormat: false,
 
@@ -147,6 +154,17 @@ export const useQueueStore = create<QueueState>()(
     set((s) => ({
       jobs: s.jobs.map((j) => (j.id === id ? { ...j, sample_rate: rate } : j)),
     })),
+
+  lockJobs: (ids) =>
+    set((s) => ({ lockedJobIds: [...new Set([...s.lockedJobIds, ...ids])] })),
+
+  unlockJobs: (ids) =>
+    set((s) => ({ lockedJobIds: s.lockedJobIds.filter((id) => !ids.includes(id)) })),
+
+  lockAllJobs: () =>
+    set((s) => ({ lockedJobIds: s.jobs.map((j) => j.id) })),
+
+  unlockAllJobs: () => set({ lockedJobIds: [] }),
 
   reorderJobs: (activeId, overId) =>
     set((s) => {

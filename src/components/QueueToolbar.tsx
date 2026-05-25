@@ -1,9 +1,10 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Play, Scissors, Search, Trash2, RefreshCw, LayoutList, LayoutGrid, FolderOpen, Layers } from 'lucide-react';
 import { open } from '@tauri-apps/plugin-dialog';
 import RecordButton from '@/components/RecordButton';
 import { useQueueStore } from '@/stores/useQueueStore';
 import { useSettingsStore } from '@/stores/useSettingsStore';
+import { useUIStore } from '@/stores/useUIStore';
 import {
   invokeAddFiles,
   invokeProcessQueue,
@@ -26,6 +27,12 @@ export default function QueueToolbar(): JSX.Element {
     useQueueStore();
   const enhancementStrength = useSettingsStore((s) => s.enhancementStrength);
   const filenameTemplate = useSettingsStore((s) => s.filenameTemplate);
+  const focusSearchTick = useUIStore((s) => s.focusSearchTick);
+  const searchRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (focusSearchTick > 0) searchRef.current?.focus();
+  }, [focusSearchTick]);
 
   const [isProcessing, setIsProcessing] = useState(false);
   const [isSeparating, setIsSeparating] = useState(false);
@@ -86,8 +93,9 @@ export default function QueueToolbar(): JSX.Element {
       <div className="relative">
         <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-white/40" />
         <input
+          ref={searchRef}
           type="text"
-          placeholder="Search files..."
+          placeholder="Search files…"
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
           className="pl-8 pr-3 py-1.5 bg-white/10 rounded-lg text-sm text-white placeholder-white/30 outline-none focus:ring-1 focus:ring-violet-500 transition w-40"

@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useSettingsStore } from '@/stores/useSettingsStore';
 import { useQueueStore } from '@/stores/useQueueStore';
+import { useUIStore } from '@/stores/useUIStore';
 import { invokeGetSettings, invokeGetQueue } from '@/lib/ipc';
 import i18n from '@/i18n';
 import TitleBar from '@/components/TitleBar';
@@ -11,11 +12,13 @@ import QueueGrid from '@/components/QueueGrid';
 import ManipulationPanel from '@/components/ManipulationPanel';
 import HelpPanel from '@/components/HelpPanel';
 import QueueStatusBar from '@/components/QueueStatusBar';
+import SettingsPanel from '@/components/SettingsPanel';
 import { useKeyboardShortcuts } from '@/hooks/useKeyboardShortcuts';
 
 export default function App(): JSX.Element {
   const { theme, language, setSettings, setInitialized } = useSettingsStore();
   const { setJobs } = useQueueStore();
+  const { sidebarVisible, settingsOpen, closeSettings } = useUIStore();
   const [helpOpen, setHelpOpen] = useState(false);
 
   useKeyboardShortcuts();
@@ -47,7 +50,7 @@ export default function App(): JSX.Element {
     <div className="flex flex-col h-screen bg-neutral-900 text-white overflow-hidden">
       <TitleBar onHelpOpen={() => setHelpOpen(true)} />
       <div className="flex flex-1 overflow-hidden">
-        <Sidebar />
+        {sidebarVisible && <Sidebar />}
         <main className="flex flex-col flex-1 overflow-hidden p-4 gap-3">
           <DropZone />
           <QueueToolbar />
@@ -57,6 +60,7 @@ export default function App(): JSX.Element {
         </main>
       </div>
       <HelpPanel open={helpOpen} onClose={() => setHelpOpen(false)} />
+      <SettingsPanel open={settingsOpen} onClose={closeSettings} />
     </div>
   );
 }

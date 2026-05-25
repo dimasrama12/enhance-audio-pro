@@ -1,5 +1,6 @@
+import { useEffect, useState } from 'react';
 import { getCurrentWindow } from '@tauri-apps/api/window';
-import { Minus, Square, X, HelpCircle } from 'lucide-react';
+import { Minus, Maximize2, Minimize2, X, HelpCircle } from 'lucide-react';
 import { useSettingsStore } from '@/stores/useSettingsStore';
 import { invokeSaveSettings } from '@/lib/ipc';
 import type { AppSettings } from '@/types/settings';
@@ -11,6 +12,15 @@ interface Props {
 export default function TitleBar({ onHelpOpen }: Props): JSX.Element {
   const store = useSettingsStore();
   const win = getCurrentWindow();
+  const [isFullscreen, setIsFullscreen] = useState(false);
+
+  useEffect(() => {
+    win.isFullscreen().then(setIsFullscreen).catch(() => {});
+    const unlistenResize = win.onResized(() => {
+      win.isFullscreen().then(setIsFullscreen).catch(() => {});
+    });
+    return () => { unlistenResize.then((fn) => fn()); };
+  }, []);
 
   const toggleTheme = async (): Promise<void> => {
     const next = store.theme === 'dark' ? 'light' : 'dark';
@@ -27,6 +37,12 @@ export default function TitleBar({ onHelpOpen }: Props): JSX.Element {
     await invokeSaveSettings(settings);
   };
 
+  const toggleFullscreen = async (): Promise<void> => {
+    const next = !isFullscreen;
+    setIsFullscreen(next);
+    await win.setFullscreen(next);
+  };
+
   return (
     <div
       data-tauri-drag-region
@@ -39,6 +55,7 @@ export default function TitleBar({ onHelpOpen }: Props): JSX.Element {
         <button
           onClick={toggleTheme}
           className="text-white/40 hover:text-white text-xs w-6 h-6 flex items-center justify-center transition-colors"
+          title="Toggle theme"
         >
           {store.theme === 'dark' ? '☀' : '☾'}
         </button>
@@ -51,13 +68,25 @@ export default function TitleBar({ onHelpOpen }: Props): JSX.Element {
             <HelpCircle size={14} />
           </button>
         )}
-        <button onClick={() => win.minimize()} className="p-1.5 rounded hover:bg-white/10 text-white/50 hover:text-white transition-colors">
+        <button
+          onClick={() => win.minimize()}
+          title="Minimize"
+          className="p-1.5 rounded hover:bg-white/10 text-white/50 hover:text-white transition-colors"
+        >
           <Minus size={12} />
         </button>
-        <button onClick={() => win.toggleMaximize()} className="p-1.5 rounded hover:bg-white/10 text-white/50 hover:text-white transition-colors">
-          <Square size={12} />
+        <button
+          onClick={toggleFullscreen}
+          title={isFullscreen ? 'Exit Fullscreen' : 'Fullscreen'}
+          className="p-1.5 rounded hover:bg-white/10 text-white/50 hover:text-white transition-colors"
+        >
+          {isFullscreen ? <Minimize2 size={12} /> : <Maximize2 size={12} />}
         </button>
-        <button onClick={() => win.close()} className="p-1.5 rounded hover:bg-red-500 text-white/50 hover:text-white transition-colors">
+        <button
+          onClick={() => win.close()}
+          title="Close"
+          className="p-1.5 rounded hover:bg-red-500 text-white/50 hover:text-white transition-colors"
+        >
           <X size={12} />
         </button>
       </div>

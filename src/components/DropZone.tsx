@@ -1,5 +1,6 @@
-import { useEffect, useState, useCallback } from 'react';
-import { listen } from '@tauri-apps/api/event';
+import { useEffect, useCallback, useRef } from 'react';
+import { useState } from 'react';
+import { getCurrentWindow } from '@tauri-apps/api/window';
 import { Upload } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { clsx } from 'clsx';
@@ -7,13 +8,12 @@ import { validateFile, getFilename } from '@/lib/fileValidation';
 import { invokeAddFiles } from '@/lib/ipc';
 import { useQueueStore } from '@/stores/useQueueStore';
 
-interface FileDropPayload { paths: string[]; }
-
 export default function DropZone(): JSX.Element {
   const [isDragging, setIsDragging] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [limitWarning, setLimitWarning] = useState<string | null>(null);
   const { addJobs } = useQueueStore();
+  const dragCounterRef = useRef(0);
 
   const handleFiles = useCallback(async (paths: string[]): Promise<void> => {
     const valid = paths.filter((p) => validateFile(getFilename(p)).valid);
@@ -42,24 +42,53 @@ export default function DropZone(): JSX.Element {
     }
   }, [addJobs]);
 
+  // Tauri v2 native file-drop events (full path access)
   useEffect(() => {
-    const cleanup: (() => void)[] = [];
-    Promise.all([
-      listen<FileDropPayload>('tauri://file-drop', async (e) => {
+    let unlisten: (() => void) | null = null;
+    getCurrentWindow().onDragDropEvent((event) => {
+      const type = event.payload.type;
+      if (type === 'over') {
+        setIsDragging(true);
+      } else if (type === 'drop') {
         setIsDragging(false);
-        await handleFiles(e.payload.paths);
-      }),
-      listen('tauri://file-drop-hover', () => setIsDragging(true)),
-      listen('tauri://file-drop-cancelled', () => setIsDragging(false)),
-    ]).then((fns) => cleanup.push(...fns));
-    return () => cleanup.forEach((fn) => fn());
+        const paths = (event.payload as { type: 'drop'; paths: string[]; position: unknown }).paths;
+        if (paths?.length) handleFiles(paths);
+      } else {
+        setIsDragging(false);
+      }
+    }).then((fn) => { unlisten = fn; });
+    return () => { unlisten?.(); };
   }, [handleFiles]);
 
+  // HTML5 visual drag feedback (for consistent hover styling regardless of Tauri version)
+  const onDragEnter = (e: React.DragEvent): void => {
+    e.preventDefault();
+    dragCounterRef.current += 1;
+    setIsDragging(true);
+  };
+  const onDragOver = (e: React.DragEvent): void => { e.preventDefault(); };
+  const onDragLeave = (): void => {
+    dragCounterRef.current -= 1;
+    if (dragCounterRef.current <= 0) { dragCounterRef.current = 0; setIsDragging(false); }
+  };
+  const onDrop = (e: React.DragEvent): void => {
+    e.preventDefault();
+    dragCounterRef.current = 0;
+    setIsDragging(false);
+    // HTML5 drop can't give full paths in sandboxed contexts; Tauri's onDragDropEvent handles actual file ingestion.
+  };
+
   return (
-    <div className={clsx(
-      'flex flex-col items-center justify-center h-28 rounded-xl border-2 border-dashed transition-colors shrink-0',
-      isDragging ? 'border-violet-400 bg-violet-500/10' : 'border-white/20 bg-white/5 hover:border-white/40 hover:bg-white/10'
-    )}>
+    <div
+      className={clsx(
+        'flex flex-col items-center justify-center h-28 rounded-xl border-2 border-dashed transition-colors shrink-0',
+        isDragging ? 'border-violet-400 bg-violet-500/10' : 'border-white/20 bg-white/5 hover:border-white/40 hover:bg-white/10'
+      )}
+      onDragEnter={onDragEnter}
+      onDragOver={onDragOver}
+      onDragLeave={onDragLeave}
+      onDrop={onDrop}
+    >
       <motion.div
         animate={{ scale: isDragging ? 1.1 : 1 }}
         transition={{ type: 'spring', stiffness: 300 }}
