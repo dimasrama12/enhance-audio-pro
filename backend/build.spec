@@ -5,10 +5,6 @@ torch_datas, torch_binaries, torch_hidden = collect_all('torch')
 torchaudio_datas, torchaudio_binaries, torchaudio_hidden = collect_all('torchaudio')
 demucs_datas, demucs_binaries, demucs_hidden = collect_all('demucs')
 
-# torchaudio.backend submodules are skipped by collect_all when the host
-# environment raises ImportError during analysis; declare them explicitly.
-torchaudio_backend_hidden = collect_submodules('torchaudio')
-
 a = Analysis(
     ['main.py'],
     pathex=['.'],
@@ -19,17 +15,11 @@ a = Analysis(
         + collect_data_files('scipy')
     ),
     hiddenimports=(
-        torch_hidden + torchaudio_hidden + torchaudio_backend_hidden + demucs_hidden
+        torch_hidden + torchaudio_hidden + demucs_hidden
         + collect_submodules('df')
         + collect_submodules('numpy')
         + collect_submodules('scipy')
         + [
-            # torchaudio backends — explicit fallback in case collect_submodules misses them
-            'torchaudio.backend',
-            'torchaudio.backend.sox_io_backend',
-            'torchaudio.backend.soundfile_backend',
-            'torchaudio.backend.no_backend',
-            'torchaudio.backend.utils',
             # uvicorn internals
             'uvicorn.logging', 'uvicorn.loops', 'uvicorn.loops.auto',
             'uvicorn.protocols', 'uvicorn.protocols.http',
@@ -43,7 +33,10 @@ a = Analysis(
     ),
     hookspath=[],
     hooksconfig={},
-    runtime_hooks=[],
+    # pyi_rth_torchaudio_compat runs before app code and injects a shim for
+    # torchaudio.backend.common.AudioMetaData (removed in torchaudio 2.x but
+    # still imported by deepfilternet df/io.py).
+    runtime_hooks=['rthooks/pyi_rth_torchaudio_compat.py'],
     excludes=['tkinter', 'matplotlib', 'IPython', 'jupyter', 'notebook'],
     noarchive=False,
 )
