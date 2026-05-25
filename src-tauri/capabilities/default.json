@@ -10,7 +10,6 @@
     "core:window:allow-set-fullscreen",
     "core:window:allow-is-fullscreen",
     "core:window:allow-start-dragging",
-    "core:window:allow-on-resized",
     "shell:allow-spawn",
     "shell:allow-kill",
     "dialog:allow-open",

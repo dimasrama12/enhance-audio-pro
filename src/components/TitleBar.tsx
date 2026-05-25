@@ -16,10 +16,6 @@ export default function TitleBar({ onHelpOpen }: Props): JSX.Element {
 
   useEffect(() => {
     win.isFullscreen().then(setIsFullscreen).catch(() => {});
-    const unlistenResize = win.onResized(() => {
-      win.isFullscreen().then(setIsFullscreen).catch(() => {});
-    });
-    return () => { unlistenResize.then((fn) => fn()); };
   }, []);
 
   const toggleTheme = async (): Promise<void> => {
