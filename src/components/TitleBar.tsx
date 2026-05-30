@@ -12,10 +12,23 @@ interface Props {
 export default function TitleBar({ onHelpOpen }: Props): JSX.Element {
   const store = useSettingsStore();
   const win = getCurrentWindow();
-  const [isFullscreen, setIsFullscreen] = useState(false);
+  const [isMaximized, setIsMaximized] = useState(false);
 
   useEffect(() => {
-    win.isFullscreen().then(setIsFullscreen).catch(() => {});
+    let unlistenResize: (() => void) | undefined;
+
+    const setup = async (): Promise<void> => {
+      setIsMaximized(await win.isMaximized());
+      unlistenResize = await win.onResized(async () => {
+        setIsMaximized(await win.isMaximized());
+      });
+    };
+
+    setup().catch(() => {});
+
+    return () => {
+      unlistenResize?.();
+    };
   }, []);
 
   const toggleTheme = async (): Promise<void> => {
@@ -33,16 +46,14 @@ export default function TitleBar({ onHelpOpen }: Props): JSX.Element {
     await invokeSaveSettings(settings);
   };
 
-  const toggleFullscreen = async (): Promise<void> => {
-    const next = !isFullscreen;
-    setIsFullscreen(next);
-    await win.setFullscreen(next);
+  const toggleMaximize = async (): Promise<void> => {
+    await win.toggleMaximize();
   };
 
   return (
     <div
       data-tauri-drag-region
-      className="flex items-center justify-between h-10 px-4 bg-neutral-950 select-none shrink-0"
+      className="flex items-center justify-between h-[35.5px] px-4 bg-neutral-950 select-none shrink-0"
     >
       <span className="text-sm font-semibold text-white/70" data-tauri-drag-region>
         Enhance Audio Pro
@@ -72,11 +83,11 @@ export default function TitleBar({ onHelpOpen }: Props): JSX.Element {
           <Minus size={12} />
         </button>
         <button
-          onClick={toggleFullscreen}
-          title={isFullscreen ? 'Exit Fullscreen' : 'Fullscreen'}
+          onClick={toggleMaximize}
+          title={isMaximized ? 'Restore' : 'Maximize'}
           className="p-1.5 rounded hover:bg-white/10 text-white/50 hover:text-white transition-colors"
         >
-          {isFullscreen ? <Minimize2 size={12} /> : <Maximize2 size={12} />}
+          {isMaximized ? <Minimize2 size={12} /> : <Maximize2 size={12} />}
         </button>
         <button
           onClick={() => win.close()}
