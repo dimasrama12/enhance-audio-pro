@@ -58,7 +58,11 @@ export const useQueueStore = create<QueueState>()(
   groupByFormat: false,
 
   setJobs: (jobs) => set({ jobs }),
-  addJobs: (newJobs) => set((s) => ({ jobs: [...s.jobs, ...newJobs] })),
+  addJobs: (newJobs) => set((s) => {
+    const existing = new Set(s.jobs.map((j) => j.id));
+    const unique = newJobs.filter((j) => !existing.has(j.id));
+    return unique.length ? { jobs: [...s.jobs, ...unique] } : s;
+  }),
   setFilter: (filter) => set({ filter }),
   setSearchQuery: (searchQuery) => set({ searchQuery }),
   clearQueue: () => set({ jobs: [], selectedJobIds: [] }),

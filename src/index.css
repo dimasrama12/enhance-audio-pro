@@ -16,4 +16,9 @@ textarea {
 body {
   margin: 0;
   background: #0a0a0a;
+  transition: background-color 0.2s ease, color 0.2s ease;
+}
+
+html.light body {
+  background: #f4f4f5;
 }

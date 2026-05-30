@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect } from 'react';
 import { useSettingsStore } from '@/stores/useSettingsStore';
 import { useQueueStore } from '@/stores/useQueueStore';
 import { useUIStore } from '@/stores/useUIStore';
@@ -10,7 +10,6 @@ import DropZone from '@/components/DropZone';
 import QueueToolbar from '@/components/QueueToolbar';
 import QueueGrid from '@/components/QueueGrid';
 import ManipulationPanel from '@/components/ManipulationPanel';
-import HelpPanel from '@/components/HelpPanel';
 import QueueStatusBar from '@/components/QueueStatusBar';
 import SettingsPanel from '@/components/SettingsPanel';
 import { useKeyboardShortcuts } from '@/hooks/useKeyboardShortcuts';
@@ -19,7 +18,6 @@ export default function App(): JSX.Element {
   const { theme, language, setSettings, setInitialized } = useSettingsStore();
   const { setJobs } = useQueueStore();
   const { sidebarVisible, settingsOpen, closeSettings } = useUIStore();
-  const [helpOpen, setHelpOpen] = useState(false);
 
   useKeyboardShortcuts();
 
@@ -41,14 +39,12 @@ export default function App(): JSX.Element {
   }, [theme]);
 
   useEffect(() => {
-    if (language && i18n.language !== language) {
-      i18n.changeLanguage(language);
-    }
+    if (language && i18n.language !== language) i18n.changeLanguage(language);
   }, [language]);
 
   return (
-    <div className="flex flex-col h-screen bg-neutral-900 text-white overflow-hidden">
-      <TitleBar onHelpOpen={() => setHelpOpen(true)} />
+    <div className="flex flex-col h-screen overflow-hidden transition-colors duration-200 bg-zinc-100 text-zinc-900 dark:bg-neutral-900 dark:text-white">
+      <TitleBar />
       <div className="flex flex-1 overflow-hidden">
         {sidebarVisible && <Sidebar />}
         <main className="flex flex-col flex-1 overflow-hidden p-4 gap-3">
@@ -59,7 +55,6 @@ export default function App(): JSX.Element {
           <ManipulationPanel />
         </main>
       </div>
-      <HelpPanel open={helpOpen} onClose={() => setHelpOpen(false)} />
       <SettingsPanel open={settingsOpen} onClose={closeSettings} />
     </div>
   );

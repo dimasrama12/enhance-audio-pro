@@ -42,9 +42,18 @@ export default function DropZone(): JSX.Element {
     }
   }, [addJobs]);
 
-  // Tauri v2 native file-drop events (full path access)
+  // Keep a ref so the Tauri event handler always calls the latest handleFiles
+  // without needing to re-register the listener on every render.
+  const handleFilesRef = useRef(handleFiles);
+  handleFilesRef.current = handleFiles;
+
+  // Tauri v2 native file-drop events — registered once; cancelled flag guards
+  // against the async cleanup race that causes double-registration in React
+  // Strict Mode dev double-invoke.
   useEffect(() => {
+    let cancelled = false;
     let unlisten: (() => void) | null = null;
+
     getCurrentWindow().onDragDropEvent((event) => {
       const type = event.payload.type;
       if (type === 'over') {
@@ -52,13 +61,20 @@ export default function DropZone(): JSX.Element {
       } else if (type === 'drop') {
         setIsDragging(false);
         const paths = (event.payload as { type: 'drop'; paths: string[]; position: unknown }).paths;
-        if (paths?.length) handleFiles(paths);
+        if (paths?.length) handleFilesRef.current(paths);
       } else {
         setIsDragging(false);
       }
-    }).then((fn) => { unlisten = fn; });
-    return () => { unlisten?.(); };
-  }, [handleFiles]);
+    }).then((fn) => {
+      if (cancelled) fn(); // effect already cleaned up — unlisten immediately
+      else unlisten = fn;
+    });
+
+    return () => {
+      cancelled = true;
+      unlisten?.();
+    };
+  }, []); // stable — only register once per mount
 
   // HTML5 visual drag feedback (for consistent hover styling regardless of Tauri version)
   const onDragEnter = (e: React.DragEvent): void => {
