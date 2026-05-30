@@ -4,6 +4,7 @@ import { open } from '@tauri-apps/plugin-dialog';
 import { useQueueStore } from '@/stores/useQueueStore';
 import { useSettingsStore } from '@/stores/useSettingsStore';
 import { useUIStore } from '@/stores/useUIStore';
+import { useAudioPlayer } from '@/stores/useAudioPlayer';
 import {
   invokeAddFiles,
   invokeConvertFiles,
@@ -56,6 +57,22 @@ export function useKeyboardShortcuts(): void {
         s.setSettings(next);
         await invokeSaveSettings(next);
       };
+
+      // ── Playback ──────────────────────────────────────────────────────────
+      if (e.key === ' ') {
+        e.preventDefault();
+        const primaryId = q.primarySelectedId();
+        if (primaryId) {
+          const job = q.jobs.find((j) => j.id === primaryId);
+          if (job) {
+            const src = job.ab_mode === 'enhanced' && job.output_filepath
+              ? job.output_filepath
+              : job.filepath;
+            useAudioPlayer.getState().toggle(primaryId, src);
+          }
+        }
+        return;
+      }
 
       // ── Queue actions ──────────────────────────────────────────────────────
       if (matches(e, sc.enhance)) {

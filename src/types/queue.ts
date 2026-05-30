@@ -14,6 +14,7 @@ export interface QueueJob {
   output_format: string;
   bitrate: string;
   output_filepath: string | null;
+  ab_mode?: 'enhanced' | 'original';
   sample_rate: string;
   created_at: string;
   updated_at: string;

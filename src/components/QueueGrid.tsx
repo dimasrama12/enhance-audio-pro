@@ -2,7 +2,7 @@ import { useEffect } from 'react';
 import { listen } from '@tauri-apps/api/event';
 import { motion, AnimatePresence } from 'framer-motion';
 import { clsx } from 'clsx';
-import { GripVertical } from 'lucide-react';
+import { GripVertical, Play, Pause } from 'lucide-react';
 import {
   DndContext,
   closestCenter,
@@ -21,6 +21,7 @@ import {
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { useQueueStore } from '@/stores/useQueueStore';
+import { useAudioPlayer } from '@/stores/useAudioPlayer';
 import { invokeSetOutputFormat, invokeSetBitrate, invokeSetSampleRate } from '@/lib/ipc';
 import type { QueueJob, JobStatus } from '@/types/queue';
 
@@ -136,6 +137,20 @@ function SortableJobRow({ job, index, isSelected, onSelect }: {
   onSelect: (e: React.MouseEvent) => void;
 }): JSX.Element {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: job.id });
+  const { playingJobId, isPlaying, toggle } = useAudioPlayer();
+  const setAbMode = useQueueStore((s) => s.setAbMode);
+
+  const isThisPlaying = playingJobId === job.id && isPlaying;
+  const isEnhanced = job.ab_mode === 'enhanced';
+
+  function getPlaySrc(): string {
+    return isEnhanced && job.output_filepath ? job.output_filepath : job.filepath;
+  }
+
+  function handlePlay(e: React.MouseEvent): void {
+    e.stopPropagation();
+    toggle(job.id, getPlaySrc());
+  }
 
   return (
     <tr
@@ -147,7 +162,9 @@ function SortableJobRow({ job, index, isSelected, onSelect }: {
         isDragging ? 'opacity-40 bg-violet-600/10' : '',
         isSelected
           ? 'bg-violet-600/20 border-violet-500/30 hover:bg-violet-600/25'
-          : 'hover:bg-white/5',
+          : isEnhanced
+            ? 'bg-blue-500/[0.12] hover:bg-blue-500/[0.18]'
+            : 'hover:bg-white/5',
       )}
     >
       <td className="px-2 py-2 w-8">
@@ -160,6 +177,20 @@ function SortableJobRow({ job, index, isSelected, onSelect }: {
           aria-label="Drag to reorder"
         >
           <GripVertical size={14} />
+        </button>
+      </td>
+      <td className="px-2 py-2 w-8">
+        <button
+          onClick={handlePlay}
+          className={clsx(
+            'flex items-center justify-center w-6 h-6 rounded-full transition-colors',
+            isThisPlaying
+              ? 'text-blue-400 hover:text-blue-300'
+              : 'text-white/25 hover:text-white/70',
+          )}
+          aria-label={isThisPlaying ? 'Pause' : 'Play'}
+        >
+          {isThisPlaying ? <Pause size={12} /> : <Play size={12} />}
         </button>
       </td>
       <td className="px-4 py-2 text-white/30 text-xs w-10">{index + 1}</td>
@@ -176,11 +207,51 @@ function SortableJobRow({ job, index, isSelected, onSelect }: {
       <td className="px-4 py-2 w-24">
         <SampleRateSelect job={job} />
       </td>
-      <td className={clsx('px-4 py-2 text-xs font-medium capitalize w-36', STATUS_COLORS[job.status])}>
-        <span title={job.status === 'error' ? (job.error_message ?? undefined) : undefined}>
-          {job.status}
-        </span>
-        {job.status === 'processing' && <ProgressBar percent={job.progress} />}
+      <td className="px-4 py-2 text-xs font-medium w-40">
+        {job.status === 'done' && job.output_filepath ? (
+          <div className="flex gap-1">
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                setAbMode(job.id, 'enhanced');
+                toggle(job.id, job.output_filepath!);
+              }}
+              className={clsx(
+                'px-1.5 py-0.5 rounded text-[11px] transition-colors',
+                isEnhanced
+                  ? 'bg-blue-500/30 text-blue-300 font-semibold'
+                  : 'text-white/40 hover:bg-white/10',
+              )}
+            >
+              Enhanced
+            </button>
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                setAbMode(job.id, 'original');
+                toggle(job.id, job.filepath);
+              }}
+              className={clsx(
+                'px-1.5 py-0.5 rounded text-[11px] transition-colors',
+                !isEnhanced
+                  ? 'bg-white/15 text-white/80 font-semibold'
+                  : 'text-white/40 hover:bg-white/10',
+              )}
+            >
+              Original
+            </button>
+          </div>
+        ) : (
+          <>
+            <span
+              className={STATUS_COLORS[job.status]}
+              title={job.status === 'error' ? (job.error_message ?? undefined) : undefined}
+            >
+              {job.status}
+            </span>
+            {job.status === 'processing' && <ProgressBar percent={job.progress} />}
+          </>
+        )}
       </td>
     </tr>
   );
@@ -192,6 +263,17 @@ function SortableJobCard({ job, isSelected, onSelect }: {
   onSelect: (e: React.MouseEvent) => void;
 }): JSX.Element {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: job.id });
+  const { playingJobId, isPlaying, toggle } = useAudioPlayer();
+  const setAbMode = useQueueStore((s) => s.setAbMode);
+
+  const isThisPlaying = playingJobId === job.id && isPlaying;
+  const isEnhanced = job.ab_mode === 'enhanced';
+
+  function handlePlay(e: React.MouseEvent): void {
+    e.stopPropagation();
+    const src = isEnhanced && job.output_filepath ? job.output_filepath : job.filepath;
+    toggle(job.id, src);
+  }
 
   return (
     <div
@@ -203,7 +285,9 @@ function SortableJobCard({ job, isSelected, onSelect }: {
         isDragging ? 'opacity-40' : '',
         isSelected
           ? 'bg-violet-600/20 border-violet-500/40'
-          : 'bg-white/5 border-white/10 hover:bg-white/[0.08]',
+          : isEnhanced
+            ? 'bg-blue-500/[0.12] border-blue-500/20 hover:bg-blue-500/[0.18]'
+            : 'bg-white/5 border-white/10 hover:bg-white/[0.08]',
       )}
     >
       <div className="flex items-start justify-between gap-2 mb-2">
@@ -218,9 +302,34 @@ function SortableJobCard({ job, isSelected, onSelect }: {
           <GripVertical size={14} />
         </button>
         <span className="text-sm text-white font-medium truncate flex-1">{job.filename}</span>
-        <span className={clsx('text-xs font-medium capitalize shrink-0', STATUS_COLORS[job.status])}>
-          {job.status}
-        </span>
+        <div className="flex items-center gap-1 shrink-0">
+          <button
+            onClick={handlePlay}
+            className={clsx(
+              'flex items-center justify-center w-5 h-5 rounded-full transition-colors',
+              isThisPlaying ? 'text-blue-400' : 'text-white/30 hover:text-white/70',
+            )}
+            aria-label={isThisPlaying ? 'Pause' : 'Play'}
+          >
+            {isThisPlaying ? <Pause size={11} /> : <Play size={11} />}
+          </button>
+          {job.status === 'done' && job.output_filepath ? (
+            <div className="flex gap-0.5">
+              <button
+                onClick={(e) => { e.stopPropagation(); setAbMode(job.id, 'enhanced'); toggle(job.id, job.output_filepath!); }}
+                className={clsx('px-1 py-0.5 rounded text-[10px] transition-colors', isEnhanced ? 'bg-blue-500/30 text-blue-300' : 'text-white/40 hover:bg-white/10')}
+              >Enh</button>
+              <button
+                onClick={(e) => { e.stopPropagation(); setAbMode(job.id, 'original'); toggle(job.id, job.filepath); }}
+                className={clsx('px-1 py-0.5 rounded text-[10px] transition-colors', !isEnhanced ? 'bg-white/15 text-white/80' : 'text-white/40 hover:bg-white/10')}
+              >Orig</button>
+            </div>
+          ) : (
+            <span className={clsx('text-xs font-medium capitalize', STATUS_COLORS[job.status])}>
+              {job.status}
+            </span>
+          )}
+        </div>
       </div>
       <div className="flex items-center gap-3 text-xs text-white/40">
         <span>{formatBytes(job.size_bytes)}</span>
@@ -239,6 +348,7 @@ export default function QueueGrid(): JSX.Element {
   const setProgress = useQueueStore((s) => s.setProgress);
   const setStatus = useQueueStore((s) => s.setStatus);
   const setOutputFilepath = useQueueStore((s) => s.setOutputFilepath);
+  const setAbMode = useQueueStore((s) => s.setAbMode);
   const reorderJobs = useQueueStore((s) => s.reorderJobs);
   const selectedJobIds = useQueueStore((s) => s.selectedJobIds);
   const { setSelectedJob, toggleSelectJob, rangeSelectJobs } = useQueueStore();
@@ -260,14 +370,17 @@ export default function QueueGrid(): JSX.Element {
       (e) => {
         const { jobId, status, error_message, outputFilepath } = e.payload;
         setStatus(jobId, status as JobStatus, error_message);
-        if (outputFilepath) setOutputFilepath(jobId, outputFilepath);
+        if (outputFilepath) {
+          setOutputFilepath(jobId, outputFilepath);
+          if (status === 'done') setAbMode(jobId, 'enhanced');
+        }
       }
     );
     return () => {
       unlistenProgress.then((fn) => fn());
       unlistenStatus.then((fn) => fn());
     };
-  }, [setProgress, setStatus, setOutputFilepath]);
+  }, [setProgress, setStatus, setOutputFilepath, setAbMode]);
 
   function handleRowClick(e: React.MouseEvent, jobId: string): void {
     if (e.shiftKey) {
@@ -341,6 +454,7 @@ export default function QueueGrid(): JSX.Element {
     <thead>
       <tr className="border-b border-white/10 text-white/40 text-xs uppercase tracking-wider sticky top-0 bg-neutral-900/80 backdrop-blur">
         <th className="px-2 py-2 w-8" />
+        <th className="px-2 py-2 w-8" />
         <th className="px-4 py-2 w-10">#</th>
         <th className="px-4 py-2">Filename</th>
         <th className="px-4 py-2">Destination</th>
@@ -349,7 +463,7 @@ export default function QueueGrid(): JSX.Element {
         <th className="px-4 py-2 w-24">Format</th>
         <th className="px-4 py-2 w-24">Bitrate</th>
         <th className="px-4 py-2 w-24">Sample Hz</th>
-        <th className="px-4 py-2 w-36">Status</th>
+        <th className="px-4 py-2 w-40">Status</th>
       </tr>
     </thead>
   );
@@ -361,7 +475,7 @@ export default function QueueGrid(): JSX.Element {
         <tbody>
           {jobs.length === 0 ? (
             <tr>
-              <td colSpan={10} className="px-4 py-16 text-center text-white/30 text-sm">
+              <td colSpan={11} className="px-4 py-16 text-center text-white/30 text-sm">
                 No files in queue. Drop audio or video files above to get started.
               </td>
             </tr>
@@ -370,7 +484,7 @@ export default function QueueGrid(): JSX.Element {
               {groups.map((group, gi) => (
                 <>
                   <tr key={`group-${gi}`}>
-                    <td colSpan={10} className="px-4 pt-3 pb-1 text-xs font-semibold uppercase text-violet-400/70">
+                    <td colSpan={11} className="px-4 pt-3 pb-1 text-xs font-semibold uppercase text-violet-400/70">
                       {group.label} <span className="text-white/25 font-normal">({group.jobs.length})</span>
                     </td>
                   </tr>

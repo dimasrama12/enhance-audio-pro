@@ -55,6 +55,7 @@ async def _process_jobs(job_ids: List[str], callback_url: str, strength: float =
                 if destination
                 else pathlib.Path(filepath).parent
             )
+            out_dir.mkdir(parents=True, exist_ok=True)
             output_path = str(out_dir / f"{stem}_enhanced{suffix}")
 
             _cb_url = callback_url

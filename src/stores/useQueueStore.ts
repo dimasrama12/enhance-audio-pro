@@ -26,6 +26,7 @@ interface QueueState {
   setOutputFormat: (id: string, format: string) => void;
   setBitrate: (id: string, bitrate: string) => void;
   setOutputFilepath: (id: string, filepath: string) => void;
+  setAbMode: (id: string, mode: 'enhanced' | 'original') => void;
   // Selection
   setSelectedJob: (id: string | null) => void;
   toggleSelectJob: (id: string) => void;
@@ -112,6 +113,11 @@ export const useQueueStore = create<QueueState>()(
   setOutputFilepath: (id, filepath) =>
     set((s) => ({
       jobs: s.jobs.map((j) => (j.id === id ? { ...j, output_filepath: filepath } : j)),
+    })),
+
+  setAbMode: (id, mode) =>
+    set((s) => ({
+      jobs: s.jobs.map((j) => (j.id === id ? { ...j, ab_mode: mode } : j)),
     })),
 
   // Exclusive single select (backward-compat for row click without modifier)
