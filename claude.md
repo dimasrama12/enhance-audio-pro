@@ -238,10 +238,22 @@ chore    : [configuration changes, tooling, etc.]
 - [x] Task 6: Spec docs created for phases 4, 6, 7, 8, 9 in docs/superpowers/specs/
       → Phase 9 COMPLETE ✓ — PROJECT FEATURE-COMPLETE
 
+# Post-Release Fixes & Enhancements (2026-05-30)
+- [x] Fix Enhance Speech runtime error: enhance_speech.py now reads MODELS_DIR env var (set by sidecar manager to D:\enhance-audio-pro-data\models) instead of hardcoded APPDATA path — resolves DeepFilterNet model-not-found crash
+- [x] Add output directory mkdir in enhance_speech.py and routers/enhance.py to prevent write failures when destination folder doesn't exist
+- [x] Inline audio playback: Play/Pause icon in every queue table row; useAudioPlayer singleton Zustand store (HTML5 Audio, tauri://localhost/ protocol); strict single-playback enforcement
+- [x] Spacebar shortcut: toggles play/pause for the primary selected queue row (plays enhanced or original based on ab_mode)
+- [x] A/B toggle in status column: after enhancement completes, status cell shows Enhanced/Original toggle buttons; clicking each button switches mode AND starts playback immediately
+- [x] Auto-set ab_mode='enhanced' when enhancement callback delivers output_filepath so enhanced result is shown by default
+- [x] Blue row tint: bg-blue-500/[0.12] applied to rows with ab_mode='enhanced'; reverts instantly on toggle to Original
+- [x] QueueJob type extended with ab_mode?: 'enhanced' | 'original'; setAbMode action added to useQueueStore
+- [x] Backend sidecar rebuilt via PyInstaller with all fixes
+
 # Test Coverage (final)
 - 38/38 Vitest (frontend)
 - 65/65 Pytest (backend)
 - cargo check clean
+- TypeScript tsc --noEmit: 0 errors
 ```
 
 ---
