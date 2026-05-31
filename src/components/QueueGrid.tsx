@@ -3,6 +3,7 @@ import { listen } from '@tauri-apps/api/event';
 import { motion, AnimatePresence } from 'framer-motion';
 import { clsx } from 'clsx';
 import { GripVertical, Play, Pause } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import {
   DndContext,
   closestCenter,
@@ -44,7 +45,7 @@ function formatBytes(n: number): string {
 
 function ProgressBar({ percent }: { percent: number }): JSX.Element {
   return (
-    <div className="mt-1 h-1 w-full rounded-full bg-white/10 overflow-hidden">
+    <div className="mt-1 h-1 w-full rounded-full bg-zinc-200 dark:bg-white/10 overflow-hidden">
       <motion.div
         className="h-full rounded-full bg-blue-400"
         initial={{ width: 0 }}
@@ -71,7 +72,7 @@ function FormatSelect({ job }: { job: QueueJob }): JSX.Element {
       onChange={handleChange}
       onClick={(e) => e.stopPropagation()}
       disabled={job.status !== 'pending'}
-      className="bg-white/10 text-white text-xs rounded px-2 py-0.5 outline-none focus:ring-1 focus:ring-violet-500 disabled:opacity-40 transition"
+      className="bg-zinc-100 dark:bg-white/10 text-zinc-800 dark:text-white text-xs rounded px-2 py-0.5 outline-none focus:ring-1 focus:ring-violet-500 disabled:opacity-40 transition"
     >
       {FORMAT_OPTIONS.map((f) => (
         <option key={f} value={f} className="bg-neutral-800">{f.toUpperCase()}</option>
@@ -96,7 +97,7 @@ function BitrateSelect({ job }: { job: QueueJob }): JSX.Element {
       onChange={handleChange}
       onClick={(e) => e.stopPropagation()}
       disabled={job.status !== 'pending'}
-      className="bg-white/10 text-white text-xs rounded px-2 py-0.5 outline-none focus:ring-1 focus:ring-violet-500 disabled:opacity-40 transition"
+      className="bg-zinc-100 dark:bg-white/10 text-zinc-800 dark:text-white text-xs rounded px-2 py-0.5 outline-none focus:ring-1 focus:ring-violet-500 disabled:opacity-40 transition"
     >
       {BITRATE_OPTIONS.map((b) => (
         <option key={b} value={b} className="bg-neutral-800">{b || 'Auto'}</option>
@@ -121,7 +122,7 @@ function SampleRateSelect({ job }: { job: QueueJob }): JSX.Element {
       onChange={handleChange}
       onClick={(e) => e.stopPropagation()}
       disabled={job.status !== 'pending'}
-      className="bg-white/10 text-white text-xs rounded px-2 py-0.5 outline-none focus:ring-1 focus:ring-violet-500 disabled:opacity-40 transition"
+      className="bg-zinc-100 dark:bg-white/10 text-zinc-800 dark:text-white text-xs rounded px-2 py-0.5 outline-none focus:ring-1 focus:ring-violet-500 disabled:opacity-40 transition"
     >
       {SAMPLE_RATE_OPTIONS.map((r) => (
         <option key={r} value={r} className="bg-neutral-800">{r ? `${r} Hz` : 'Auto'}</option>
@@ -158,13 +159,13 @@ function SortableJobRow({ job, index, isSelected, onSelect }: {
       style={{ transform: CSS.Transform.toString(transform), transition }}
       onClick={onSelect}
       className={clsx(
-        'border-b border-white/5 cursor-pointer transition-colors select-none',
+        'border-b border-zinc-100 dark:border-white/5 cursor-pointer transition-colors select-none',
         isDragging ? 'opacity-40 bg-violet-600/10' : '',
         isSelected
           ? 'bg-violet-600/20 border-violet-500/30 hover:bg-violet-600/25'
           : isEnhanced
             ? 'bg-blue-500/[0.12] hover:bg-blue-500/[0.18]'
-            : 'hover:bg-white/5',
+            : 'hover:bg-zinc-50 dark:hover:bg-white/5',
       )}
     >
       <td className="px-2 py-2 w-8">
@@ -172,7 +173,7 @@ function SortableJobRow({ job, index, isSelected, onSelect }: {
           {...listeners}
           {...attributes}
           onClick={(e) => e.stopPropagation()}
-          className="text-white/20 hover:text-white/60 transition-colors cursor-grab active:cursor-grabbing"
+          className="text-zinc-300 dark:text-white/20 hover:text-zinc-500 dark:hover:text-white/60 transition-colors cursor-grab active:cursor-grabbing"
           tabIndex={-1}
           aria-label="Drag to reorder"
         >
@@ -186,18 +187,18 @@ function SortableJobRow({ job, index, isSelected, onSelect }: {
             'flex items-center justify-center w-6 h-6 rounded-full transition-colors',
             isThisPlaying
               ? 'text-blue-400 hover:text-blue-300'
-              : 'text-white/25 hover:text-white/70',
+              : 'text-zinc-300 dark:text-white/25 hover:text-zinc-600 dark:hover:text-white/70',
           )}
           aria-label={isThisPlaying ? 'Pause' : 'Play'}
         >
           {isThisPlaying ? <Pause size={12} /> : <Play size={12} />}
         </button>
       </td>
-      <td className="px-4 py-2 text-white/30 text-xs w-10">{index + 1}</td>
-      <td className="px-4 py-2 text-sm text-white truncate max-w-[180px]">{job.filename}</td>
-      <td className="px-4 py-2 text-xs text-white/50 truncate max-w-[130px]">{job.destination || '—'}</td>
-      <td className="px-4 py-2 text-xs text-white/50 w-20">{formatBytes(job.size_bytes)}</td>
-      <td className="px-4 py-2 text-xs uppercase text-white/40 w-16">{job.media_type}</td>
+      <td className="px-4 py-2 text-zinc-400 dark:text-white/30 text-xs w-10">{index + 1}</td>
+      <td className="px-4 py-2 text-sm text-zinc-800 dark:text-white truncate max-w-[180px]">{job.filename}</td>
+      <td className="px-4 py-2 text-xs text-zinc-500 dark:text-white/50 truncate max-w-[130px]">{job.destination || '—'}</td>
+      <td className="px-4 py-2 text-xs text-zinc-500 dark:text-white/50 w-20">{formatBytes(job.size_bytes)}</td>
+      <td className="px-4 py-2 text-xs uppercase text-zinc-400 dark:text-white/40 w-16">{job.media_type}</td>
       <td className="px-4 py-2 w-24">
         <FormatSelect job={job} />
       </td>
@@ -220,7 +221,7 @@ function SortableJobRow({ job, index, isSelected, onSelect }: {
                 'px-1.5 py-0.5 rounded text-[11px] transition-colors',
                 isEnhanced
                   ? 'bg-blue-500/30 text-blue-300 font-semibold'
-                  : 'text-white/40 hover:bg-white/10',
+                  : 'text-zinc-400 dark:text-white/40 hover:bg-zinc-100 dark:hover:bg-white/10',
               )}
             >
               Enhanced
@@ -234,8 +235,8 @@ function SortableJobRow({ job, index, isSelected, onSelect }: {
               className={clsx(
                 'px-1.5 py-0.5 rounded text-[11px] transition-colors',
                 !isEnhanced
-                  ? 'bg-white/15 text-white/80 font-semibold'
-                  : 'text-white/40 hover:bg-white/10',
+                  ? 'bg-zinc-200 dark:bg-white/15 text-zinc-700 dark:text-white/80 font-semibold'
+                  : 'text-zinc-400 dark:text-white/40 hover:bg-zinc-100 dark:hover:bg-white/10',
               )}
             >
               Original
@@ -287,7 +288,7 @@ function SortableJobCard({ job, isSelected, onSelect }: {
           ? 'bg-violet-600/20 border-violet-500/40'
           : isEnhanced
             ? 'bg-blue-500/[0.12] border-blue-500/20 hover:bg-blue-500/[0.18]'
-            : 'bg-white/5 border-white/10 hover:bg-white/[0.08]',
+            : 'bg-zinc-50 dark:bg-white/5 border-zinc-200 dark:border-white/10 hover:bg-zinc-100 dark:hover:bg-white/[0.08]',
       )}
     >
       <div className="flex items-start justify-between gap-2 mb-2">
@@ -295,19 +296,19 @@ function SortableJobCard({ job, isSelected, onSelect }: {
           {...listeners}
           {...attributes}
           onClick={(e) => e.stopPropagation()}
-          className="text-white/20 hover:text-white/60 transition-colors cursor-grab active:cursor-grabbing shrink-0 mt-0.5"
+          className="text-zinc-300 dark:text-white/20 hover:text-zinc-500 dark:hover:text-white/60 transition-colors cursor-grab active:cursor-grabbing shrink-0 mt-0.5"
           tabIndex={-1}
           aria-label="Drag to reorder"
         >
           <GripVertical size={14} />
         </button>
-        <span className="text-sm text-white font-medium truncate flex-1">{job.filename}</span>
+        <span className="text-sm text-zinc-800 dark:text-white font-medium truncate flex-1">{job.filename}</span>
         <div className="flex items-center gap-1 shrink-0">
           <button
             onClick={handlePlay}
             className={clsx(
               'flex items-center justify-center w-5 h-5 rounded-full transition-colors',
-              isThisPlaying ? 'text-blue-400' : 'text-white/30 hover:text-white/70',
+              isThisPlaying ? 'text-blue-400' : 'text-zinc-300 dark:text-white/30 hover:text-zinc-600 dark:hover:text-white/70',
             )}
             aria-label={isThisPlaying ? 'Pause' : 'Play'}
           >
@@ -317,11 +318,11 @@ function SortableJobCard({ job, isSelected, onSelect }: {
             <div className="flex gap-0.5">
               <button
                 onClick={(e) => { e.stopPropagation(); setAbMode(job.id, 'enhanced'); toggle(job.id, job.output_filepath!); }}
-                className={clsx('px-1 py-0.5 rounded text-[10px] transition-colors', isEnhanced ? 'bg-blue-500/30 text-blue-300' : 'text-white/40 hover:bg-white/10')}
+                className={clsx('px-1 py-0.5 rounded text-[10px] transition-colors', isEnhanced ? 'bg-blue-500/30 text-blue-300' : 'text-zinc-400 dark:text-white/40 hover:bg-zinc-100 dark:hover:bg-white/10')}
               >Enh</button>
               <button
                 onClick={(e) => { e.stopPropagation(); setAbMode(job.id, 'original'); toggle(job.id, job.filepath); }}
-                className={clsx('px-1 py-0.5 rounded text-[10px] transition-colors', !isEnhanced ? 'bg-white/15 text-white/80' : 'text-white/40 hover:bg-white/10')}
+                className={clsx('px-1 py-0.5 rounded text-[10px] transition-colors', !isEnhanced ? 'bg-zinc-200 dark:bg-white/15 text-zinc-700 dark:text-white/80' : 'text-zinc-400 dark:text-white/40 hover:bg-zinc-100 dark:hover:bg-white/10')}
               >Orig</button>
             </div>
           ) : (
@@ -331,7 +332,7 @@ function SortableJobCard({ job, isSelected, onSelect }: {
           )}
         </div>
       </div>
-      <div className="flex items-center gap-3 text-xs text-white/40">
+      <div className="flex items-center gap-3 text-xs text-zinc-400 dark:text-white/40">
         <span>{formatBytes(job.size_bytes)}</span>
         <span className="uppercase">{job.media_type}</span>
         <span className="uppercase">{job.output_format}</span>
@@ -354,6 +355,7 @@ export default function QueueGrid(): JSX.Element {
   const { setSelectedJob, toggleSelectJob, rangeSelectJobs } = useQueueStore();
   const viewMode = useQueueStore((s) => s.viewMode);
   const groupByFormat = useQueueStore((s) => s.groupByFormat);
+  const { t } = useTranslation();
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
@@ -403,15 +405,15 @@ export default function QueueGrid(): JSX.Element {
     return (
       <div className="flex-1 overflow-auto">
         {jobs.length === 0 ? (
-          <div className="flex items-center justify-center h-32 text-white/30 text-sm">
-            No files in queue. Drop audio or video files above to get started.
+          <div className="flex items-center justify-center h-32 text-zinc-400 dark:text-white/30 text-sm">
+            {t('queue.empty')}
           </div>
         ) : groupByFormat ? (
           <div className="flex flex-col gap-4 p-1">
             {groups.map((group) => (
               <div key={group.label}>
-                <div className="text-xs font-semibold uppercase text-white/40 px-1 pb-1.5 border-b border-white/10 mb-2">
-                  {group.label} <span className="text-white/25 font-normal">({group.jobs.length})</span>
+                <div className="text-xs font-semibold uppercase text-zinc-400 dark:text-white/40 px-1 pb-1.5 border-b border-zinc-200 dark:border-white/10 mb-2">
+                  {group.label} <span className="text-zinc-300 dark:text-white/25 font-normal">({group.jobs.length})</span>
                 </div>
                 <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
                   <SortableContext items={group.jobs.map((j) => j.id)} strategy={rectSortingStrategy}>
@@ -452,31 +454,31 @@ export default function QueueGrid(): JSX.Element {
 
   const tableHeader = (
     <thead>
-      <tr className="border-b border-white/10 text-white/40 text-xs uppercase tracking-wider sticky top-0 bg-neutral-900/80 backdrop-blur">
+      <tr className="border-b border-zinc-200 dark:border-white/10 text-zinc-400 dark:text-white/40 text-xs uppercase tracking-wider sticky top-0 bg-zinc-50/90 dark:bg-neutral-900/80 backdrop-blur">
         <th className="px-2 py-2 w-8" />
         <th className="px-2 py-2 w-8" />
         <th className="px-4 py-2 w-10">#</th>
-        <th className="px-4 py-2">Filename</th>
-        <th className="px-4 py-2">Destination</th>
-        <th className="px-4 py-2 w-20">Size</th>
-        <th className="px-4 py-2 w-16">Type</th>
-        <th className="px-4 py-2 w-24">Format</th>
-        <th className="px-4 py-2 w-24">Bitrate</th>
+        <th className="px-4 py-2">{t('queue.col.filename')}</th>
+        <th className="px-4 py-2">{t('queue.col.destination')}</th>
+        <th className="px-4 py-2 w-20">{t('queue.col.size')}</th>
+        <th className="px-4 py-2 w-16">{t('queue.col.type')}</th>
+        <th className="px-4 py-2 w-24">{t('queue.col.output')}</th>
+        <th className="px-4 py-2 w-24">{t('queue.col.bitrate')}</th>
         <th className="px-4 py-2 w-24">Sample Hz</th>
-        <th className="px-4 py-2 w-40">Status</th>
+        <th className="px-4 py-2 w-40">{t('queue.col.status')}</th>
       </tr>
     </thead>
   );
 
   return (
-    <div className="flex-1 overflow-auto rounded-xl bg-white/5">
+    <div className="flex-1 overflow-auto rounded-xl bg-zinc-50 dark:bg-white/5">
       <table className="w-full text-left table-fixed">
         {tableHeader}
         <tbody>
           {jobs.length === 0 ? (
             <tr>
-              <td colSpan={11} className="px-4 py-16 text-center text-white/30 text-sm">
-                No files in queue. Drop audio or video files above to get started.
+              <td colSpan={11} className="px-4 py-16 text-center text-zinc-400 dark:text-white/30 text-sm">
+                {t('queue.empty')}
               </td>
             </tr>
           ) : groupByFormat ? (
@@ -484,8 +486,8 @@ export default function QueueGrid(): JSX.Element {
               {groups.map((group, gi) => (
                 <>
                   <tr key={`group-${gi}`}>
-                    <td colSpan={11} className="px-4 pt-3 pb-1 text-xs font-semibold uppercase text-violet-400/70">
-                      {group.label} <span className="text-white/25 font-normal">({group.jobs.length})</span>
+                    <td colSpan={11} className="px-4 pt-3 pb-1 text-xs font-semibold uppercase text-violet-500 dark:text-violet-400/70">
+                      {group.label} <span className="text-zinc-300 dark:text-white/25 font-normal">({group.jobs.length})</span>
                     </td>
                   </tr>
                   <DndContext key={`dnd-${gi}`} sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>

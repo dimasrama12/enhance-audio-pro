@@ -98,7 +98,7 @@ export default function DropZone(): JSX.Element {
     <div
       className={clsx(
         'flex flex-col items-center justify-center h-28 rounded-xl border-2 border-dashed transition-colors shrink-0',
-        isDragging ? 'border-violet-400 bg-violet-500/10' : 'border-white/20 bg-white/5 hover:border-white/40 hover:bg-white/10'
+        isDragging ? 'border-violet-400 bg-violet-500/10' : 'border-zinc-300 dark:border-white/20 bg-zinc-50 dark:bg-white/5 hover:border-zinc-400 dark:hover:border-white/40 hover:bg-zinc-100 dark:hover:bg-white/10'
       )}
       onDragEnter={onDragEnter}
       onDragOver={onDragOver}
@@ -108,7 +108,7 @@ export default function DropZone(): JSX.Element {
       <motion.div
         animate={{ scale: isDragging ? 1.1 : 1 }}
         transition={{ type: 'spring', stiffness: 300 }}
-        className="flex flex-col items-center gap-2 text-white/50"
+        className="flex flex-col items-center gap-2 text-zinc-400 dark:text-white/50"
       >
         <Upload size={24} />
         <span className="text-sm">Drop audio or video files here</span>

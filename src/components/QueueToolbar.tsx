@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { Play, Scissors, Search, Trash2, RefreshCw, LayoutList, LayoutGrid, FolderOpen, Layers } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import { open } from '@tauri-apps/plugin-dialog';
 import RecordButton from '@/components/RecordButton';
 import { useQueueStore } from '@/stores/useQueueStore';
@@ -11,6 +12,7 @@ import {
   invokeSeparateStems,
   invokeConvertFiles,
   invokeSetOutputFormat,
+  invokeArchiveAllQueue,
 } from '@/lib/ipc';
 import type { ViewMode } from '@/stores/useQueueStore';
 
@@ -29,6 +31,7 @@ export default function QueueToolbar(): JSX.Element {
   const filenameTemplate = useSettingsStore((s) => s.filenameTemplate);
   const focusSearchTick = useUIStore((s) => s.focusSearchTick);
   const searchRef = useRef<HTMLInputElement>(null);
+  const { t } = useTranslation();
 
   useEffect(() => {
     if (focusSearchTick > 0) searchRef.current?.focus();
@@ -42,6 +45,11 @@ export default function QueueToolbar(): JSX.Element {
   const pendingIds = jobs.filter((j) => j.status === 'pending').map((j) => j.id);
   const busy = isProcessing || isSeparating || isConverting;
   const canAct = pendingIds.length > 0 && !busy;
+
+  async function handleClearQueue(): Promise<void> {
+    clearQueue();
+    void invokeArchiveAllQueue();
+  }
 
   async function handleProcess(): Promise<void> {
     if (!canAct) return;
@@ -91,41 +99,41 @@ export default function QueueToolbar(): JSX.Element {
   return (
     <div className="flex items-center gap-2 shrink-0 flex-wrap">
       <div className="relative">
-        <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-white/40" />
+        <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-400 dark:text-white/40" />
         <input
           ref={searchRef}
           type="text"
-          placeholder="Search files…"
+          placeholder={t('toolbar.search')}
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
-          className="pl-8 pr-3 py-1.5 bg-white/10 rounded-lg text-sm text-white placeholder-white/30 outline-none focus:ring-1 focus:ring-violet-500 transition w-40"
+          className="pl-8 pr-3 py-1.5 bg-zinc-100 dark:bg-white/10 rounded-lg text-sm text-zinc-900 dark:text-white placeholder-zinc-400 dark:placeholder-white/30 outline-none focus:ring-1 focus:ring-violet-500 transition w-40"
         />
       </div>
       <select
         value={filter}
         onChange={(e) => setFilter(e.target.value)}
-        className="bg-white/10 text-white text-sm rounded-lg px-3 py-1.5 outline-none focus:ring-1 focus:ring-violet-500 transition"
+        className="bg-zinc-100 dark:bg-white/10 text-zinc-800 dark:text-white text-sm rounded-lg px-3 py-1.5 outline-none focus:ring-1 focus:ring-violet-500 transition"
       >
         {FILTERS.map((f) => (
-          <option key={f.value} value={f.value} className="bg-neutral-800">{f.label}</option>
+          <option key={f.value} value={f.value} className="bg-white dark:bg-neutral-800">{f.label}</option>
         ))}
       </select>
-      <div className="flex items-center gap-1.5 bg-white/10 rounded-lg px-3 py-1.5">
-        <span className="text-white/40 text-xs">All→</span>
+      <div className="flex items-center gap-1.5 bg-zinc-100 dark:bg-white/10 rounded-lg px-3 py-1.5">
+        <span className="text-zinc-400 dark:text-white/40 text-xs">All→</span>
         <select
           value={globalFormat}
           onChange={(e) => setGlobalFormat(e.target.value)}
-          className="bg-transparent text-white text-xs outline-none"
+          className="bg-transparent text-zinc-800 dark:text-white text-xs outline-none"
         >
           {FORMAT_OPTIONS.map((f) => (
-            <option key={f} value={f} className="bg-neutral-800">{f.toUpperCase()}</option>
+            <option key={f} value={f} className="bg-white dark:bg-neutral-800">{f.toUpperCase()}</option>
           ))}
         </select>
         <button
           onClick={handleApplyFormat}
           disabled={pendingIds.length === 0}
-          title="Apply format to all pending files"
-          className="text-white/60 hover:text-white disabled:opacity-40 transition"
+          title={t('toolbar.applyFormat')}
+          className="text-zinc-500 dark:text-white/60 hover:text-zinc-900 dark:hover:text-white disabled:opacity-40 transition"
         >
           <RefreshCw size={12} />
         </button>
@@ -137,7 +145,7 @@ export default function QueueToolbar(): JSX.Element {
         className="flex items-center gap-2 px-4 py-1.5 rounded-lg text-sm font-medium bg-violet-600 hover:bg-violet-500 disabled:opacity-40 disabled:cursor-not-allowed transition-colors text-white"
       >
         <Play size={14} />
-        {isProcessing ? 'Enhancing…' : 'Enhance'}
+        {isProcessing ? t('toolbar.enhancing') : t('toolbar.enhance')}
       </button>
       <button
         onClick={handleSeparate}
@@ -146,7 +154,7 @@ export default function QueueToolbar(): JSX.Element {
         className="flex items-center gap-2 px-4 py-1.5 rounded-lg text-sm font-medium bg-indigo-600 hover:bg-indigo-500 disabled:opacity-40 disabled:cursor-not-allowed transition-colors text-white"
       >
         <Scissors size={14} />
-        {isSeparating ? 'Separating…' : 'Separate Stems'}
+        {isSeparating ? t('toolbar.separating') : t('toolbar.separate')}
       </button>
       <button
         onClick={handleConvert}
@@ -155,34 +163,34 @@ export default function QueueToolbar(): JSX.Element {
         className="flex items-center gap-2 px-4 py-1.5 rounded-lg text-sm font-medium bg-teal-600 hover:bg-teal-500 disabled:opacity-40 disabled:cursor-not-allowed transition-colors text-white"
       >
         <RefreshCw size={14} />
-        {isConverting ? 'Converting…' : 'Convert'}
+        {isConverting ? t('toolbar.converting') : t('toolbar.convert')}
       </button>
       <button
         onClick={toggleView}
-        title={viewMode === 'table' ? 'Switch to grid view' : 'Switch to table view'}
-        className="p-2 rounded-lg text-white/50 hover:text-white hover:bg-white/10 transition-colors"
+        title={viewMode === 'table' ? t('toolbar.viewGrid') : t('toolbar.viewTable')}
+        className="p-2 rounded-lg text-zinc-500 dark:text-white/50 hover:text-zinc-900 dark:hover:text-white hover:bg-zinc-200 dark:hover:bg-white/10 transition-colors"
       >
         {viewMode === 'table' ? <LayoutGrid size={16} /> : <LayoutList size={16} />}
       </button>
       <button
         onClick={handleOpenFiles}
         title="Open files [Ctrl+O]"
-        className="p-2 rounded-lg text-white/50 hover:text-white hover:bg-white/10 transition-colors"
+        className="p-2 rounded-lg text-zinc-500 dark:text-white/50 hover:text-zinc-900 dark:hover:text-white hover:bg-zinc-200 dark:hover:bg-white/10 transition-colors"
       >
         <FolderOpen size={16} />
       </button>
       <button
         onClick={() => setGroupByFormat(!groupByFormat)}
         title={groupByFormat ? 'Ungroup by format' : 'Group by format'}
-        className={`p-2 rounded-lg transition-colors ${groupByFormat ? 'text-violet-400 bg-violet-600/20' : 'text-white/50 hover:text-white hover:bg-white/10'}`}
+        className={`p-2 rounded-lg transition-colors ${groupByFormat ? 'text-violet-500 dark:text-violet-400 bg-violet-600/20' : 'text-zinc-500 dark:text-white/50 hover:text-zinc-900 dark:hover:text-white hover:bg-zinc-200 dark:hover:bg-white/10'}`}
       >
         <Layers size={16} />
       </button>
       <RecordButton />
       <button
-        onClick={clearQueue}
-        title="Clear queue"
-        className="p-2 rounded-lg text-white/50 hover:text-red-400 hover:bg-red-400/10 transition-colors"
+        onClick={handleClearQueue}
+        title={t('toolbar.clearQueue')}
+        className="p-2 rounded-lg text-zinc-500 dark:text-white/50 hover:text-red-500 dark:hover:text-red-400 hover:bg-red-400/10 transition-colors"
       >
         <Trash2 size={16} />
       </button>

@@ -12,8 +12,8 @@ export default function QueueStatusBar(): JSX.Element {
   if (total === 0) return <></>;
 
   return (
-    <div className="flex items-center gap-4 px-1 text-xs text-white/40 select-none">
-      <span className="text-white/60 font-medium">{total} file{total !== 1 ? 's' : ''}</span>
+    <div className="flex items-center gap-4 px-1 text-xs text-zinc-400 dark:text-white/40 select-none">
+      <span className="text-zinc-600 dark:text-white/60 font-medium">{total} file{total !== 1 ? 's' : ''}</span>
       {pending > 0 && <span className="text-yellow-400/70">{pending} pending</span>}
       {processing > 0 && <span className="text-blue-400/70">{processing} processing</span>}
       {done > 0 && <span className="text-green-400/70">{done} done</span>}
