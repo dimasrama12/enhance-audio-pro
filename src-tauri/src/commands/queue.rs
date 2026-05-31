@@ -2,7 +2,10 @@ use std::path::Path;
 use tauri::State;
 
 use crate::commands::IpcResponse;
-use crate::db::queue::{count_active_jobs_by_type, get_all_jobs, get_recent_jobs, insert_job, QueueJob};
+use crate::db::queue::{
+    count_active_jobs_by_type, get_all_jobs, get_recent_jobs, insert_job, QueueJob,
+    archive_job, archive_all_jobs, delete_job_by_id, delete_all_history as db_delete_all_history,
+};
 use crate::AppState;
 
 const MAX_AUDIO: i64 = 30;
@@ -95,6 +98,61 @@ pub fn get_recent_history(state: State<AppState>) -> IpcResponse<Vec<QueueJob>> 
 
     match get_recent_jobs(&conn, 50) {
         Ok(jobs) => IpcResponse { success: true, data: Some(jobs), error: None },
+        Err(e) => IpcResponse { success: false, data: None, error: Some(e.to_string()) },
+    }
+}
+
+#[tauri::command]
+pub fn archive_jobs(state: State<AppState>, ids: Vec<String>) -> IpcResponse<()> {
+    let conn = match state.db.lock() {
+        Ok(c) => c,
+        Err(e) => return IpcResponse { success: false, data: None, error: Some(e.to_string()) },
+    };
+
+    for id in &ids {
+        if let Err(e) = archive_job(&conn, id) {
+            return IpcResponse { success: false, data: None, error: Some(e.to_string()) };
+        }
+    }
+
+    IpcResponse { success: true, data: Some(()), error: None }
+}
+
+#[tauri::command]
+pub fn archive_all_queue(state: State<AppState>) -> IpcResponse<()> {
+    let conn = match state.db.lock() {
+        Ok(c) => c,
+        Err(e) => return IpcResponse { success: false, data: None, error: Some(e.to_string()) },
+    };
+
+    match archive_all_jobs(&conn) {
+        Ok(_) => IpcResponse { success: true, data: Some(()), error: None },
+        Err(e) => IpcResponse { success: false, data: None, error: Some(e.to_string()) },
+    }
+}
+
+#[tauri::command]
+pub fn delete_job(state: State<AppState>, id: String) -> IpcResponse<()> {
+    let conn = match state.db.lock() {
+        Ok(c) => c,
+        Err(e) => return IpcResponse { success: false, data: None, error: Some(e.to_string()) },
+    };
+
+    match delete_job_by_id(&conn, &id) {
+        Ok(_) => IpcResponse { success: true, data: Some(()), error: None },
+        Err(e) => IpcResponse { success: false, data: None, error: Some(e.to_string()) },
+    }
+}
+
+#[tauri::command]
+pub fn delete_all_history(state: State<AppState>) -> IpcResponse<()> {
+    let conn = match state.db.lock() {
+        Ok(c) => c,
+        Err(e) => return IpcResponse { success: false, data: None, error: Some(e.to_string()) },
+    };
+
+    match db_delete_all_history(&conn) {
+        Ok(_) => IpcResponse { success: true, data: Some(()), error: None },
         Err(e) => IpcResponse { success: false, data: None, error: Some(e.to_string()) },
     }
 }

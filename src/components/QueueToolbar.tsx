@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { Play, Scissors, Search, Trash2, RefreshCw, LayoutList, LayoutGrid, FolderOpen, Layers } from 'lucide-react';
-import { useTranslation } from 'react-i18next';
 import { open } from '@tauri-apps/plugin-dialog';
+import { useTranslation } from 'react-i18next';
 import RecordButton from '@/components/RecordButton';
 import { useQueueStore } from '@/stores/useQueueStore';
 import { useSettingsStore } from '@/stores/useSettingsStore';
@@ -23,6 +23,9 @@ const FILTERS = [
 ];
 
 const FORMAT_OPTIONS = ['wav', 'mp3', 'flac', 'aac', 'ogg', 'opus', 'm4a'];
+
+// Shared width for all primary action buttons (equal to widest: Separate Stems)
+const ACTION_BTN = 'flex items-center justify-center gap-2 py-1.5 rounded-lg text-sm font-medium transition-colors text-white w-[130px] shrink-0';
 
 export default function QueueToolbar(): JSX.Element {
   const { filter, searchQuery, setFilter, setSearchQuery, clearQueue, jobs, addJobs, setOutputFormat, viewMode, setViewMode, groupByFormat, setGroupByFormat } =
@@ -96,8 +99,44 @@ export default function QueueToolbar(): JSX.Element {
     setViewMode(next);
   }
 
+  const iconBtn = 'p-2 rounded-lg text-zinc-500 dark:text-white/50 hover:text-zinc-900 dark:hover:text-white hover:bg-zinc-200 dark:hover:bg-white/10 transition-colors';
+
   return (
     <div className="flex items-center gap-2 shrink-0 flex-wrap">
+      {/* ── Left: Primary action buttons (equal width) ── */}
+      <button
+        onClick={handleProcess}
+        disabled={!canAct}
+        title="Enhance speech [E]"
+        className={`${ACTION_BTN} bg-violet-600 hover:bg-violet-500 disabled:opacity-40 disabled:cursor-not-allowed`}
+      >
+        <Play size={14} />
+        {isProcessing ? t('toolbar.enhancing') : t('toolbar.enhance')}
+      </button>
+      <button
+        onClick={handleSeparate}
+        disabled={!canAct}
+        title="Separate stems [S]"
+        className={`${ACTION_BTN} bg-indigo-600 hover:bg-indigo-500 disabled:opacity-40 disabled:cursor-not-allowed`}
+      >
+        <Scissors size={14} />
+        {isSeparating ? t('toolbar.separating') : t('toolbar.separate')}
+      </button>
+      <button
+        onClick={handleConvert}
+        disabled={!canAct}
+        title="Convert format [C]"
+        className={`${ACTION_BTN} bg-teal-600 hover:bg-teal-500 disabled:opacity-40 disabled:cursor-not-allowed`}
+      >
+        <RefreshCw size={14} />
+        {isConverting ? t('toolbar.converting') : t('toolbar.convert')}
+      </button>
+      <RecordButton />
+
+      {/* ── Spacer ── */}
+      <div className="flex-1" />
+
+      {/* ── Right: Search, filter, format, icon tools ── */}
       <div className="relative">
         <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-400 dark:text-white/40" />
         <input
@@ -138,60 +177,20 @@ export default function QueueToolbar(): JSX.Element {
           <RefreshCw size={12} />
         </button>
       </div>
-      <button
-        onClick={handleProcess}
-        disabled={!canAct}
-        title="Enhance speech [E]"
-        className="flex items-center gap-2 px-4 py-1.5 rounded-lg text-sm font-medium bg-violet-600 hover:bg-violet-500 disabled:opacity-40 disabled:cursor-not-allowed transition-colors text-white"
-      >
-        <Play size={14} />
-        {isProcessing ? t('toolbar.enhancing') : t('toolbar.enhance')}
-      </button>
-      <button
-        onClick={handleSeparate}
-        disabled={!canAct}
-        title="Separate stems [S]"
-        className="flex items-center gap-2 px-4 py-1.5 rounded-lg text-sm font-medium bg-indigo-600 hover:bg-indigo-500 disabled:opacity-40 disabled:cursor-not-allowed transition-colors text-white"
-      >
-        <Scissors size={14} />
-        {isSeparating ? t('toolbar.separating') : t('toolbar.separate')}
-      </button>
-      <button
-        onClick={handleConvert}
-        disabled={!canAct}
-        title="Convert format [C]"
-        className="flex items-center gap-2 px-4 py-1.5 rounded-lg text-sm font-medium bg-teal-600 hover:bg-teal-500 disabled:opacity-40 disabled:cursor-not-allowed transition-colors text-white"
-      >
-        <RefreshCw size={14} />
-        {isConverting ? t('toolbar.converting') : t('toolbar.convert')}
-      </button>
-      <button
-        onClick={toggleView}
-        title={viewMode === 'table' ? t('toolbar.viewGrid') : t('toolbar.viewTable')}
-        className="p-2 rounded-lg text-zinc-500 dark:text-white/50 hover:text-zinc-900 dark:hover:text-white hover:bg-zinc-200 dark:hover:bg-white/10 transition-colors"
-      >
+      <button onClick={toggleView} title={viewMode === 'table' ? t('toolbar.viewGrid') : t('toolbar.viewTable')} className={iconBtn}>
         {viewMode === 'table' ? <LayoutGrid size={16} /> : <LayoutList size={16} />}
       </button>
-      <button
-        onClick={handleOpenFiles}
-        title="Open files [Ctrl+O]"
-        className="p-2 rounded-lg text-zinc-500 dark:text-white/50 hover:text-zinc-900 dark:hover:text-white hover:bg-zinc-200 dark:hover:bg-white/10 transition-colors"
-      >
+      <button onClick={handleOpenFiles} title="Open files [Ctrl+O]" className={iconBtn}>
         <FolderOpen size={16} />
       </button>
       <button
         onClick={() => setGroupByFormat(!groupByFormat)}
         title={groupByFormat ? 'Ungroup by format' : 'Group by format'}
-        className={`p-2 rounded-lg transition-colors ${groupByFormat ? 'text-violet-500 dark:text-violet-400 bg-violet-600/20' : 'text-zinc-500 dark:text-white/50 hover:text-zinc-900 dark:hover:text-white hover:bg-zinc-200 dark:hover:bg-white/10'}`}
+        className={`p-2 rounded-lg transition-colors ${groupByFormat ? 'text-violet-500 dark:text-violet-400 bg-violet-600/20' : iconBtn}`}
       >
         <Layers size={16} />
       </button>
-      <RecordButton />
-      <button
-        onClick={handleClearQueue}
-        title={t('toolbar.clearQueue')}
-        className="p-2 rounded-lg text-zinc-500 dark:text-white/50 hover:text-red-500 dark:hover:text-red-400 hover:bg-red-400/10 transition-colors"
-      >
+      <button onClick={handleClearQueue} title={t('toolbar.clearQueue')} className="p-2 rounded-lg text-zinc-500 dark:text-white/50 hover:text-red-500 dark:hover:text-red-400 hover:bg-red-400/10 transition-colors">
         <Trash2 size={16} />
       </button>
     </div>

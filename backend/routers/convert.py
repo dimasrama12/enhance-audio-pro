@@ -40,8 +40,12 @@ async def convert_jobs(req: ConvertRequest, background_tasks: BackgroundTasks) -
 
 async def _process_jobs(job_ids: List[str], callback_url: str, filename_template: str = "") -> None:
     loop = asyncio.get_running_loop()
-    appdata = os.environ.get("APPDATA", str(pathlib.Path.home()))
-    db_path = pathlib.Path(appdata) / "enhance-audio-pro" / "app.db"
+    db_path_env = os.environ.get("DATABASE_PATH")
+    if db_path_env:
+        db_path = pathlib.Path(db_path_env)
+    else:
+        appdata = os.environ.get("APPDATA", str(pathlib.Path.home()))
+        db_path = pathlib.Path(appdata) / "enhance-audio-pro" / "app.db"
 
     for job_id in job_ids:
         try:

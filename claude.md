@@ -238,6 +238,11 @@ chore    : [configuration changes, tooling, etc.]
 - [x] Task 6: Spec docs created for phases 4, 6, 7, 8, 9 in docs/superpowers/specs/
       → Phase 9 COMPLETE ✓ — PROJECT FEATURE-COMPLETE
 
+# PRD Update Implementations (2026-05-31)
+- [x] Task 1 — Light Mode Improvements: All major components (SettingsPanel, QueueGrid, QueueToolbar, DropZone, QueueStatusBar, TitleBar) now use `dark:` Tailwind prefixes; light mode renders with proper contrast using `zinc-*` palette for backgrounds and text
+- [x] Task 2 — Settings Persistence & Global Language: Settings already persisted via Zustand + Tauri backend; added `useTranslation()` to QueueGrid (column headers) and QueueToolbar (action buttons) for i18n coverage; removed AI Models download section from Settings — model assumed pre-bundled
+- [x] Task 3 — User Guide Layout: Changed User Guide tab from collapsible accordion to plain paragraph layout with section headings
+
 # Post-Release Fixes & Enhancements (2026-05-30)
 - [x] Fix Enhance Speech runtime error: enhance_speech.py now reads MODELS_DIR env var (set by sidecar manager to D:\enhance-audio-pro-data\models) instead of hardcoded APPDATA path — resolves DeepFilterNet model-not-found crash
 - [x] Add output directory mkdir in enhance_speech.py and routers/enhance.py to prevent write failures when destination folder doesn't exist

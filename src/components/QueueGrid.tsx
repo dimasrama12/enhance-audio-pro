@@ -1,9 +1,10 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { listen } from '@tauri-apps/api/event';
 import { motion, AnimatePresence } from 'framer-motion';
 import { clsx } from 'clsx';
-import { GripVertical, Play, Pause } from 'lucide-react';
+import { GripVertical, Play, Pause, FolderOpen } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
+import { open as openDialog } from '@tauri-apps/plugin-dialog';
 import {
   DndContext,
   closestCenter,
@@ -25,6 +26,26 @@ import { useQueueStore } from '@/stores/useQueueStore';
 import { useAudioPlayer } from '@/stores/useAudioPlayer';
 import { invokeSetOutputFormat, invokeSetBitrate, invokeSetSampleRate } from '@/lib/ipc';
 import type { QueueJob, JobStatus } from '@/types/queue';
+
+// ─── Resize handle ────────────────────────────────────────────────────────────
+
+interface ResizeHandleProps { onDelta: (delta: number) => void; }
+
+function ResizeHandle({ onDelta }: ResizeHandleProps): JSX.Element {
+  function onMouseDown(e: React.MouseEvent): void {
+    e.preventDefault();
+    e.stopPropagation();
+    let lastX = e.clientX;
+    const onMove = (ev: MouseEvent): void => { onDelta(ev.clientX - lastX); lastX = ev.clientX; };
+    const onUp = (): void => {
+      window.removeEventListener('mousemove', onMove);
+      window.removeEventListener('mouseup', onUp);
+    };
+    window.addEventListener('mousemove', onMove);
+    window.addEventListener('mouseup', onUp);
+  }
+  return <div className="resize-handle" onMouseDown={onMouseDown} />;
+}
 
 const STATUS_COLORS: Record<JobStatus, string> = {
   pending: 'text-yellow-400',
@@ -196,7 +217,25 @@ function SortableJobRow({ job, index, isSelected, onSelect }: {
       </td>
       <td className="px-4 py-2 text-zinc-400 dark:text-white/30 text-xs w-10">{index + 1}</td>
       <td className="px-4 py-2 text-sm text-zinc-800 dark:text-white truncate max-w-[180px]">{job.filename}</td>
-      <td className="px-4 py-2 text-xs text-zinc-500 dark:text-white/50 truncate max-w-[130px]">{job.destination || '—'}</td>
+      <td
+        className="px-2 py-2 text-xs text-zinc-500 dark:text-white/50 truncate max-w-[130px] group/dest"
+        title={job.destination || 'Click to set destination'}
+      >
+        <button
+          onClick={async (e) => {
+            e.stopPropagation();
+            const sel = await openDialog({ directory: true, multiple: false, title: 'Select Output Folder' });
+            if (typeof sel !== 'string' || !sel) return;
+            const { selectedJobIds, setDestination, setDestinationBatch } = useQueueStore.getState();
+            if (selectedJobIds.includes(job.id)) setDestinationBatch(selectedJobIds, sel);
+            else setDestination(job.id, sel);
+          }}
+          className="flex items-center gap-1 w-full truncate hover:text-violet-500 dark:hover:text-violet-400 transition-colors"
+        >
+          <FolderOpen size={11} className="shrink-0 opacity-0 group-hover/dest:opacity-100 transition-opacity" />
+          <span className="truncate">{job.destination || '—'}</span>
+        </button>
+      </td>
       <td className="px-4 py-2 text-xs text-zinc-500 dark:text-white/50 w-20">{formatBytes(job.size_bytes)}</td>
       <td className="px-4 py-2 text-xs uppercase text-zinc-400 dark:text-white/40 w-16">{job.media_type}</td>
       <td className="px-4 py-2 w-24">
@@ -355,7 +394,11 @@ export default function QueueGrid(): JSX.Element {
   const { setSelectedJob, toggleSelectJob, rangeSelectJobs } = useQueueStore();
   const viewMode = useQueueStore((s) => s.viewMode);
   const groupByFormat = useQueueStore((s) => s.groupByFormat);
+  const clearSelection = useQueueStore((s) => s.clearSelection);
   const { t } = useTranslation();
+  const [colWidths, setColWidths] = useState({ filename: 180, destination: 140 });
+  const adjustWidth = (col: keyof typeof colWidths, delta: number): void =>
+    setColWidths((p) => ({ ...p, [col]: Math.max(80, p[col] + delta) }));
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
@@ -403,7 +446,10 @@ export default function QueueGrid(): JSX.Element {
 
   if (viewMode === 'grid') {
     return (
-      <div className="flex-1 overflow-auto">
+      <div
+        className="flex-1 overflow-auto"
+        onClick={(e) => { if (e.target === e.currentTarget) clearSelection(); }}
+      >
         {jobs.length === 0 ? (
           <div className="flex items-center justify-center h-32 text-zinc-400 dark:text-white/30 text-sm">
             {t('queue.empty')}
@@ -417,7 +463,10 @@ export default function QueueGrid(): JSX.Element {
                 </div>
                 <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
                   <SortableContext items={group.jobs.map((j) => j.id)} strategy={rectSortingStrategy}>
-                    <div className="grid grid-cols-2 gap-2">
+                    <div
+                      className="grid grid-cols-3 gap-2"
+                      onClick={(e) => { if (e.target === e.currentTarget) clearSelection(); }}
+                    >
                       {group.jobs.map((job) => (
                         <SortableJobCard
                           key={job.id}
@@ -435,7 +484,10 @@ export default function QueueGrid(): JSX.Element {
         ) : (
           <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
             <SortableContext items={jobs.map((j) => j.id)} strategy={rectSortingStrategy}>
-              <div className="grid grid-cols-2 gap-2 p-1">
+              <div
+                className="grid grid-cols-3 gap-2 p-1"
+                onClick={(e) => { if (e.target === e.currentTarget) clearSelection(); }}
+              >
                 {jobs.map((job) => (
                   <SortableJobCard
                     key={job.id}
@@ -458,21 +510,30 @@ export default function QueueGrid(): JSX.Element {
         <th className="px-2 py-2 w-8" />
         <th className="px-2 py-2 w-8" />
         <th className="px-4 py-2 w-10">#</th>
-        <th className="px-4 py-2">{t('queue.col.filename')}</th>
-        <th className="px-4 py-2">{t('queue.col.destination')}</th>
+        <th className="resizable-th px-2 py-2 text-left" style={{ width: colWidths.filename, minWidth: 80 }}>
+          <span className="px-2">{t('queue.col.filename')}</span>
+          <ResizeHandle onDelta={(d) => adjustWidth('filename', d)} />
+        </th>
+        <th className="resizable-th px-2 py-2 text-left" style={{ width: colWidths.destination, minWidth: 80 }}>
+          <span className="px-2">{t('queue.col.destination')}</span>
+          <ResizeHandle onDelta={(d) => adjustWidth('destination', d)} />
+        </th>
         <th className="px-4 py-2 w-20">{t('queue.col.size')}</th>
         <th className="px-4 py-2 w-16">{t('queue.col.type')}</th>
         <th className="px-4 py-2 w-24">{t('queue.col.output')}</th>
         <th className="px-4 py-2 w-24">{t('queue.col.bitrate')}</th>
-        <th className="px-4 py-2 w-24">Sample Hz</th>
+        <th className="px-4 py-2 w-28 whitespace-nowrap">{t('queue.col.sampleHz')}</th>
         <th className="px-4 py-2 w-40">{t('queue.col.status')}</th>
       </tr>
     </thead>
   );
 
   return (
-    <div className="flex-1 overflow-auto rounded-xl bg-zinc-50 dark:bg-white/5">
-      <table className="w-full text-left table-fixed">
+    <div
+      className="flex-1 overflow-auto rounded-xl bg-zinc-50 dark:bg-white/5"
+      onClick={(e) => { if ((e.target as HTMLElement).closest('tr') === null) clearSelection(); }}
+    >
+      <table className="w-full text-left">
         {tableHeader}
         <tbody>
           {jobs.length === 0 ? (

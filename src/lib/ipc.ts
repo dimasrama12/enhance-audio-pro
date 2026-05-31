@@ -15,6 +15,22 @@ export async function invokeGetRecentHistory(): Promise<IpcResponse<QueueJob[]>>
   return invoke<IpcResponse<QueueJob[]>>('get_recent_history');
 }
 
+export async function invokeArchiveJobs(ids: string[]): Promise<IpcResponse<null>> {
+  return invoke<IpcResponse<null>>('archive_jobs', { ids });
+}
+
+export async function invokeArchiveAllQueue(): Promise<IpcResponse<null>> {
+  return invoke<IpcResponse<null>>('archive_all_queue');
+}
+
+export async function invokeDeleteJob(id: string): Promise<IpcResponse<null>> {
+  return invoke<IpcResponse<null>>('delete_job', { id });
+}
+
+export async function invokeDeleteAllHistory(): Promise<IpcResponse<null>> {
+  return invoke<IpcResponse<null>>('delete_all_history');
+}
+
 export async function invokeGetSettings(): Promise<IpcResponse<AppSettings>> {
   return invoke<IpcResponse<AppSettings>>('get_settings');
 }

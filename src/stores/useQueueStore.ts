@@ -40,6 +40,9 @@ interface QueueState {
   unlockJobs: (ids: string[]) => void;
   lockAllJobs: () => void;
   unlockAllJobs: () => void;
+  // Destination
+  setDestination: (id: string, dest: string) => void;
+  setDestinationBatch: (ids: string[], dest: string) => void;
   // Reorder
   reorderJobs: (activeId: string, overId: string) => void;
   // View
@@ -175,6 +178,16 @@ export const useQueueStore = create<QueueState>()(
     set((s) => ({ lockedJobIds: s.jobs.map((j) => j.id) })),
 
   unlockAllJobs: () => set({ lockedJobIds: [] }),
+
+  setDestination: (id, dest) =>
+    set((s) => ({
+      jobs: s.jobs.map((j) => (j.id === id ? { ...j, destination: dest } : j)),
+    })),
+
+  setDestinationBatch: (ids, dest) =>
+    set((s) => ({
+      jobs: s.jobs.map((j) => (ids.includes(j.id) ? { ...j, destination: dest } : j)),
+    })),
 
   reorderJobs: (activeId, overId) =>
     set((s) => {

@@ -37,5 +37,8 @@ pub fn run_migrations(conn: &Connection) -> Result<()> {
     let _ = conn.execute_batch(
         "ALTER TABLE queue_jobs ADD COLUMN sample_rate TEXT NOT NULL DEFAULT '44100';",
     );
+    let _ = conn.execute_batch(
+        "ALTER TABLE queue_jobs ADD COLUMN archived INTEGER NOT NULL DEFAULT 0;",
+    );
     Ok(())
 }

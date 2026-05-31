@@ -63,7 +63,9 @@ pub fn get_all_jobs(conn: &Connection) -> Result<Vec<QueueJob>> {
         "SELECT id, filename, filepath, destination, size_bytes, media_type, status,
                 progress, error_message, output_format, bitrate, output_filepath,
                 sample_rate, created_at, updated_at
-         FROM queue_jobs ORDER BY created_at ASC",
+         FROM queue_jobs
+         WHERE archived = 0
+         ORDER BY created_at ASC",
     )?;
 
     let jobs = stmt
@@ -222,6 +224,26 @@ pub fn count_active_jobs_by_type(conn: &Connection, media_type: &str) -> Result<
         [media_type],
         |r| r.get(0),
     )
+}
+
+pub fn archive_job(conn: &Connection, id: &str) -> Result<()> {
+    conn.execute("UPDATE queue_jobs SET archived = 1 WHERE id = ?1", params![id])?;
+    Ok(())
+}
+
+pub fn archive_all_jobs(conn: &Connection) -> Result<()> {
+    conn.execute("UPDATE queue_jobs SET archived = 1 WHERE archived = 0", [])?;
+    Ok(())
+}
+
+pub fn delete_job_by_id(conn: &Connection, id: &str) -> Result<()> {
+    conn.execute("DELETE FROM queue_jobs WHERE id = ?1", params![id])?;
+    Ok(())
+}
+
+pub fn delete_all_history(conn: &Connection) -> Result<()> {
+    conn.execute("DELETE FROM queue_jobs WHERE status IN ('done', 'error')", [])?;
+    Ok(())
 }
 
 #[cfg(test)]

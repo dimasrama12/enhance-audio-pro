@@ -24,8 +24,9 @@
       "destination": "Destination",
       "size": "Size",
       "type": "Type",
-      "output": "Output",
+      "output": "Format",
       "bitrate": "Bitrate",
+      "sampleHz": "Sample Hz",
       "status": "Status"
     }
   },
@@ -63,6 +64,23 @@
       "waveform": "Waveform"
     }
   },
+  "history": {
+    "title": "Processed Files History",
+    "description": "History of all processed files. Clearing items here will permanently delete them from history.",
+    "empty": "No processed files yet",
+    "deleteAll": "Delete All History",
+    "loading": "Loading…"
+  },
+  "dropzone": {
+    "audio": "Drop audio files here",
+    "video": "Drop video files here",
+    "browse": "or click to browse",
+    "limit": "Batch limit reached — max 30 audio / 10 video files"
+  },
+  "guide": {
+    "title": "Getting Started",
+    "content": "Drop audio or video files onto the drop zone, or click the drop area to browse your files. Files are added to the queue ready for processing. Select pending files and click Enhance to apply AI-powered noise removal using DeepFilterNet3 — adjust the strength in General settings. Click Separate Stems to split audio into vocals, drums, bass, and other parts via Demucs. Convert between MP3, WAV, FLAC, AAC, OGG, OPUS, and M4A using the toolbar or per-file format selector. Click any queue row to open the manipulation panel for Trim, Speed, Pitch, Volume, Fade, Merge, Loop, and an 11-band EQ. Select a completed file to open the waveform player with A/B toggle to compare original and enhanced audio. Click the microphone icon to record directly from your input device."
+  },
   "help": {
     "title": "User Guide",
     "close": "Close",
@@ -82,10 +100,5 @@
       "keyboard": "Keyboard Shortcuts",
       "keyboardContent": "Ctrl+A: Select all | Escape: Deselect | Delete: Remove selected | E: Enhance | S: Separate | C: Convert"
     }
-  },
-  "dropzone": {
-    "drop": "Drop audio or video files here",
-    "browse": "or click to browse",
-    "limit": "Batch limit reached — max 30 audio / 10 video files"
   }
 }

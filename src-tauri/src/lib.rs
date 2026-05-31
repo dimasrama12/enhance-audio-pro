@@ -11,7 +11,10 @@ use commands::record::save_recording;
 use commands::download::{check_model_status, start_model_download};
 use commands::manipulate::{apply_eq, loop_audio, manipulate_audio, merge_audio};
 use commands::process::process_queue;
-use commands::queue::{add_files, get_queue, get_recent_history};
+use commands::queue::{
+    add_files, get_queue, get_recent_history, archive_jobs, archive_all_queue, delete_job,
+    delete_all_history,
+};
 use commands::separate::separate_stems;
 use commands::settings::{get_settings, save_settings};
 
@@ -34,6 +37,8 @@ pub fn run() {
             let db_path = data_dir.join("app.db");
             let conn = rusqlite::Connection::open(&db_path).map_err(|e| e.to_string())?;
             db::migrations::run_migrations(&conn).map_err(|e| e.to_string())?;
+            // Archive active items from previous session so queue starts empty on launch
+            let _ = conn.execute("UPDATE queue_jobs SET archived = 1 WHERE archived = 0", []);
             let db = Arc::new(Mutex::new(conn));
 
             // Bind callback server to a random OS-assigned port
@@ -68,6 +73,10 @@ pub fn run() {
             add_files,
             get_queue,
             get_recent_history,
+            archive_jobs,
+            archive_all_queue,
+            delete_job,
+            delete_all_history,
             get_settings,
             save_settings,
             process_queue,

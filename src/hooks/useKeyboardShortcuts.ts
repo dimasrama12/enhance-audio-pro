@@ -11,6 +11,7 @@ import {
   invokeProcessQueue,
   invokeSeparateStems,
   invokeSaveSettings,
+  invokeArchiveJobs,
 } from '@/lib/ipc';
 import { DEFAULT_KEYBOARD_SHORTCUTS } from '@/types/settings';
 import type { AppSettings } from '@/types/settings';
@@ -30,6 +31,16 @@ function matches(e: KeyboardEvent, binding: string): boolean {
 export function useKeyboardShortcuts(): void {
   useEffect(() => {
     async function handler(e: KeyboardEvent): Promise<void> {
+      // Prevent browser reload / refresh shortcuts
+      if (
+        e.key === 'F5' ||
+        (e.ctrlKey && e.key.toLowerCase() === 'r') ||
+        (e.ctrlKey && e.shiftKey && e.key.toLowerCase() === 'r')
+      ) {
+        e.preventDefault();
+        return;
+      }
+
       const tag = (e.target as HTMLElement).tagName.toLowerCase();
       if (tag === 'input' || tag === 'textarea' || tag === 'select') return;
 
@@ -110,6 +121,10 @@ export function useKeyboardShortcuts(): void {
       if (matches(e, sc.deleteSelected)) {
         if (q.selectedJobIds.length > 0) {
           e.preventDefault();
+          const idsToArchive = q.selectedJobIds.filter((id) => !q.lockedJobIds.includes(id));
+          if (idsToArchive.length > 0) {
+            void invokeArchiveJobs(idsToArchive);
+          }
           // Locked jobs survive deletion
           q.setJobs(q.jobs.filter((j) => !q.selectedJobIds.includes(j.id) || q.lockedJobIds.includes(j.id)));
           q.clearSelection();
@@ -142,6 +157,13 @@ export function useKeyboardShortcuts(): void {
       }
       if (matches(e, sc.openSettings)) { e.preventDefault(); ui.toggleSettings(); return; }
       if (matches(e, sc.exit)) { await win.close(); return; }
+
+      // ── View ──────────────────────────────────────────────────────────────
+      if (matches(e, sc.tableView)) { q.setViewMode('table'); return; }
+      if (matches(e, sc.gridView)) { q.setViewMode('grid'); return; }
+
+      // ── History ───────────────────────────────────────────────────────────
+      if (matches(e, sc.openHistory)) { e.preventDefault(); ui.toggleHistory(); return; }
 
       // ── Theme ─────────────────────────────────────────────────────────────
       if (matches(e, sc.themeDark)) { await saveSettings({ theme: 'dark' }); return; }

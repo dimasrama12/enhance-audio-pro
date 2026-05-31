@@ -1,5 +1,5 @@
 use std::net::TcpListener;
-use tauri::AppHandle;
+use tauri::{AppHandle, Manager};
 use tauri_plugin_shell::ShellExt;
 
 pub fn available_port() -> u16 {
@@ -28,12 +28,14 @@ pub fn spawn(
     callback_port: u16,
 ) -> Result<(), Box<dyn std::error::Error>> {
     let models = models_dir();
+    let db_path = app.path().app_data_dir()?.join("app.db");
     app.shell()
         .sidecar("backend")
         .map_err(|e| e.to_string())?
         .env("BACKEND_PORT", port.to_string())
         .env("CALLBACK_PORT", callback_port.to_string())
         .env("MODELS_DIR", models)
+        .env("DATABASE_PATH", db_path.to_string_lossy().to_string())
         .spawn()
         .map_err(|e| e.to_string())?;
     Ok(())

@@ -15,7 +15,9 @@ _mock_df_model.to.return_value = _mock_df_model
 
 _mock_df_enhance = MagicMock()
 _mock_df_enhance.init_df.return_value = (_mock_df_model, _mock_df_state, None)
-_mock_df_enhance.load_audio.return_value = (MagicMock(), 48000)
+_mock_audio = MagicMock()
+_mock_audio.shape = (1, 480000)
+_mock_df_enhance.load_audio.return_value = (_mock_audio, 48000)
 _mock_df_enhance.enhance.return_value = MagicMock()
 _mock_df_enhance.save_audio = MagicMock()
 

@@ -66,8 +66,12 @@ async def eq_audio(req: EQRequest, background_tasks: BackgroundTasks) -> JSONRes
 
 
 def _get_job_row(job_id: str) -> tuple | None:
-    appdata = os.environ.get("APPDATA", str(pathlib.Path.home()))
-    db_path = pathlib.Path(appdata) / "enhance-audio-pro" / "app.db"
+    db_path_env = os.environ.get("DATABASE_PATH")
+    if db_path_env:
+        db_path = pathlib.Path(db_path_env)
+    else:
+        appdata = os.environ.get("APPDATA", str(pathlib.Path.home()))
+        db_path = pathlib.Path(appdata) / "enhance-audio-pro" / "app.db"
     conn = sqlite3.connect(str(db_path))
     row = conn.execute(
         "SELECT filepath, destination, filename, output_format FROM queue_jobs WHERE id = ?",

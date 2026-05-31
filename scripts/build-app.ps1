@@ -55,14 +55,14 @@ Pop-Location
 
 # Report output
 $TargetRoot = if ($env:CARGO_TARGET_DIR) { $env:CARGO_TARGET_DIR } else { Join-Path $Root "src-tauri\target" }
-$MsiDir = Join-Path $TargetRoot "release\bundle\msi"
-$Msi = Get-ChildItem $MsiDir -Filter "*.msi" -ErrorAction SilentlyContinue | Select-Object -First 1
-if ($Msi) {
+$ExeDir = Join-Path $TargetRoot "release\bundle\nsis"
+$ExeFile = Get-ChildItem $ExeDir -Filter "*.exe" -ErrorAction SilentlyContinue | Select-Object -First 1
+if ($ExeFile) {
     Write-Host ""
     Write-Host "=== BUILD COMPLETE ==="
-    Write-Host "Installer: $($Msi.FullName)"
-    Write-Host "Size:      $([math]::Round($Msi.Length / 1MB, 1)) MB"
+    Write-Host "Executable: $($ExeFile.FullName)"
+    Write-Host "Size:      $([math]::Round($ExeFile.Length / 1MB, 1)) MB"
 } else {
     Write-Host ""
-    Write-Host "=== BUILD COMPLETE (MSI path not found - check src-tauri/target/release/bundle/) ==="
+    Write-Host "=== BUILD COMPLETE (Exe path not found - check src-tauri/target/release/bundle/) ==="
 }

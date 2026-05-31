@@ -13,12 +13,44 @@ textarea {
   user-select: text;
 }
 
-body {
+/* Prevent the OS window itself from scrolling */
+html, body {
+  overflow: hidden;
   margin: 0;
+}
+
+body {
   background: #0a0a0a;
   transition: background-color 0.2s ease, color 0.2s ease;
 }
 
 html.light body {
   background: #f4f4f5;
+}
+
+/* Hide scrollbar while keeping content scrollable */
+.scrollbar-hide {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+.scrollbar-hide::-webkit-scrollbar {
+  display: none;
+}
+
+/* Resizable table column handle */
+.resizable-th {
+  position: relative;
+  overflow: visible;
+}
+.resizable-th .resize-handle {
+  position: absolute;
+  right: 0;
+  top: 0;
+  height: 100%;
+  width: 4px;
+  cursor: col-resize;
+  user-select: none;
+}
+.resizable-th .resize-handle:hover {
+  background-color: rgba(139, 92, 246, 0.5);
 }

@@ -56,7 +56,7 @@ export default function RecordButton(): JSX.Element {
           'flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors',
           recording
             ? 'bg-red-600 hover:bg-red-500 text-white animate-pulse'
-            : 'bg-white/10 hover:bg-white/20 text-white/70 hover:text-white',
+            : 'bg-zinc-100 dark:bg-white/10 hover:bg-zinc-200 dark:hover:bg-white/20 text-zinc-600 dark:text-white/70 hover:text-zinc-900 dark:hover:text-white',
         )}
       >
         {recording ? <Square size={12} /> : <Mic size={12} />}

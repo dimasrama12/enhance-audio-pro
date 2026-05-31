@@ -17,6 +17,11 @@ export interface KeyboardShortcutMap {
   toggleSidebar: string;
   focusSearch: string;
   browseFolder: string;
+  // View
+  tableView: string;
+  gridView: string;
+  // History
+  openHistory: string;
   // Window
   toggleFullscreen: string;
   openSettings: string;
@@ -37,11 +42,14 @@ export const DEFAULT_KEYBOARD_SHORTCUTS: KeyboardShortcutMap = {
   deleteSelected: 'Shift+X',
   lockSelected: 'L',
   lockAll: 'Shift+L',
-  audioTab: '1',
-  videoTab: '2',
+  audioTab: 'Ctrl+1',
+  videoTab: 'Ctrl+2',
   toggleSidebar: 'Ctrl+B',
   focusSearch: 'Shift+F',
   browseFolder: 'Ctrl+Shift+O',
+  tableView: '1',
+  gridView: '2',
+  openHistory: 'Ctrl+H',
   toggleFullscreen: 'F',
   openSettings: 'Ctrl+,',
   exit: 'Alt+X',
@@ -65,6 +73,9 @@ export const SHORTCUT_LABELS: Record<keyof KeyboardShortcutMap, string> = {
   toggleSidebar: 'Toggle Sidebar',
   focusSearch: 'Focus Search',
   browseFolder: 'Browse Output Folder',
+  tableView: 'Switch to Table View',
+  gridView: 'Switch to Grid View',
+  openHistory: 'Open File History',
   toggleFullscreen: 'Toggle Fullscreen',
   openSettings: 'Open Settings',
   exit: 'Exit App',

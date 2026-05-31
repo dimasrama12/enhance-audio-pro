@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import WaveSurfer from 'wavesurfer.js';
 import SpectrogramPlugin from 'wavesurfer.js/dist/plugins/spectrogram.esm.js';
 import { Play, Pause, Square, ToggleLeft, ToggleRight, Activity, Waves } from 'lucide-react';
+import { convertFileSrc } from '@tauri-apps/api/core';
 
 interface Props {
   filepath: string;
@@ -55,7 +56,8 @@ export default function WaveformPlayer({ filepath, outputFilepath, filename }: P
       plugins: [specPlugin],
     });
 
-    ws.load(`tauri://localhost/${activeFile.replace(/\\/g, '/')}`);
+    const url = convertFileSrc(activeFile);
+    ws.load(url);
 
     ws.on('ready', () => {
       setIsReady(true);

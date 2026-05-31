@@ -11,8 +11,8 @@
     "lint": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
-    "build:backend": "pwsh -File scripts/build-backend.ps1",
-    "build:full": "pwsh -File scripts/build-app.ps1"
+    "build:backend": "powershell -File scripts/build-backend.ps1",
+    "build:full": "powershell -File scripts/build-app.ps1"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",

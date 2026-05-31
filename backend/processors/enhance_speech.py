@@ -8,6 +8,7 @@ _df_state = None
 
 
 def _get_device() -> str:
+    # pyrefly: ignore [missing-import]
     import torch
     return "cuda" if torch.cuda.is_available() else "cpu"
 
@@ -17,6 +18,7 @@ def _load_model():
     if _model is not None:
         return _model, _df_state
 
+    # pyrefly: ignore [missing-import]
     from df.enhance import init_df
 
     # MODELS_DIR is set by the Tauri sidecar manager (D:\enhance-audio-pro-data\models on Windows)
@@ -42,6 +44,9 @@ def enhance_file(
 
     strength: 0.0-1.0, maps to atten_lim_db (0=no effect, 1=full suppression ~40dB).
     """
+    # pyrefly: ignore [missing-import]
+    import torch
+    # pyrefly: ignore [missing-import]
     from df.enhance import enhance, load_audio, save_audio
 
     model, df_state = _load_model()
@@ -54,10 +59,28 @@ def enhance_file(
     progress_cb(10)
     audio, _ = load_audio(input_path, sr=df_state.sr())
 
-    progress_cb(30)
-    enhanced = enhance(model, df_state, audio, atten_lim_db=atten_lim_db)
+    # Process in chunks of 5 seconds to prevent memory overflow and provide real progress
+    chunk_len_sec = 5.0
+    chunk_samples = int(chunk_len_sec * df_state.sr())
+    total_samples = audio.shape[-1]
+    
+    enhanced_chunks = []
+    
+    # 10% is load phase, 10-90% is processing phase, 90-100% is saving phase
+    for start in range(0, total_samples, chunk_samples):
+        end = min(start + chunk_samples, total_samples)
+        chunk = audio[..., start:end]
+        
+        # DeepFilterNet enhance handles the chunk. df_state maintains the RNN hidden state across chunks.
+        processed_chunk = enhance(model, df_state, chunk, atten_lim_db=atten_lim_db)
+        enhanced_chunks.append(processed_chunk)
+        
+        # Calculate real-time progress
+        progress_pct = int(10 + (end / total_samples) * 80)
+        progress_cb(progress_pct)
 
     progress_cb(90)
-    save_audio(output_path, enhanced, df_state.sr())
+    enhanced_audio = torch.cat(enhanced_chunks, dim=-1)
+    save_audio(output_path, enhanced_audio, df_state.sr())
 
     progress_cb(100)

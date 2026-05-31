@@ -19,26 +19,7 @@ import type { KeyboardShortcutMap } from '@/types/settings';
 type SettingsTab = 'general' | 'guide' | 'shortcuts' | 'formats';
 interface Props { open: boolean; onClose: () => void; }
 
-// ─── Guide tab ────────────────────────────────────────────────────────────────
-
-const GUIDE_SECTIONS = [
-  { key: 'start',    title: 'Getting Started',     content: 'Drop audio or video files onto the drop zone, or click the folder icon in the toolbar to browse. Files are added to the queue and ready for processing.' },
-  { key: 'enhance',  title: 'Speech Enhancement',  content: 'Select pending files and click Enhance to apply AI-powered noise removal using DeepFilterNet3. Adjust the strength slider in General → Enhancement.' },
-  { key: 'separate', title: 'Stem Separation',     content: 'Use Separate Stems to split audio into vocals, drums, bass, and other stems via the Demucs htdemucs_ft model. Output stems are saved to your output folder.' },
-  { key: 'convert',  title: 'Format Conversion',   content: 'Convert between MP3, WAV, FLAC, AAC, OGG, OPUS, and M4A. Set a global format with the All→ selector in the toolbar, or change individual files in the queue.' },
-  { key: 'manip',    title: 'Audio Manipulation',  content: 'Select a job and use the manipulation panel below the queue for Trim, Speed, Pitch, Volume, Fade In/Out, Merge, Loop, and an 11-band EQ.' },
-  { key: 'wave',     title: 'Waveform & Playback', content: 'Click a completed job to open the waveform player. Use the A/B toggle to compare original and enhanced audio in real-time.' },
-  { key: 'record',   title: 'Recording',           content: 'Click the microphone icon in the toolbar to record audio directly from your default input device. The recording is added to the queue when you stop.' },
-];
-
-function GuideSection({ title, content }: { title: string; content: string }): JSX.Element {
-  return (
-    <div className="pb-5 border-b border-zinc-100 dark:border-white/5 last:border-0 last:pb-0">
-      <h4 className="text-sm font-semibold text-zinc-800 dark:text-white/80 mb-1.5">{title}</h4>
-      <p className="text-sm text-zinc-500 dark:text-white/50 leading-relaxed">{content}</p>
-    </div>
-  );
-}
+// (Guide content is fully i18n-driven — see en.json guide.title / guide.content)
 
 // ─── Shortcuts tab ────────────────────────────────────────────────────────────
 
@@ -240,8 +221,8 @@ export default function SettingsPanel({ open, onClose }: Props): JSX.Element {
                 ))}
               </div>
 
-              {/* Tab content */}
-              <div className="flex-1 overflow-y-auto p-5">
+              {/* Tab content — scrollbar hidden but content remains scrollable */}
+              <div className="flex-1 overflow-y-auto scrollbar-hide p-5">
 
                 {/* ── General ──────────────────────────────────────────── */}
                 {activeTab === 'general' && (
@@ -339,11 +320,9 @@ export default function SettingsPanel({ open, onClose }: Props): JSX.Element {
 
                 {/* ── User Guide ───────────────────────────────────────── */}
                 {activeTab === 'guide' && (
-                  <div className="flex flex-col gap-5">
-                    <p className="text-xs text-zinc-400 dark:text-white/40">Quick reference for all major features.</p>
-                    {GUIDE_SECTIONS.map((s) => (
-                      <GuideSection key={s.key} title={s.title} content={s.content} />
-                    ))}
+                  <div>
+                    <h4 className="text-sm font-semibold text-zinc-800 dark:text-white/80 mb-3">{t('guide.title')}</h4>
+                    <p className="text-sm text-zinc-500 dark:text-white/50 leading-relaxed">{t('guide.content')}</p>
                   </div>
                 )}
 
