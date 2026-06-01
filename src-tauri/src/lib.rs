@@ -13,7 +13,7 @@ use commands::manipulate::{apply_eq, loop_audio, manipulate_audio, merge_audio};
 use commands::process::process_queue;
 use commands::queue::{
     add_files, list_folder_files, get_queue, get_recent_history, archive_jobs, archive_all_queue,
-    delete_job, delete_all_history,
+    delete_job, delete_all_history, read_audio_file,
 };
 use commands::separate::separate_stems;
 use commands::settings::{get_settings, save_settings};
@@ -93,6 +93,7 @@ pub fn run() {
             merge_audio,
             loop_audio,
             apply_eq,
+            read_audio_file,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

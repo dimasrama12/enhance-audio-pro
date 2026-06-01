@@ -188,3 +188,11 @@ pub fn delete_all_history(state: State<AppState>) -> IpcResponse<()> {
         Err(e) => IpcResponse { success: false, data: None, error: Some(e.to_string()) },
     }
 }
+
+/// Read a local audio file and return its raw bytes as a binary IPC response.
+/// This bypasses the asset:// protocol so WaveSurfer can load via a Blob URL.
+#[tauri::command]
+pub fn read_audio_file(path: String) -> Result<tauri::ipc::Response, String> {
+    let bytes = std::fs::read(&path).map_err(|e| e.to_string())?;
+    Ok(tauri::ipc::Response::new(bytes))
+}
