@@ -19,8 +19,8 @@ interface QueueState {
   setFilter: (filter: string) => void;
   setSearchQuery: (query: string) => void;
   clearQueue: () => void;
-  filteredJobs: () => QueueJob[];
-  groupedFilteredJobs: () => JobGroup[];
+  filteredJobs: (activeTab?: 'audio' | 'video') => QueueJob[];
+  groupedFilteredJobs: (activeTab?: 'audio' | 'video') => JobGroup[];
   setProgress: (id: string, percent: number) => void;
   setStatus: (id: string, status: JobStatus, errorMessage?: string) => void;
   setOutputFormat: (id: string, format: string) => void;
@@ -69,17 +69,18 @@ export const useQueueStore = create<QueueState>()(
   }),
   setFilter: (filter) => set({ filter }),
   setSearchQuery: (searchQuery) => set({ searchQuery }),
-  clearQueue: () => set({ jobs: [], selectedJobIds: [] }),
+  clearQueue: () => set((s) => ({ jobs: s.jobs.filter(j => s.lockedJobIds.includes(j.id)), selectedJobIds: s.selectedJobIds.filter(id => s.lockedJobIds.includes(id)) })),
 
-  filteredJobs: () => {
+  filteredJobs: (activeTab) => {
     const { jobs, filter, searchQuery } = get();
     return jobs
       .filter((j) => filter === 'all' || j.status === filter)
-      .filter((j) => !searchQuery || j.filename.toLowerCase().includes(searchQuery.toLowerCase()));
+      .filter((j) => !searchQuery || j.filename.toLowerCase().includes(searchQuery.toLowerCase()))
+      .filter((j) => !activeTab || j.media_type === activeTab);
   },
 
-  groupedFilteredJobs: () => {
-    const filtered = get().filteredJobs();
+  groupedFilteredJobs: (activeTab) => {
+    const filtered = get().filteredJobs(activeTab);
     const map = new Map<string, QueueJob[]>();
     for (const job of filtered) {
       const ext = job.filename.includes('.') ? job.filename.split('.').pop()!.toUpperCase() : 'UNKNOWN';

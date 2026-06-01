@@ -132,8 +132,18 @@ export function useKeyboardShortcuts(): void {
         }
         return;
       }
-      if (matches(e, sc.lockSelected)) {
-        if (q.selectedJobIds.length) q.lockJobs(q.selectedJobIds);
+      if (e.key === 'L' && !e.ctrlKey && !e.metaKey && !e.altKey) {
+        const allLocked = q.jobs.length > 0 && q.jobs.every((j) => q.lockedJobIds.includes(j.id));
+        if (allLocked) q.unlockJobs(q.jobs.map((j) => j.id));
+        else q.lockJobs(q.jobs.map((j) => j.id));
+        return;
+      }
+      if (matches(e, sc.lockSelected) || (e.key === 'l' && !e.ctrlKey && !e.metaKey && !e.altKey)) {
+        if (q.selectedJobIds.length) {
+          const allLocked = q.selectedJobIds.every((id) => q.lockedJobIds.includes(id));
+          if (allLocked) q.unlockJobs(q.selectedJobIds);
+          else q.lockJobs(q.selectedJobIds);
+        }
         return;
       }
       if (matches(e, sc.lockAll)) { q.lockAllJobs(); return; }

@@ -220,7 +220,7 @@ pub fn get_recent_jobs(conn: &Connection, limit: i64) -> Result<Vec<QueueJob>> {
 pub fn count_active_jobs_by_type(conn: &Connection, media_type: &str) -> Result<i64> {
     conn.query_row(
         "SELECT COUNT(*) FROM queue_jobs
-         WHERE status IN ('pending', 'processing') AND media_type = ?1",
+         WHERE status IN ('pending', 'processing') AND media_type = ?1 AND archived = 0",
         [media_type],
         |r| r.get(0),
     )
