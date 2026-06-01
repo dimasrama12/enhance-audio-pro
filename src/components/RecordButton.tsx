@@ -2,29 +2,110 @@ import { useState, useRef } from 'react';
 import { clsx } from 'clsx';
 import { Mic, Square } from 'lucide-react';
 import { useQueueStore } from '@/stores/useQueueStore';
+import { useSettingsStore } from '@/stores/useSettingsStore';
 import { invokeSaveRecording, invokeAddFiles } from '@/lib/ipc';
+
+// Encode raw float32 PCM samples as a WAV file (mono, 16-bit).
+function encodePCMToWav(samples: Float32Array, sampleRate: number): ArrayBuffer {
+  const dataSize = samples.length * 2;
+  const buffer = new ArrayBuffer(44 + dataSize);
+  const view = new DataView(buffer);
+  const write = (offset: number, str: string): void => {
+    for (let i = 0; i < str.length; i++) view.setUint8(offset + i, str.charCodeAt(i));
+  };
+  write(0, 'RIFF');
+  view.setUint32(4, 36 + dataSize, true);
+  write(8, 'WAVE');
+  write(12, 'fmt ');
+  view.setUint32(16, 16, true);
+  view.setUint16(20, 1, true);          // PCM
+  view.setUint16(22, 1, true);          // mono
+  view.setUint32(24, sampleRate, true);
+  view.setUint32(28, sampleRate * 2, true);
+  view.setUint16(32, 2, true);
+  view.setUint16(34, 16, true);
+  write(36, 'data');
+  view.setUint32(40, dataSize, true);
+  let offset = 44;
+  for (let i = 0; i < samples.length; i++) {
+    const s = Math.max(-1, Math.min(1, samples[i]));
+    view.setInt16(offset, s < 0 ? s * 0x8000 : s * 0x7FFF, true);
+    offset += 2;
+  }
+  return buffer;
+}
+
+// Session-scoped counter — resets when the app is reloaded.
+let sessionRecordingCount = 0;
 
 export default function RecordButton(): JSX.Element {
   const [recording, setRecording] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const mediaRef = useRef<MediaRecorder | null>(null);
-  const chunksRef = useRef<Blob[]>([]);
   const addJobs = useQueueStore((s) => s.addJobs);
+  const recordingPrefix = useSettingsStore((s) => s.recordingPrefix ?? 'Record');
+
+  const audioCtxRef = useRef<AudioContext | null>(null);
+  const processorRef = useRef<ScriptProcessorNode | null>(null);
+  const sourceRef = useRef<MediaStreamAudioSourceNode | null>(null);
+  const streamRef = useRef<MediaStream | null>(null);
+  const samplesRef = useRef<Float32Array[]>([]);
 
   async function startRecording(): Promise<void> {
     setError(null);
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      const recorder = new MediaRecorder(stream);
-      chunksRef.current = [];
-      recorder.ondataavailable = (e) => { if (e.data.size > 0) chunksRef.current.push(e.data); };
-      recorder.onstop = async () => {
-        stream.getTracks().forEach((t) => t.stop());
-        const blob = new Blob(chunksRef.current, { type: 'audio/webm' });
-        const arrayBuffer = await blob.arrayBuffer();
-        const bytes = Array.from(new Uint8Array(arrayBuffer));
-        const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
-        const filename = `recording-${timestamp}.webm`;
+      streamRef.current = stream;
+
+      const audioCtx = new AudioContext();
+      audioCtxRef.current = audioCtx;
+
+      const source = audioCtx.createMediaStreamSource(stream);
+      sourceRef.current = source;
+
+      // Use ScriptProcessorNode to capture raw PCM frames.
+      // eslint-disable-next-line deprecation/deprecation
+      const processor = audioCtx.createScriptProcessor(4096, 1, 1);
+      processorRef.current = processor;
+      samplesRef.current = [];
+
+      processor.onaudioprocess = (e) => {
+        samplesRef.current.push(new Float32Array(e.inputBuffer.getChannelData(0)));
+      };
+
+      source.connect(processor);
+      processor.connect(audioCtx.destination);
+      setRecording(true);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Microphone access denied');
+    }
+  }
+
+  async function stopRecording(): Promise<void> {
+    const audioCtx = audioCtxRef.current;
+    const processor = processorRef.current;
+    const source = sourceRef.current;
+    const stream = streamRef.current;
+    const chunks = samplesRef.current;
+
+    source?.disconnect();
+    processor?.disconnect();
+    stream?.getTracks().forEach((t) => t.stop());
+
+    if (audioCtx && chunks.length > 0) {
+      const sampleRate = audioCtx.sampleRate;
+      const total = chunks.reduce((acc, c) => acc + c.length, 0);
+      const combined = new Float32Array(total);
+      let off = 0;
+      for (const chunk of chunks) { combined.set(chunk, off); off += chunk.length; }
+
+      const wavBuffer = encodePCMToWav(combined, sampleRate);
+      const bytes = Array.from(new Uint8Array(wavBuffer));
+
+      sessionRecordingCount += 1;
+      const num = sessionRecordingCount.toString().padStart(2, '0');
+      const filename = `${num}_${recordingPrefix}.wav`;
+
+      try {
         const res = await invokeSaveRecording(bytes, filename);
         if (res.success && res.data) {
           const addRes = await invokeAddFiles([res.data]);
@@ -32,18 +113,18 @@ export default function RecordButton(): JSX.Element {
         } else {
           setError(res.error ?? 'Failed to save recording');
         }
-      };
-      recorder.start();
-      mediaRef.current = recorder;
-      setRecording(true);
-    } catch (e) {
-      setError(e instanceof Error ? e.message : 'Microphone access denied');
-    }
-  }
+      } catch (e) {
+        setError(e instanceof Error ? e.message : 'Save failed');
+      }
 
-  function stopRecording(): void {
-    mediaRef.current?.stop();
-    mediaRef.current = null;
+      void audioCtx.close();
+    }
+
+    audioCtxRef.current = null;
+    processorRef.current = null;
+    sourceRef.current = null;
+    streamRef.current = null;
+    samplesRef.current = [];
     setRecording(false);
   }
 

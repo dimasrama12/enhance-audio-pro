@@ -91,6 +91,7 @@ export interface AppSettings {
   enhancementStrength: number;
   filenameTemplate: string;
   keyboardShortcuts: KeyboardShortcutMap;
+  recordingPrefix?: string;
 }
 
 export const DEFAULT_SETTINGS: AppSettings = {
@@ -101,4 +102,5 @@ export const DEFAULT_SETTINGS: AppSettings = {
   enhancementStrength: 50,
   filenameTemplate: '{name}_enhanced',
   keyboardShortcuts: { ...DEFAULT_KEYBOARD_SHORTCUTS },
+  recordingPrefix: 'Record',
 };

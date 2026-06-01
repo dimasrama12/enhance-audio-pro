@@ -14,6 +14,7 @@ import {
   useSensors,
   type DragEndEvent,
 } from '@dnd-kit/core';
+import { restrictToVerticalAxis } from '@dnd-kit/modifiers';
 import {
   SortableContext,
   sortableKeyboardCoordinates,
@@ -52,10 +53,10 @@ function ResizeHandle({ onDelta }: ResizeHandleProps): JSX.Element {
 // ─── Status badge ─────────────────────────────────────────────────────────────
 
 const STATUS_BADGE_CLS: Record<JobStatus, string> = {
-  pending:    'bg-slate-400/10 text-slate-500 dark:text-slate-400',
+  pending: 'bg-slate-400/10 text-slate-500 dark:text-slate-400',
   processing: 'bg-amber-400/10 text-amber-600 dark:text-amber-400',
-  done:       'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400',
-  error:      'bg-red-500/10 text-red-500 dark:text-red-400',
+  done: 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400',
+  error: 'bg-red-500/10 text-red-500 dark:text-red-400',
 };
 
 function StatusBadge({ status, progress, errorMessage }: {
@@ -93,8 +94,8 @@ function StatusBadge({ status, progress, errorMessage }: {
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
-const FORMAT_OPTIONS    = ['wav', 'mp3', 'flac', 'aac', 'ogg', 'opus', 'm4a'];
-const BITRATE_OPTIONS   = ['', '64k', '96k', '128k', '192k', '256k', '320k'];
+const FORMAT_OPTIONS = ['wav', 'mp3', 'flac', 'aac', 'ogg', 'opus', 'm4a'];
+const BITRATE_OPTIONS = ['', '64k', '96k', '128k', '192k', '256k', '320k'];
 const SAMPLE_RATE_OPTIONS = ['', '22050', '44100', '48000', '96000'];
 
 function formatBytes(n: number): string {
@@ -174,23 +175,12 @@ function SortableJobRow({ job, index, isSelected, onSelect }: {
   onSelect: (e: React.MouseEvent) => void;
 }): JSX.Element {
   const { attributes, listeners, setNodeRef, transform, transition } = useSortable({ id: job.id });
-  const { playingJobId, isPlaying, toggle } = useAudioPlayer();
   const setAbMode = useQueueStore((s) => s.setAbMode);
   const isLocked = useQueueStore((s) => s.lockedJobIds.includes(job.id));
   const unlockJobs = useQueueStore((s) => s.unlockJobs);
   const defaultOutputFolder = useSettingsStore((s) => s.outputFolder);
 
-  const isThisPlaying = playingJobId === job.id && isPlaying;
   const isEnhanced = job.ab_mode === 'enhanced';
-
-  function getPlaySrc(): string {
-    return isEnhanced && job.output_filepath ? job.output_filepath : job.filepath;
-  }
-
-  function handlePlay(e: React.MouseEvent): void {
-    e.stopPropagation();
-    toggle(job.id, getPlaySrc());
-  }
 
   return (
     <tr
@@ -216,20 +206,6 @@ function SortableJobRow({ job, index, isSelected, onSelect }: {
           aria-label="Drag to reorder"
         >
           <GripVertical size={14} />
-        </button>
-      </td>
-      <td className="px-2 py-2 w-8">
-        <button
-          onClick={handlePlay}
-          className={clsx(
-            'flex items-center justify-center w-6 h-6 rounded-full transition-all duration-150',
-            isThisPlaying
-              ? 'text-violet-500 bg-violet-100 dark:bg-violet-500/20 hover:bg-violet-200 dark:hover:bg-violet-500/30'
-              : 'text-slate-300 dark:text-white/20 hover:text-slate-600 dark:hover:text-white/60 hover:bg-slate-100 dark:hover:bg-white/[0.06]',
-          )}
-          aria-label={isThisPlaying ? 'Pause' : 'Play'}
-        >
-          {isThisPlaying ? <Pause size={11} /> : <Play size={11} />}
         </button>
       </td>
       <td className="px-4 py-2 text-slate-400 dark:text-white/25 text-xs w-10 tabular-nums">{index + 1}</td>
@@ -262,11 +238,7 @@ function SortableJobRow({ job, index, isSelected, onSelect }: {
         {job.status === 'done' && job.output_filepath ? (
           <div className="flex gap-1">
             <button
-              onClick={(e) => {
-                e.stopPropagation();
-                setAbMode(job.id, 'enhanced');
-                toggle(job.id, job.output_filepath!);
-              }}
+              onClick={(e) => { e.stopPropagation(); setAbMode(job.id, 'enhanced'); }}
               className={clsx(
                 'px-1.5 py-0.5 rounded-md text-[10px] font-medium transition-all duration-150',
                 isEnhanced
@@ -277,11 +249,7 @@ function SortableJobRow({ job, index, isSelected, onSelect }: {
               Enhanced
             </button>
             <button
-              onClick={(e) => {
-                e.stopPropagation();
-                setAbMode(job.id, 'original');
-                toggle(job.id, job.filepath);
-              }}
+              onClick={(e) => { e.stopPropagation(); setAbMode(job.id, 'original'); }}
               className={clsx(
                 'px-1.5 py-0.5 rounded-md text-[10px] font-medium transition-all duration-150',
                 !isEnhanced
@@ -583,7 +551,6 @@ export default function QueueGrid(): JSX.Element {
     <thead>
       <tr className="text-slate-500 dark:text-white/35 font-semibold text-[10px] uppercase tracking-wider sticky top-0 bg-slate-50 dark:bg-[#090E1B] border-b-2 border-slate-200 dark:border-white/[0.08]">
         <th className="px-2 py-2.5 w-8" />
-        <th className="px-2 py-2.5 w-8" />
         <th className="px-4 py-2.5 w-10">#</th>
         <th className="resizable-th px-2 py-2.5 text-left" style={{ width: colWidths.filename, minWidth: 80 }}>
           <span className="px-2">{t('queue.col.filename')}</span>
@@ -616,7 +583,7 @@ export default function QueueGrid(): JSX.Element {
         <tbody>
           {jobs.length === 0 ? (
             <tr>
-              <td colSpan={12} className="px-4 py-16 text-center text-slate-400 dark:text-white/25 text-sm">
+              <td colSpan={11} className="px-4 py-16 text-center text-slate-400 dark:text-white/25 text-sm">
                 {t('queue.empty')}
               </td>
             </tr>
@@ -625,7 +592,7 @@ export default function QueueGrid(): JSX.Element {
               {groups.map((group, gi) => (
                 <React.Fragment key={`group-${gi}`}>
                   <tr>
-                    <td colSpan={12} className="px-4 pt-3 pb-1">
+                    <td colSpan={11} className="px-4 pt-3 pb-1">
                       <button
                         onClick={() => toggleGroup(group.label)}
                         className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wider text-violet-600 dark:text-violet-400/80 hover:text-violet-700 dark:hover:text-violet-300 transition-colors"
@@ -637,7 +604,7 @@ export default function QueueGrid(): JSX.Element {
                     </td>
                   </tr>
                   {!collapsedGroups.has(group.label) && (
-                    <DndContext key={`dnd-${gi}`} sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+                    <DndContext key={`dnd-${gi}`} sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd} modifiers={[restrictToVerticalAxis]}>
                       <SortableContext items={group.jobs.map((j) => j.id)} strategy={verticalListSortingStrategy}>
                         <AnimatePresence>
                           {group.jobs.map((job, i) => (
@@ -657,7 +624,7 @@ export default function QueueGrid(): JSX.Element {
               ))}
             </>
           ) : (
-            <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+            <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd} modifiers={[restrictToVerticalAxis]}>
               <SortableContext items={jobs.map((j) => j.id)} strategy={verticalListSortingStrategy}>
                 <AnimatePresence>
                   {jobs.map((job, i) => (

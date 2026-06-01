@@ -44,3 +44,128 @@ This document summarizes the update notes and functional improvements that need 
 ## 10. Toolbar Layout Reordering ✅
 - **Left Grouping (Primary Action Buttons):** Move the main action buttons ("Enhance", "Separate Stems", "Convert", and "Record") to the left side of the toolbar. The box width of these four buttons should be made equal to the width of the "Record" button.
 - **Right Grouping (Additional Tools & Icons):** Move the Search files input, filter dropdown, format dropdown (Convert to), and the row of icons (Switch to table view, Open file, Group by format, and Trash) to the right side of the toolbar. This new layout must be applied consistently across both the Audio and Video tabs.
+
+## 11. Settings Persistence Bug Fix ✅
+- **Save Settings History:** Fix a bug where user settings (such as Portuguese language, default output folder, and Light Theme) are not saved after restarting the app. The application must permanently save user preferences so they don't have to reconfigure them on every launch.
+
+## 12. File Import Enhancements (Folder Import & Drag-and-Drop) ✅
+- **Shortcut Fix:** Fix the `Ctrl+Shift+O` shortcut so it properly imports files from a selected folder.
+- **Folder Drag-and-Drop:** Add drag-and-drop support for folders. If a user drags and drops a folder containing audio/video files into the app, all supported files within that folder should automatically be added to the queue.
+
+## 13. Light Theme Color Palette Update ✅
+- **Professional Palette:** Use a professional, soft, yet high-contrast black-and-white color palette for the Light Theme. Remove bright blue or green colors from boxes and buttons.
+- **Table Header Color:** Change the table column header text to bold black (instead of gray) when in Light Theme.
+- **Element Background Colors:** Apply a gray background color to the search box, filters, and dropdowns that were previously invisible (blending into the background).
+- **Primary Button Colors:** Change the primary action buttons (Enhance, Separate Stems, Convert) to gray to match the overall Light Theme aesthetic.
+
+## 14. Settings Modal Width Adjustment ✅
+- **Reduce Modal Width:** Reduce the overall width of the "Settings" pop-up modal, as the current layout is too wide.
+
+## 15. Dynamic User Guide Localization ✅
+- **User Guide Translation:** Ensure that the text inside the "User Guide" tab updates dynamically to match the selected language in the settings (e.g., displaying in Indonesian or Portuguese when selected).
+
+## 16. Table View Column Dividers ✅
+- **Vertical Lines:** Add vertical divider lines between columns in Table View to clearly distinguish the boundaries between each column.
+
+## 17. Process Isolation ✅
+- **Separate Operations:** Isolate the Enhance, Separate Stems, and Convert processes from each other to prevent background task collisions or conflicts.
+
+## 18. Sequential Queue Processing & Status Indicators ✅
+- **Sequential Batch Processing:** When a user initiates a batch action (enhance/separate/convert) on multiple queued files, the files must be processed one by one sequentially, starting from the top. The next file will only begin processing after the previous one finishes.
+- **Status Color Indicators:**
+  - **Pending:** Bone white / light gray.
+  - **Processing:** Yellow.
+  - **Done:** Green.
+  - **Error:** Red (include a hover tooltip explaining the specific error or if it was abruptly stopped).
+
+## 19. Format Group Collapsible Toggle ✅
+- **Hide/Unhide Groups:** When the "Group by format" feature is active, allow users to collapse (hide) and expand (unhide) the groups by clicking a toggle icon next to the format name.
+
+## 20. Lock Queue Items Feature ✅
+- **Lock Functionality:** Fix the "Lock all" and "Lock selected" functions so they effectively lock file queue items, preventing them from being deleted.
+- **Lock Icon Indicator:** Display a lock icon on the far right of any locked queue item. The icon should be blue in Light Theme and black in Dark Theme.
+
+## 21. Theme-Specific Icon and Button Colors ✅
+- **Dark Theme:** Change the "Separate Stems" button, "Convert" button, and the "Audio" icon in the left sidebar to a gray color (similar to the Record or Search files buttons).
+- **Light Theme:** Change the "Video" icon in the left sidebar, "Enhance" button, "Separate Stems" button, "Convert" button, and "Record" button to a gray color (similar to the Search files button).
+
+## 22. Thicken Table View Column Dividers ✅
+- Increase the thickness of the vertical divider lines in the Table View to make them more visible.
+
+## 23. Lock Queue Items Update ✅
+- **Dark Theme:** Change the lock icon color to bone white.
+- **Light Theme:** Change the lock icon color to gray.
+- **Manual Toggle:** Allow users to toggle the lock state by manually clicking the lock icon on the queue item.
+- **Shortcut:** Add keyboard shortcut `L` to toggle the lock state for selected queue items.
+
+## 24. Queue Separation by Media Tab ✅
+- Visually separate the file queue between the "Audio" and "Video" tabs. When the user switches tabs, only show files corresponding to the active tab's media type.
+
+## 25. Remove "Open files" Icon ✅
+- Remove the "Open files (Ctrl+O)" icon located next to the "Group by format" icon in the toolbar.
+
+## 27. Active Tab Stroke Indicator ✅
+- **Dark Theme:** Add a white stroke (border) around the active media tab (Audio/Video) in the left sidebar to indicate selection.
+- **Light Theme:** Add a black stroke (border) around the active media tab.
+
+## 28. Queue Background Contrast ✅
+- **Dark Theme:** Increase the contrast between the app background and the queue table (including headers and row backgrounds).
+- **Light Theme:** Increase the contrast between the app background and the queue table.
+
+## 29. Default Destination Display ✅
+- In the "Destination" column, if a file has no specific destination set, display the global "Default Output Folder" from the settings instead of leaving it blank.
+
+## 30. Lock Header Icon ✅
+- Add a Lock icon to the header of the "LOCK" column (the far-right column in the Table View).
+
+## 31. Manipulation Tools Visibility ✅
+- **Light Theme:** Fix the visibility and contrast of the bottom manipulation panel (features like Trim, Speed, EQ, etc.) so that the interface and options are clearly visible and contrast well with the background.
+
+## 32. Global Lock Shortcut (Shift+L) ✅
+- Implement `Shift+L` as a global shortcut to lock or unlock all items in the queue, regardless of current selection.
+
+## 33. Refinement: Toolbar Buttons Width ✅
+- Make the width of the "Enhance", "Separate Stems", "Convert", and "Record" buttons auto-adjust to their text content instead of a fixed width, while maintaining consistent height.
+
+## 34. Refinement: Sidebar Active Tab Border✅
+- Increase the border thickness (stroke width) for the active audio/video tab in the left sidebar for both light and dark themes.
+
+## 35. Refinement: Manipulation Tools Visibility ✅
+- Improve visibility and contrast of the EQ and Waveform tools (specifically the EQ slider boxes/tracks) in Light Theme so they do not blend with the background.
+
+## 36. Refinement: Queue Selection Color ✅
+- Change the background color of selected rows in the file queue to light gray instead of purple when in Light Theme.
+
+## 37. Refinement: Queue Table Header Contrast and Borders ✅
+- Add a border separating the table header from the table body.
+- Change the header background color to contrast more with the table body.
+- Add vertical column dividers (borders) inside the table header to separate the columns.
+
+## 38. Record Button Visibility
+- Display the "Record" button only when the "Audio" tab is active. Hide it when the user switches to the "Video" tab.
+
+## 39. Fix Drag & Drop Axis Constraints
+- Restrict drag-and-drop movement in Table View to the vertical axis only (up and down) to prevent unintended horizontal dragging.
+- Ensure that dragging in Grid View behaves correctly and items do not overflow excessively to the right.
+
+## 40. Waveform Visibility in Light Theme
+- Fix the visibility and contrast of the Waveform tool container in Light Theme so its background and layout are clearly visible, matching the clarity provided in Dark Theme.
+
+## 41. Audio Recording Implementation & Custom Naming
+- Implement actual audio recording functionality to capture audio via a connected microphone or laptop microphone.
+- Upon stopping the recording, automatically add the newly recorded audio file to the file queue in the Audio tab.
+- Use a default naming convention for recorded files (e.g., `01_Record.wav`).
+- Add a new configurable option in the "Settings" menu to allow users to customize this default recording name prefix.
+
+## 42. Remove Play Icon Column
+- Remove the play icon located to the left of the "Filename" column in the queue table.
+- Remove the corresponding column entirely to simplify the table layout.
+
+## 43. Revamp Manipulation Tools (Focus on Waveform)
+- Temporarily remove the following manipulation tools: Trim, Speed, Pitch, Volume, Fade, Merge, Loop, Spectrogram, and EQ. Focus strictly on the "Waveform" tool.
+- Automatically expand and display the Manipulation Tools panel containing the waveform visualizer when an audio file in the queue is selected.
+- Enhance the waveform visualization to display the audio signal as "spikes" (amplitude over time).
+- Add playback controls directly to the waveform:
+  - Press `Space` to play or pause the audio.
+  - Press `Left Arrow` or `Right Arrow` to skip 5 seconds backward or forward.
+  - Include an interactive vertical playhead (scrubber line) that can be clicked and dragged to navigate through the audio track.

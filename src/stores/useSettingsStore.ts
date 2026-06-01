@@ -12,6 +12,7 @@ interface SettingsState extends AppSettings {
   setEnhancementStrength: (v: number) => void;
   setFilenameTemplate: (t: string) => void;
   setKeyboardShortcuts: (shortcuts: KeyboardShortcutMap) => void;
+  setRecordingPrefix: (prefix: string) => void;
   markSetupComplete: () => void;
   setInitialized: (v: boolean) => void;
 }
@@ -28,6 +29,7 @@ export const useSettingsStore = create<SettingsState>()(
       setEnhancementStrength: (enhancementStrength) => set({ enhancementStrength }),
       setFilenameTemplate: (filenameTemplate) => set({ filenameTemplate }),
       setKeyboardShortcuts: (keyboardShortcuts) => set({ keyboardShortcuts }),
+      setRecordingPrefix: (recordingPrefix) => set({ recordingPrefix }),
       markSetupComplete: () => set({ setupComplete: true }),
       setInitialized: (initialized) => set({ initialized }),
     }),
@@ -40,6 +42,7 @@ export const useSettingsStore = create<SettingsState>()(
         enhancementStrength: state.enhancementStrength,
         filenameTemplate: state.filenameTemplate,
         keyboardShortcuts: state.keyboardShortcuts,
+        recordingPrefix: state.recordingPrefix,
       }),
     }
   )

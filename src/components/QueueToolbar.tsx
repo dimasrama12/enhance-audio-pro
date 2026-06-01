@@ -29,6 +29,7 @@ export default function QueueToolbar(): JSX.Element {
   const enhancementStrength = useSettingsStore((s) => s.enhancementStrength);
   const filenameTemplate = useSettingsStore((s) => s.filenameTemplate);
   const focusSearchTick = useUIStore((s) => s.focusSearchTick);
+  const activeTab = useUIStore((s) => s.activeTab);
   const searchRef = useRef<HTMLInputElement>(null);
   const { t } = useTranslation();
 
@@ -56,7 +57,7 @@ export default function QueueToolbar(): JSX.Element {
         let unlisten: (() => void) | undefined;
         listen<{ jobId: string; status: string }>('queue://status-change', (evt) => {
           if (!settled && evt.payload.jobId === id &&
-              (evt.payload.status === 'done' || evt.payload.status === 'error')) {
+            (evt.payload.status === 'done' || evt.payload.status === 'error')) {
             settled = true;
             unlisten?.();
             resolve();
@@ -157,7 +158,7 @@ export default function QueueToolbar(): JSX.Element {
         >
           {isConverting ? t('toolbar.converting') : t('toolbar.convert')}
         </button>
-        <RecordButton />
+        {activeTab === 'audio' && <RecordButton />}
       </div>
 
       {/* ── Spacer ── */}
@@ -213,11 +214,10 @@ export default function QueueToolbar(): JSX.Element {
       <button
         onClick={() => setGroupByFormat(!groupByFormat)}
         title={groupByFormat ? 'Ungroup by format' : 'Group by format'}
-        className={`p-2 rounded-lg transition-colors duration-150 ${
-          groupByFormat
+        className={`p-2 rounded-lg transition-colors duration-150 ${groupByFormat
             ? 'text-violet-500 dark:text-violet-400 bg-violet-500/10 hover:bg-violet-500/15'
             : iconBtn
-        }`}
+          }`}
       >
         <Layers size={16} />
       </button>

@@ -62,11 +62,10 @@ function ShortcutsTab(): JSX.Element {
           <span className="text-xs text-slate-600 dark:text-white/60 flex-1 truncate">{SHORTCUT_LABELS[key]}</span>
           <button
             onClick={() => startRecording(key)}
-            className={`min-w-[90px] text-center px-2 py-1 rounded-lg text-xs font-mono border transition-colors ${
-              recording === key
+            className={`min-w-[90px] text-center px-2 py-1 rounded-lg text-xs font-mono border transition-colors ${recording === key
                 ? 'border-violet-500 bg-violet-600/15 text-violet-500 dark:text-violet-300 animate-pulse'
                 : 'border-slate-200 dark:border-white/[0.10] bg-slate-50 dark:bg-white/[0.04] text-slate-700 dark:text-white/60 hover:border-violet-400/60 hover:text-slate-900 dark:hover:text-white'
-            }`}
+              }`}
           >
             {recording === key ? 'Press key…' : (keyboardShortcuts?.[key] ?? DEFAULT_KEYBOARD_SHORTCUTS[key])}
           </button>
@@ -85,25 +84,25 @@ function ShortcutsTab(): JSX.Element {
 // ─── Formats tab ──────────────────────────────────────────────────────────────
 
 const AUDIO_FORMATS = [
-  { ext: 'MP3',  desc: 'Lossy, universal compatibility' },
-  { ext: 'WAV',  desc: 'Lossless PCM, studio quality' },
+  { ext: 'MP3', desc: 'Lossy, universal compatibility' },
+  { ext: 'WAV', desc: 'Lossless PCM, studio quality' },
   { ext: 'FLAC', desc: 'Lossless compressed' },
-  { ext: 'AAC',  desc: 'Lossy, high efficiency' },
-  { ext: 'OGG',  desc: 'Lossy, open source' },
+  { ext: 'AAC', desc: 'Lossy, high efficiency' },
+  { ext: 'OGG', desc: 'Lossy, open source' },
   { ext: 'OPUS', desc: 'Lossy, low latency' },
-  { ext: 'M4A',  desc: 'AAC in MPEG-4 container' },
-  { ext: 'WMA',  desc: 'Windows Media Audio' },
+  { ext: 'M4A', desc: 'AAC in MPEG-4 container' },
+  { ext: 'WMA', desc: 'Windows Media Audio' },
   { ext: 'AIFF', desc: 'Apple lossless PCM' },
-  { ext: 'MP2',  desc: 'MPEG-1 Audio Layer II' },
+  { ext: 'MP2', desc: 'MPEG-1 Audio Layer II' },
 ];
 
 const VIDEO_FORMATS = [
-  { ext: 'MP4',  desc: 'H.264/H.265, universal' },
-  { ext: 'MKV',  desc: 'Matroska, multi-track' },
-  { ext: 'MOV',  desc: 'QuickTime, Apple native' },
-  { ext: 'AVI',  desc: 'Audio Video Interleave' },
+  { ext: 'MP4', desc: 'H.264/H.265, universal' },
+  { ext: 'MKV', desc: 'Matroska, multi-track' },
+  { ext: 'MOV', desc: 'QuickTime, Apple native' },
+  { ext: 'AVI', desc: 'Audio Video Interleave' },
   { ext: 'WebM', desc: 'VP8/VP9, web optimised' },
-  { ext: 'FLV',  desc: 'Flash Video, legacy' },
+  { ext: 'FLV', desc: 'Flash Video, legacy' },
 ];
 
 function FormatsTab(): JSX.Element {
@@ -149,10 +148,10 @@ function Section({ title, children }: { title: string; children: React.ReactNode
 // ─── Main component ───────────────────────────────────────────────────────────
 
 const TABS: Array<{ id: SettingsTab; label: string; Icon: LucideIcon }> = [
-  { id: 'general',   label: 'General',    Icon: Settings   },
-  { id: 'guide',     label: 'User Guide', Icon: HelpCircle },
-  { id: 'shortcuts', label: 'Shortcuts',  Icon: Keyboard   },
-  { id: 'formats',   label: 'Formats',    Icon: Disc       },
+  { id: 'general', label: 'General', Icon: Settings },
+  { id: 'guide', label: 'User Guide', Icon: HelpCircle },
+  { id: 'shortcuts', label: 'Shortcuts', Icon: Keyboard },
+  { id: 'formats', label: 'Formats', Icon: Disc },
 ];
 
 export default function SettingsPanel({ open, onClose }: Props): JSX.Element {
@@ -169,6 +168,7 @@ export default function SettingsPanel({ open, onClose }: Props): JSX.Element {
       enhancementStrength: store.enhancementStrength,
       filenameTemplate: store.filenameTemplate,
       keyboardShortcuts: store.keyboardShortcuts,
+      recordingPrefix: store.recordingPrefix ?? 'Record',
       ...patch,
     };
     store.setSettings(next);
@@ -218,11 +218,10 @@ export default function SettingsPanel({ open, onClose }: Props): JSX.Element {
                   <button
                     key={id}
                     onClick={() => setActiveTab(id)}
-                    className={`flex items-center gap-1.5 px-3 py-2.5 text-xs font-medium border-b-2 -mb-px transition-all duration-150 ${
-                      activeTab === id
+                    className={`flex items-center gap-1.5 px-3 py-2.5 text-xs font-medium border-b-2 -mb-px transition-all duration-150 ${activeTab === id
                         ? 'border-violet-500 text-violet-600 dark:text-violet-400'
                         : 'border-transparent text-slate-400 dark:text-white/35 hover:text-slate-700 dark:hover:text-white/65'
-                    }`}
+                      }`}
                   >
                     <Icon size={11} />
                     {label}
@@ -244,11 +243,10 @@ export default function SettingsPanel({ open, onClose }: Props): JSX.Element {
                             <button
                               key={th}
                               onClick={() => save({ theme: th })}
-                              className={`px-4 py-1.5 text-xs capitalize transition-colors ${
-                                store.theme === th
+                              className={`px-4 py-1.5 text-xs capitalize transition-colors ${store.theme === th
                                   ? 'bg-violet-600 text-white'
                                   : 'text-slate-500 dark:text-white/50 hover:text-slate-900 dark:hover:text-white'
-                              }`}
+                                }`}
                             >
                               {t(`settings.${th}`)}
                             </button>
@@ -303,6 +301,18 @@ export default function SettingsPanel({ open, onClose }: Props): JSX.Element {
                       />
                       <p className="text-[10px] text-slate-400 dark:text-white/30">
                         Tokens: <code className="font-mono">{'{name}'}</code>, <code className="font-mono">{'{date}'}</code>, <code className="font-mono">{'{format}'}</code>
+                      </p>
+
+                      <label className="text-sm text-slate-900 dark:text-slate-100 mt-1">Recording Name Prefix</label>
+                      <input
+                        type="text"
+                        value={store.recordingPrefix ?? 'Record'}
+                        onChange={(e) => save({ recordingPrefix: e.target.value || 'Record' })}
+                        placeholder="Record"
+                        className="w-full px-3 py-1.5 bg-slate-100 dark:bg-white/[0.06] border border-slate-200 dark:border-white/[0.08] rounded-lg text-sm text-slate-900 dark:text-white outline-none focus:ring-1 focus:ring-violet-500 transition"
+                      />
+                      <p className="text-[10px] text-slate-400 dark:text-white/30">
+                        Recorded files are named <code className="font-mono">01_Record.wav</code> using this prefix.
                       </p>
                     </Section>
 
