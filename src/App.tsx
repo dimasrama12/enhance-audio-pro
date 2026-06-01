@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { useSettingsStore } from '@/stores/useSettingsStore';
 import { useQueueStore } from '@/stores/useQueueStore';
 import { useUIStore } from '@/stores/useUIStore';
@@ -21,13 +21,22 @@ export default function App(): JSX.Element {
 
   useKeyboardShortcuts();
 
+  const settingsRef = useRef(useSettingsStore.getState);
+
   useEffect(() => {
     async function init(): Promise<void> {
       const [settingsRes, queueRes] = await Promise.all([
         invokeGetSettings(),
         invokeGetQueue(),
       ]);
-      if (settingsRes.success && settingsRes.data) setSettings(settingsRes.data);
+      if (settingsRes.success && settingsRes.data) {
+        const persisted = settingsRef.current();
+        // Merge: Zustand localStorage is the source of truth for UI state.
+        setSettings({
+          ...settingsRes.data,
+          ...persisted,
+        });
+      }
       if (queueRes.success && queueRes.data) setJobs(queueRes.data);
       setInitialized(true);
     }
@@ -43,7 +52,7 @@ export default function App(): JSX.Element {
   }, [language]);
 
   return (
-    <div className="flex flex-col h-screen overflow-hidden transition-colors duration-200 bg-zinc-100 text-zinc-900 dark:bg-neutral-900 dark:text-white">
+    <div className="flex flex-col h-screen overflow-hidden transition-colors duration-200 bg-[#F8FAFC] text-slate-900 dark:bg-[#0B0F1A] dark:text-slate-100">
       <TitleBar />
       <div className="flex flex-1 overflow-hidden">
         {sidebarVisible && <Sidebar />}

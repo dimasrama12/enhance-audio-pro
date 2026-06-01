@@ -12,8 +12,8 @@ use commands::download::{check_model_status, start_model_download};
 use commands::manipulate::{apply_eq, loop_audio, manipulate_audio, merge_audio};
 use commands::process::process_queue;
 use commands::queue::{
-    add_files, get_queue, get_recent_history, archive_jobs, archive_all_queue, delete_job,
-    delete_all_history,
+    add_files, list_folder_files, get_queue, get_recent_history, archive_jobs, archive_all_queue,
+    delete_job, delete_all_history,
 };
 use commands::separate::separate_stems;
 use commands::settings::{get_settings, save_settings};
@@ -71,6 +71,7 @@ pub fn run() {
         })
         .invoke_handler(tauri::generate_handler![
             add_files,
+            list_folder_files,
             get_queue,
             get_recent_history,
             archive_jobs,

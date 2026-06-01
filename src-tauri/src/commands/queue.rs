@@ -1,6 +1,11 @@
 use std::path::Path;
 use tauri::State;
 
+const SUPPORTED_AUDIO_VIDEO_EXTENSIONS: &[&str] = &[
+    "mp3", "wav", "flac", "aac", "ogg", "opus", "m4a", "wma", "aiff", "mp2",
+    "mp4", "mov", "avi", "mkv", "webm", "flv", "wmv", "m4v", "ts", "mts", "m2ts",
+];
+
 use crate::commands::IpcResponse;
 use crate::db::queue::{
     count_active_jobs_by_type, get_all_jobs, get_recent_jobs, insert_job, QueueJob,
@@ -74,6 +79,33 @@ pub fn add_files(state: State<AppState>, paths: Vec<String>) -> IpcResponse<Vec<
     };
 
     IpcResponse { success: true, data: Some(jobs), error: warning }
+}
+
+/// List all supported audio/video files in a folder (non-recursive, one level deep).
+#[tauri::command]
+pub fn list_folder_files(folder: String) -> IpcResponse<Vec<String>> {
+    let path = Path::new(&folder);
+    if !path.is_dir() {
+        return IpcResponse { success: false, data: None, error: Some("Not a directory".into()) };
+    }
+    let mut files: Vec<String> = Vec::new();
+    let entries = match std::fs::read_dir(path) {
+        Ok(e) => e,
+        Err(e) => return IpcResponse { success: false, data: None, error: Some(e.to_string()) },
+    };
+    for entry in entries.flatten() {
+        let entry_path = entry.path();
+        if !entry_path.is_file() { continue; }
+        if let Some(ext) = entry_path.extension().and_then(|e| e.to_str()) {
+            if SUPPORTED_AUDIO_VIDEO_EXTENSIONS.contains(&ext.to_lowercase().as_str()) {
+                if let Some(s) = entry_path.to_str() {
+                    files.push(s.to_string());
+                }
+            }
+        }
+    }
+    files.sort();
+    IpcResponse { success: true, data: Some(files), error: None }
 }
 
 #[tauri::command]

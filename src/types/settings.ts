@@ -72,7 +72,7 @@ export const SHORTCUT_LABELS: Record<keyof KeyboardShortcutMap, string> = {
   videoTab: 'Video Tab',
   toggleSidebar: 'Toggle Sidebar',
   focusSearch: 'Focus Search',
-  browseFolder: 'Browse Output Folder',
+  browseFolder: 'Import Files from Folder',
   tableView: 'Switch to Table View',
   gridView: 'Switch to Grid View',
   openHistory: 'Open File History',

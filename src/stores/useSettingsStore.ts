@@ -35,6 +35,7 @@ export const useSettingsStore = create<SettingsState>()(
       name: 'settings-ui-cache',
       partialize: (state) => ({
         theme: state.theme,
+        outputFolder: state.outputFolder,
         language: state.language,
         enhancementStrength: state.enhancementStrength,
         filenameTemplate: state.filenameTemplate,

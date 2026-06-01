@@ -51,24 +51,24 @@ export default function EQPanel({ gains, onGainsChange }: EQPanelProps): JSX.Ele
   }
 
   return (
-    <div className="flex flex-col gap-3">
+    <div className="flex flex-col gap-3 w-full">
       <div className="flex items-center gap-2">
         <select
           value={preset}
           onChange={(e) => handlePreset(e.target.value)}
-          className="flex-1 bg-white/10 text-white text-xs rounded-lg px-3 py-1.5 outline-none focus:ring-1 focus:ring-violet-500 transition"
+          className="flex-1 bg-slate-100 dark:bg-white/[0.08] text-slate-900 dark:text-white text-xs rounded-lg px-3 py-1.5 outline-none focus:ring-1 focus:ring-violet-500 transition border border-slate-200 dark:border-white/[0.08]"
         >
           {Object.keys(PRESETS).map((p) => (
-            <option key={p} value={p} className="bg-neutral-800">{p}</option>
+            <option key={p} value={p} className="bg-white dark:bg-[#111827] text-slate-900 dark:text-white">{p}</option>
           ))}
           {preset === 'Custom' && (
-            <option value="Custom" className="bg-neutral-800">Custom</option>
+            <option value="Custom" className="bg-white dark:bg-[#111827] text-slate-900 dark:text-white">Custom</option>
           )}
         </select>
         <button
           onClick={handleReset}
           title="Reset to flat"
-          className="p-1.5 rounded-lg text-white/50 hover:text-white hover:bg-white/10 transition-colors"
+          className="p-1.5 rounded-lg text-slate-400 dark:text-white/40 hover:text-slate-800 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-white/[0.08] transition-colors"
         >
           <RotateCcw size={13} />
         </button>
@@ -77,10 +77,12 @@ export default function EQPanel({ gains, onGainsChange }: EQPanelProps): JSX.Ele
       <div className="flex gap-1.5 items-end justify-between h-36 px-1">
         {FREQ_LABELS.map((label, i) => (
           <div key={label} className="flex flex-col items-center gap-1 flex-1">
-            <span className="text-white/60 text-[10px] tabular-nums w-5 text-center">
+            <span className="text-slate-500 dark:text-white/50 text-[10px] tabular-nums w-6 text-center leading-none">
               {gains[i] > 0 ? `+${gains[i]}` : gains[i]}
             </span>
             <div className="relative flex-1 flex items-center justify-center w-full">
+              {/* Center track reference line — visible in light mode */}
+              <div className="absolute left-1/2 -translate-x-1/2 top-0 bottom-0 w-[2px] bg-slate-200 dark:bg-white/[0.07] rounded-full pointer-events-none" />
               <input
                 type="range"
                 min={-12}
@@ -96,10 +98,12 @@ export default function EQPanel({ gains, onGainsChange }: EQPanelProps): JSX.Ele
                   height: '80px',
                   cursor: 'pointer',
                   accentColor: '#7c3aed',
+                  position: 'relative',
+                  zIndex: 1,
                 }}
               />
             </div>
-            <span className="text-white/40 text-[9px] text-center">{label}</span>
+            <span className="text-slate-400 dark:text-white/30 text-[9px] text-center leading-none">{label}</span>
           </div>
         ))}
       </div>

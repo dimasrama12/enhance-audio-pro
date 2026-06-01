@@ -12,12 +12,25 @@ export default function QueueStatusBar(): JSX.Element {
   if (total === 0) return <></>;
 
   return (
-    <div className="flex items-center gap-4 px-1 text-xs text-zinc-400 dark:text-white/40 select-none">
-      <span className="text-zinc-600 dark:text-white/60 font-medium">{total} file{total !== 1 ? 's' : ''}</span>
-      {pending > 0 && <span className="text-yellow-400/70">{pending} pending</span>}
-      {processing > 0 && <span className="text-blue-400/70">{processing} processing</span>}
-      {done > 0 && <span className="text-green-400/70">{done} done</span>}
-      {error > 0 && <span className="text-red-400/70">{error} error{error !== 1 ? 's' : ''}</span>}
+    <div className="flex items-center gap-4 px-1 text-[11px] select-none">
+      <span className="text-slate-500 dark:text-slate-400 font-medium">
+        {total} file{total !== 1 ? 's' : ''}
+      </span>
+      {pending > 0 && (
+        <span className="text-slate-400 dark:text-slate-500">{pending} pending</span>
+      )}
+      {processing > 0 && (
+        <span className="flex items-center gap-1 text-amber-500 dark:text-amber-400">
+          <span className="w-1.5 h-1.5 rounded-full bg-amber-400 status-processing-dot" />
+          {processing} processing
+        </span>
+      )}
+      {done > 0 && (
+        <span className="text-emerald-600 dark:text-emerald-400">{done} done</span>
+      )}
+      {error > 0 && (
+        <span className="text-red-500 dark:text-red-400">{error} error{error !== 1 ? 's' : ''}</span>
+      )}
     </div>
   );
 }

@@ -7,6 +7,10 @@ export async function invokeAddFiles(paths: string[]): Promise<IpcResponse<Queue
   return invoke<IpcResponse<QueueJob[]>>('add_files', { paths });
 }
 
+export async function invokeListFolderFiles(folder: string): Promise<IpcResponse<string[]>> {
+  return invoke<IpcResponse<string[]>>('list_folder_files', { folder });
+}
+
 export async function invokeGetQueue(): Promise<IpcResponse<QueueJob[]>> {
   return invoke<IpcResponse<QueueJob[]>>('get_queue');
 }

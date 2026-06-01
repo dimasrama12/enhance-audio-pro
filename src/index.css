@@ -2,6 +2,7 @@
 @tailwind components;
 @tailwind utilities;
 
+/* ── Global interaction ────────────────────────────────────────────────────── */
 * {
   -webkit-user-select: none;
   user-select: none;
@@ -13,22 +14,22 @@ textarea {
   user-select: text;
 }
 
-/* Prevent the OS window itself from scrolling */
+/* ── Window & scroll lock ──────────────────────────────────────────────────── */
 html, body {
   overflow: hidden;
   margin: 0;
 }
 
 body {
-  background: #0a0a0a;
+  background: #0B0F1A;
   transition: background-color 0.2s ease, color 0.2s ease;
 }
 
 html.light body {
-  background: #f4f4f5;
+  background: #F8FAFC;
 }
 
-/* Hide scrollbar while keeping content scrollable */
+/* ── Scrollbar utilities ───────────────────────────────────────────────────── */
 .scrollbar-hide {
   scrollbar-width: none;
   -ms-overflow-style: none;
@@ -37,7 +38,22 @@ html.light body {
   display: none;
 }
 
-/* Resizable table column handle */
+.scrollbar-thin {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(124, 58, 237, 0.25) transparent;
+}
+.scrollbar-thin::-webkit-scrollbar {
+  width: 4px;
+}
+.scrollbar-thin::-webkit-scrollbar-track {
+  background: transparent;
+}
+.scrollbar-thin::-webkit-scrollbar-thumb {
+  background: rgba(124, 58, 237, 0.25);
+  border-radius: 999px;
+}
+
+/* ── Resizable column handle ───────────────────────────────────────────────── */
 .resizable-th {
   position: relative;
   overflow: visible;
@@ -47,10 +63,55 @@ html.light body {
   right: 0;
   top: 0;
   height: 100%;
-  width: 4px;
+  width: 5px;
   cursor: col-resize;
   user-select: none;
+  transition: background-color 0.15s ease;
 }
 .resizable-th .resize-handle:hover {
-  background-color: rgba(139, 92, 246, 0.5);
+  background-color: rgba(139, 92, 246, 0.4);
+}
+
+/* ── Queue table column dividers ───────────────────────────────────────────── */
+.queue-table th:not(:last-child),
+.queue-table td:not(:last-child) {
+  border-right: 1.5px solid #E2E8F0;
+}
+html.dark .queue-table th:not(:last-child),
+html.dark .queue-table td:not(:last-child) {
+  border-right-color: rgba(255, 255, 255, 0.06);
+}
+
+/* ── EQ slider — vertical orientation ─────────────────────────────────────── */
+input.eq-slider {
+  -webkit-appearance: slider-vertical;
+  appearance: slider-vertical;
+}
+
+/* Light mode EQ slider track & thumb visibility */
+html.light input.eq-slider {
+  accent-color: #7c3aed;
+}
+
+/* ── Dropzone animated border ──────────────────────────────────────────────── */
+@keyframes dash-animate {
+  to { stroke-dashoffset: -40; }
+}
+.dropzone-dashed-svg rect {
+  animation: dash-animate 8s linear infinite;
+}
+
+/* ── Smooth focus rings ────────────────────────────────────────────────────── */
+:focus-visible {
+  outline: 2px solid rgba(124, 58, 237, 0.7);
+  outline-offset: 2px;
+}
+
+/* ── Processing amber dot pulse ────────────────────────────────────────────── */
+@keyframes amber-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.4; }
+}
+.status-processing-dot {
+  animation: amber-pulse 1.5s ease-in-out infinite;
 }

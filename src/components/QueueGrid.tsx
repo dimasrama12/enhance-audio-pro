@@ -1,8 +1,8 @@
-import { useEffect, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { listen } from '@tauri-apps/api/event';
 import { motion, AnimatePresence } from 'framer-motion';
 import { clsx } from 'clsx';
-import { GripVertical, Play, Pause, FolderOpen } from 'lucide-react';
+import { GripVertical, Play, Pause, FolderOpen, Lock, ChevronRight } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { open as openDialog } from '@tauri-apps/plugin-dialog';
 import {
@@ -23,6 +23,8 @@ import {
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { useQueueStore } from '@/stores/useQueueStore';
+import { useUIStore } from '@/stores/useUIStore';
+import { useSettingsStore } from '@/stores/useSettingsStore';
 import { useAudioPlayer } from '@/stores/useAudioPlayer';
 import { invokeSetOutputFormat, invokeSetBitrate, invokeSetSampleRate } from '@/lib/ipc';
 import type { QueueJob, JobStatus } from '@/types/queue';
@@ -47,15 +49,52 @@ function ResizeHandle({ onDelta }: ResizeHandleProps): JSX.Element {
   return <div className="resize-handle" onMouseDown={onMouseDown} />;
 }
 
-const STATUS_COLORS: Record<JobStatus, string> = {
-  pending: 'text-yellow-400',
-  processing: 'text-blue-400',
-  done: 'text-green-400',
-  error: 'text-red-400',
+// ─── Status badge ─────────────────────────────────────────────────────────────
+
+const STATUS_BADGE_CLS: Record<JobStatus, string> = {
+  pending:    'bg-slate-400/10 text-slate-500 dark:text-slate-400',
+  processing: 'bg-amber-400/10 text-amber-600 dark:text-amber-400',
+  done:       'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400',
+  error:      'bg-red-500/10 text-red-500 dark:text-red-400',
 };
 
-const FORMAT_OPTIONS = ['wav', 'mp3', 'flac', 'aac', 'ogg', 'opus', 'm4a'];
-const BITRATE_OPTIONS = ['', '64k', '96k', '128k', '192k', '256k', '320k'];
+function StatusBadge({ status, progress, errorMessage }: {
+  status: JobStatus;
+  progress: number;
+  errorMessage?: string | null;
+}): JSX.Element {
+  return (
+    <div>
+      <span
+        className={clsx(
+          'inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium capitalize',
+          STATUS_BADGE_CLS[status],
+        )}
+        title={status === 'error' ? (errorMessage ?? undefined) : undefined}
+      >
+        {status === 'processing' && (
+          <span className="w-1.5 h-1.5 rounded-full bg-amber-400 status-processing-dot shrink-0" />
+        )}
+        {status}
+      </span>
+      {status === 'processing' && (
+        <div className="mt-1.5 h-[3px] w-full rounded-full bg-slate-200 dark:bg-white/[0.08] overflow-hidden">
+          <motion.div
+            className="h-full rounded-full bg-violet-500"
+            initial={{ width: 0 }}
+            animate={{ width: `${progress}%` }}
+            transition={{ duration: 0.3, ease: 'easeOut' }}
+          />
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+
+const FORMAT_OPTIONS    = ['wav', 'mp3', 'flac', 'aac', 'ogg', 'opus', 'm4a'];
+const BITRATE_OPTIONS   = ['', '64k', '96k', '128k', '192k', '256k', '320k'];
 const SAMPLE_RATE_OPTIONS = ['', '22050', '44100', '48000', '96000'];
 
 function formatBytes(n: number): string {
@@ -64,18 +103,7 @@ function formatBytes(n: number): string {
   return `${(n / 1048576).toFixed(1)} MB`;
 }
 
-function ProgressBar({ percent }: { percent: number }): JSX.Element {
-  return (
-    <div className="mt-1 h-1 w-full rounded-full bg-zinc-200 dark:bg-white/10 overflow-hidden">
-      <motion.div
-        className="h-full rounded-full bg-blue-400"
-        initial={{ width: 0 }}
-        animate={{ width: `${percent}%` }}
-        transition={{ duration: 0.3, ease: 'easeOut' }}
-      />
-    </div>
-  );
-}
+const selectCls = 'bg-slate-100 dark:bg-white/[0.07] text-slate-800 dark:text-white text-xs rounded-lg px-2 py-0.5 outline-none focus:ring-1 focus:ring-violet-500 disabled:opacity-40 transition border border-slate-200 dark:border-white/[0.06]';
 
 function FormatSelect({ job }: { job: QueueJob }): JSX.Element {
   const setOutputFormat = useQueueStore((s) => s.setOutputFormat);
@@ -88,15 +116,10 @@ function FormatSelect({ job }: { job: QueueJob }): JSX.Element {
   }
 
   return (
-    <select
-      value={job.output_format}
-      onChange={handleChange}
-      onClick={(e) => e.stopPropagation()}
-      disabled={job.status !== 'pending'}
-      className="bg-zinc-100 dark:bg-white/10 text-zinc-800 dark:text-white text-xs rounded px-2 py-0.5 outline-none focus:ring-1 focus:ring-violet-500 disabled:opacity-40 transition"
-    >
+    <select value={job.output_format} onChange={handleChange} onClick={(e) => e.stopPropagation()}
+      disabled={job.status !== 'pending'} className={selectCls}>
       {FORMAT_OPTIONS.map((f) => (
-        <option key={f} value={f} className="bg-neutral-800">{f.toUpperCase()}</option>
+        <option key={f} value={f} className="bg-white dark:bg-[#111827]">{f.toUpperCase()}</option>
       ))}
     </select>
   );
@@ -113,15 +136,10 @@ function BitrateSelect({ job }: { job: QueueJob }): JSX.Element {
   }
 
   return (
-    <select
-      value={job.bitrate || ''}
-      onChange={handleChange}
-      onClick={(e) => e.stopPropagation()}
-      disabled={job.status !== 'pending'}
-      className="bg-zinc-100 dark:bg-white/10 text-zinc-800 dark:text-white text-xs rounded px-2 py-0.5 outline-none focus:ring-1 focus:ring-violet-500 disabled:opacity-40 transition"
-    >
+    <select value={job.bitrate || ''} onChange={handleChange} onClick={(e) => e.stopPropagation()}
+      disabled={job.status !== 'pending'} className={selectCls}>
       {BITRATE_OPTIONS.map((b) => (
-        <option key={b} value={b} className="bg-neutral-800">{b || 'Auto'}</option>
+        <option key={b} value={b} className="bg-white dark:bg-[#111827]">{b || 'Auto'}</option>
       ))}
     </select>
   );
@@ -138,19 +156,16 @@ function SampleRateSelect({ job }: { job: QueueJob }): JSX.Element {
   }
 
   return (
-    <select
-      value={job.sample_rate || ''}
-      onChange={handleChange}
-      onClick={(e) => e.stopPropagation()}
-      disabled={job.status !== 'pending'}
-      className="bg-zinc-100 dark:bg-white/10 text-zinc-800 dark:text-white text-xs rounded px-2 py-0.5 outline-none focus:ring-1 focus:ring-violet-500 disabled:opacity-40 transition"
-    >
+    <select value={job.sample_rate || ''} onChange={handleChange} onClick={(e) => e.stopPropagation()}
+      disabled={job.status !== 'pending'} className={selectCls}>
       {SAMPLE_RATE_OPTIONS.map((r) => (
-        <option key={r} value={r} className="bg-neutral-800">{r ? `${r} Hz` : 'Auto'}</option>
+        <option key={r} value={r} className="bg-white dark:bg-[#111827]">{r ? `${r} Hz` : 'Auto'}</option>
       ))}
     </select>
   );
 }
+
+// ─── Sortable row ─────────────────────────────────────────────────────────────
 
 function SortableJobRow({ job, index, isSelected, onSelect }: {
   job: QueueJob;
@@ -158,9 +173,12 @@ function SortableJobRow({ job, index, isSelected, onSelect }: {
   isSelected: boolean;
   onSelect: (e: React.MouseEvent) => void;
 }): JSX.Element {
-  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: job.id });
+  const { attributes, listeners, setNodeRef, transform, transition } = useSortable({ id: job.id });
   const { playingJobId, isPlaying, toggle } = useAudioPlayer();
   const setAbMode = useQueueStore((s) => s.setAbMode);
+  const isLocked = useQueueStore((s) => s.lockedJobIds.includes(job.id));
+  const unlockJobs = useQueueStore((s) => s.unlockJobs);
+  const defaultOutputFolder = useSettingsStore((s) => s.outputFolder);
 
   const isThisPlaying = playingJobId === job.id && isPlaying;
   const isEnhanced = job.ab_mode === 'enhanced';
@@ -180,13 +198,12 @@ function SortableJobRow({ job, index, isSelected, onSelect }: {
       style={{ transform: CSS.Transform.toString(transform), transition }}
       onClick={onSelect}
       className={clsx(
-        'border-b border-zinc-100 dark:border-white/5 cursor-pointer transition-colors select-none',
-        isDragging ? 'opacity-40 bg-violet-600/10' : '',
+        'group border-b border-slate-100 dark:border-white/[0.04] last:border-0 transition-colors duration-100 cursor-pointer',
         isSelected
-          ? 'bg-violet-600/20 border-violet-500/30 hover:bg-violet-600/25'
+          ? 'bg-violet-50 dark:bg-violet-500/[0.08] border-l-2 border-l-violet-500'
           : isEnhanced
-            ? 'bg-blue-500/[0.12] hover:bg-blue-500/[0.18]'
-            : 'hover:bg-zinc-50 dark:hover:bg-white/5',
+            ? 'bg-emerald-50/40 dark:bg-emerald-500/[0.05] hover:bg-emerald-50 dark:hover:bg-emerald-500/[0.08]'
+            : 'hover:bg-slate-50 dark:hover:bg-white/[0.03]',
       )}
     >
       <td className="px-2 py-2 w-8">
@@ -194,7 +211,7 @@ function SortableJobRow({ job, index, isSelected, onSelect }: {
           {...listeners}
           {...attributes}
           onClick={(e) => e.stopPropagation()}
-          className="text-zinc-300 dark:text-white/20 hover:text-zinc-500 dark:hover:text-white/60 transition-colors cursor-grab active:cursor-grabbing"
+          className="text-slate-300 dark:text-white/20 hover:text-slate-500 dark:hover:text-white/50 transition-colors cursor-grab active:cursor-grabbing"
           tabIndex={-1}
           aria-label="Drag to reorder"
         >
@@ -205,20 +222,20 @@ function SortableJobRow({ job, index, isSelected, onSelect }: {
         <button
           onClick={handlePlay}
           className={clsx(
-            'flex items-center justify-center w-6 h-6 rounded-full transition-colors',
+            'flex items-center justify-center w-6 h-6 rounded-full transition-all duration-150',
             isThisPlaying
-              ? 'text-blue-400 hover:text-blue-300'
-              : 'text-zinc-300 dark:text-white/25 hover:text-zinc-600 dark:hover:text-white/70',
+              ? 'text-violet-500 bg-violet-100 dark:bg-violet-500/20 hover:bg-violet-200 dark:hover:bg-violet-500/30'
+              : 'text-slate-300 dark:text-white/20 hover:text-slate-600 dark:hover:text-white/60 hover:bg-slate-100 dark:hover:bg-white/[0.06]',
           )}
           aria-label={isThisPlaying ? 'Pause' : 'Play'}
         >
-          {isThisPlaying ? <Pause size={12} /> : <Play size={12} />}
+          {isThisPlaying ? <Pause size={11} /> : <Play size={11} />}
         </button>
       </td>
-      <td className="px-4 py-2 text-zinc-400 dark:text-white/30 text-xs w-10">{index + 1}</td>
-      <td className="px-4 py-2 text-sm text-zinc-800 dark:text-white truncate max-w-[180px]">{job.filename}</td>
+      <td className="px-4 py-2 text-slate-400 dark:text-white/25 text-xs w-10 tabular-nums">{index + 1}</td>
+      <td className="px-4 py-2 text-sm text-slate-800 dark:text-slate-100 font-medium truncate max-w-[180px]">{job.filename}</td>
       <td
-        className="px-2 py-2 text-xs text-zinc-500 dark:text-white/50 truncate max-w-[130px] group/dest"
+        className="px-2 py-2 text-xs text-slate-400 dark:text-white/40 truncate max-w-[130px] group/dest"
         title={job.destination || 'Click to set destination'}
       >
         <button
@@ -233,20 +250,14 @@ function SortableJobRow({ job, index, isSelected, onSelect }: {
           className="flex items-center gap-1 w-full truncate hover:text-violet-500 dark:hover:text-violet-400 transition-colors"
         >
           <FolderOpen size={11} className="shrink-0 opacity-0 group-hover/dest:opacity-100 transition-opacity" />
-          <span className="truncate">{job.destination || '—'}</span>
+          <span className="truncate">{job.destination || defaultOutputFolder || '—'}</span>
         </button>
       </td>
-      <td className="px-4 py-2 text-xs text-zinc-500 dark:text-white/50 w-20">{formatBytes(job.size_bytes)}</td>
-      <td className="px-4 py-2 text-xs uppercase text-zinc-400 dark:text-white/40 w-16">{job.media_type}</td>
-      <td className="px-4 py-2 w-24">
-        <FormatSelect job={job} />
-      </td>
-      <td className="px-4 py-2 w-24">
-        <BitrateSelect job={job} />
-      </td>
-      <td className="px-4 py-2 w-24">
-        <SampleRateSelect job={job} />
-      </td>
+      <td className="px-4 py-2 text-xs text-slate-400 dark:text-white/40 w-20 tabular-nums">{formatBytes(job.size_bytes)}</td>
+      <td className="px-4 py-2 text-xs uppercase text-slate-400 dark:text-white/35 w-16">{job.media_type}</td>
+      <td className="px-4 py-2 w-24"><FormatSelect job={job} /></td>
+      <td className="px-4 py-2 w-24"><BitrateSelect job={job} /></td>
+      <td className="px-4 py-2 w-24"><SampleRateSelect job={job} /></td>
       <td className="px-4 py-2 text-xs font-medium w-40">
         {job.status === 'done' && job.output_filepath ? (
           <div className="flex gap-1">
@@ -257,10 +268,10 @@ function SortableJobRow({ job, index, isSelected, onSelect }: {
                 toggle(job.id, job.output_filepath!);
               }}
               className={clsx(
-                'px-1.5 py-0.5 rounded text-[11px] transition-colors',
+                'px-1.5 py-0.5 rounded-md text-[10px] font-medium transition-all duration-150',
                 isEnhanced
-                  ? 'bg-blue-500/30 text-blue-300 font-semibold'
-                  : 'text-zinc-400 dark:text-white/40 hover:bg-zinc-100 dark:hover:bg-white/10',
+                  ? 'bg-violet-500/20 text-violet-600 dark:text-violet-400'
+                  : 'text-slate-400 dark:text-white/35 hover:bg-slate-100 dark:hover:bg-white/[0.07]',
               )}
             >
               Enhanced
@@ -272,30 +283,42 @@ function SortableJobRow({ job, index, isSelected, onSelect }: {
                 toggle(job.id, job.filepath);
               }}
               className={clsx(
-                'px-1.5 py-0.5 rounded text-[11px] transition-colors',
+                'px-1.5 py-0.5 rounded-md text-[10px] font-medium transition-all duration-150',
                 !isEnhanced
-                  ? 'bg-zinc-200 dark:bg-white/15 text-zinc-700 dark:text-white/80 font-semibold'
-                  : 'text-zinc-400 dark:text-white/40 hover:bg-zinc-100 dark:hover:bg-white/10',
+                  ? 'bg-slate-200 dark:bg-white/[0.12] text-slate-700 dark:text-white/80'
+                  : 'text-slate-400 dark:text-white/35 hover:bg-slate-100 dark:hover:bg-white/[0.07]',
               )}
             >
               Original
             </button>
           </div>
         ) : (
-          <>
-            <span
-              className={STATUS_COLORS[job.status]}
-              title={job.status === 'error' ? (job.error_message ?? undefined) : undefined}
-            >
-              {job.status}
-            </span>
-            {job.status === 'processing' && <ProgressBar percent={job.progress} />}
-          </>
+          <StatusBadge status={job.status} progress={job.progress} errorMessage={job.error_message} />
         )}
+      </td>
+      <td className="px-2 py-2 w-8 group/lock">
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            if (isLocked) unlockJobs([job.id]);
+            else useQueueStore.getState().lockJobs([job.id]);
+          }}
+          title={isLocked ? 'Locked — click to unlock' : 'Click to lock'}
+          className={clsx(
+            'block mx-auto transition-all duration-150',
+            isLocked
+              ? 'text-slate-500 dark:text-white/70 opacity-100'
+              : 'text-slate-300 dark:text-white/25 opacity-0 group-hover/lock:opacity-100',
+          )}
+        >
+          <Lock size={12} />
+        </button>
       </td>
     </tr>
   );
 }
+
+// ─── Sortable card (grid view) ────────────────────────────────────────────────
 
 function SortableJobCard({ job, isSelected, onSelect }: {
   job: QueueJob;
@@ -305,6 +328,8 @@ function SortableJobCard({ job, isSelected, onSelect }: {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: job.id });
   const { playingJobId, isPlaying, toggle } = useAudioPlayer();
   const setAbMode = useQueueStore((s) => s.setAbMode);
+  const isLocked = useQueueStore((s) => s.lockedJobIds.includes(job.id));
+  const unlockJobs = useQueueStore((s) => s.unlockJobs);
 
   const isThisPlaying = playingJobId === job.id && isPlaying;
   const isEnhanced = job.ab_mode === 'enhanced';
@@ -321,13 +346,13 @@ function SortableJobCard({ job, isSelected, onSelect }: {
       style={{ transform: CSS.Transform.toString(transform), transition }}
       onClick={onSelect}
       className={clsx(
-        'rounded-xl p-3 border cursor-pointer transition-colors select-none',
-        isDragging ? 'opacity-40' : '',
+        'rounded-xl p-3 border cursor-pointer transition-all duration-150 select-none',
+        isDragging ? 'opacity-40 scale-[0.98]' : '',
         isSelected
-          ? 'bg-violet-600/20 border-violet-500/40'
+          ? 'bg-violet-50 dark:bg-violet-500/[0.08] border-violet-300 dark:border-violet-500/40'
           : isEnhanced
-            ? 'bg-blue-500/[0.12] border-blue-500/20 hover:bg-blue-500/[0.18]'
-            : 'bg-zinc-50 dark:bg-white/5 border-zinc-200 dark:border-white/10 hover:bg-zinc-100 dark:hover:bg-white/[0.08]',
+            ? 'bg-emerald-50/40 dark:bg-emerald-500/[0.05] border-emerald-200 dark:border-emerald-500/15 hover:bg-emerald-50 dark:hover:bg-emerald-500/[0.08]'
+            : 'bg-white dark:bg-white/[0.04] border-slate-200 dark:border-white/[0.07] hover:bg-slate-50 dark:hover:bg-white/[0.06] hover:border-slate-300 dark:hover:border-white/[0.10]',
       )}
     >
       <div className="flex items-start justify-between gap-2 mb-2">
@@ -335,56 +360,90 @@ function SortableJobCard({ job, isSelected, onSelect }: {
           {...listeners}
           {...attributes}
           onClick={(e) => e.stopPropagation()}
-          className="text-zinc-300 dark:text-white/20 hover:text-zinc-500 dark:hover:text-white/60 transition-colors cursor-grab active:cursor-grabbing shrink-0 mt-0.5"
+          className="text-slate-300 dark:text-white/20 hover:text-slate-500 dark:hover:text-white/50 transition-colors cursor-grab active:cursor-grabbing shrink-0 mt-0.5"
           tabIndex={-1}
           aria-label="Drag to reorder"
         >
           <GripVertical size={14} />
         </button>
-        <span className="text-sm text-zinc-800 dark:text-white font-medium truncate flex-1">{job.filename}</span>
-        <div className="flex items-center gap-1 shrink-0">
+        <span className="text-sm text-slate-800 dark:text-slate-100 font-medium truncate flex-1">{job.filename}</span>
+        <div className="flex items-center gap-1.5 shrink-0">
+          <div className="group/lock">
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                if (isLocked) unlockJobs([job.id]);
+                else useQueueStore.getState().lockJobs([job.id]);
+              }}
+              title={isLocked ? 'Locked — click to unlock' : 'Click to lock'}
+              className={clsx(
+                'transition-all duration-150',
+                isLocked ? 'text-slate-400 dark:text-white/60 opacity-100' : 'text-slate-300 dark:text-white/20 opacity-0 group-hover/lock:opacity-100',
+              )}
+            >
+              <Lock size={12} />
+            </button>
+          </div>
           <button
             onClick={handlePlay}
             className={clsx(
-              'flex items-center justify-center w-5 h-5 rounded-full transition-colors',
-              isThisPlaying ? 'text-blue-400' : 'text-zinc-300 dark:text-white/30 hover:text-zinc-600 dark:hover:text-white/70',
+              'flex items-center justify-center w-5 h-5 rounded-full transition-all duration-150',
+              isThisPlaying
+                ? 'text-violet-500 bg-violet-100 dark:bg-violet-500/20'
+                : 'text-slate-300 dark:text-white/25 hover:text-slate-600 dark:hover:text-white/60 hover:bg-slate-100 dark:hover:bg-white/[0.06]',
             )}
             aria-label={isThisPlaying ? 'Pause' : 'Play'}
           >
-            {isThisPlaying ? <Pause size={11} /> : <Play size={11} />}
+            {isThisPlaying ? <Pause size={10} /> : <Play size={10} />}
           </button>
           {job.status === 'done' && job.output_filepath ? (
             <div className="flex gap-0.5">
               <button
                 onClick={(e) => { e.stopPropagation(); setAbMode(job.id, 'enhanced'); toggle(job.id, job.output_filepath!); }}
-                className={clsx('px-1 py-0.5 rounded text-[10px] transition-colors', isEnhanced ? 'bg-blue-500/30 text-blue-300' : 'text-zinc-400 dark:text-white/40 hover:bg-zinc-100 dark:hover:bg-white/10')}
+                className={clsx('px-1.5 py-0.5 rounded-md text-[10px] font-medium transition-all duration-150', isEnhanced ? 'bg-violet-500/20 text-violet-600 dark:text-violet-400' : 'text-slate-400 dark:text-white/35 hover:bg-slate-100 dark:hover:bg-white/[0.07]')}
               >Enh</button>
               <button
                 onClick={(e) => { e.stopPropagation(); setAbMode(job.id, 'original'); toggle(job.id, job.filepath); }}
-                className={clsx('px-1 py-0.5 rounded text-[10px] transition-colors', !isEnhanced ? 'bg-zinc-200 dark:bg-white/15 text-zinc-700 dark:text-white/80' : 'text-zinc-400 dark:text-white/40 hover:bg-zinc-100 dark:hover:bg-white/10')}
+                className={clsx('px-1.5 py-0.5 rounded-md text-[10px] font-medium transition-all duration-150', !isEnhanced ? 'bg-slate-200 dark:bg-white/[0.12] text-slate-700 dark:text-white/80' : 'text-slate-400 dark:text-white/35 hover:bg-slate-100 dark:hover:bg-white/[0.07]')}
               >Orig</button>
             </div>
           ) : (
-            <span className={clsx('text-xs font-medium capitalize', STATUS_COLORS[job.status])}>
+            <span className={clsx(
+              'inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[10px] font-medium capitalize',
+              STATUS_BADGE_CLS[job.status],
+            )}>
+              {job.status === 'processing' && <span className="w-1 h-1 rounded-full bg-amber-400 status-processing-dot" />}
               {job.status}
             </span>
           )}
         </div>
       </div>
-      <div className="flex items-center gap-3 text-xs text-zinc-400 dark:text-white/40">
-        <span>{formatBytes(job.size_bytes)}</span>
+      <div className="flex items-center gap-2 text-[10px] text-slate-400 dark:text-white/35 flex-wrap">
+        <span className="tabular-nums">{formatBytes(job.size_bytes)}</span>
         <span className="uppercase">{job.media_type}</span>
-        <span className="uppercase">{job.output_format}</span>
+        <span className="uppercase font-medium text-slate-500 dark:text-white/50">{job.output_format}</span>
         {job.bitrate && <span>{job.bitrate}</span>}
       </div>
-      {job.status === 'processing' && <ProgressBar percent={job.progress} />}
+      {job.status === 'processing' && (
+        <div className="mt-2 h-[3px] w-full rounded-full bg-slate-100 dark:bg-white/[0.08] overflow-hidden">
+          <motion.div
+            className="h-full rounded-full bg-violet-500"
+            initial={{ width: 0 }}
+            animate={{ width: `${job.progress}%` }}
+            transition={{ duration: 0.3, ease: 'easeOut' }}
+          />
+        </div>
+      )}
     </div>
   );
 }
 
+// ─── Main QueueGrid ───────────────────────────────────────────────────────────
+
 export default function QueueGrid(): JSX.Element {
-  const jobs = useQueueStore((s) => s.filteredJobs());
-  const groups = useQueueStore((s) => s.groupedFilteredJobs());
+  const activeTab = useUIStore((s) => s.activeTab);
+  const jobs = useQueueStore((s) => s.filteredJobs(activeTab));
+  const groups = useQueueStore((s) => s.groupedFilteredJobs(activeTab));
   const setProgress = useQueueStore((s) => s.setProgress);
   const setStatus = useQueueStore((s) => s.setStatus);
   const setOutputFilepath = useQueueStore((s) => s.setOutputFilepath);
@@ -399,6 +458,13 @@ export default function QueueGrid(): JSX.Element {
   const [colWidths, setColWidths] = useState({ filename: 180, destination: 140 });
   const adjustWidth = (col: keyof typeof colWidths, delta: number): void =>
     setColWidths((p) => ({ ...p, [col]: Math.max(80, p[col] + delta) }));
+  const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set());
+  const toggleGroup = (label: string): void =>
+    setCollapsedGroups((prev) => {
+      const next = new Set(prev);
+      if (next.has(label)) next.delete(label); else next.add(label);
+      return next;
+    });
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
@@ -444,40 +510,49 @@ export default function QueueGrid(): JSX.Element {
     }
   }
 
+  const emptyState = (
+    <div className="flex flex-col items-center justify-center h-40 gap-2">
+      <p className="text-slate-400 dark:text-white/25 text-sm">{t('queue.empty')}</p>
+    </div>
+  );
+
   if (viewMode === 'grid') {
     return (
       <div
-        className="flex-1 overflow-auto"
+        className="flex-1 overflow-auto scrollbar-thin"
         onClick={(e) => { if (e.target === e.currentTarget) clearSelection(); }}
       >
-        {jobs.length === 0 ? (
-          <div className="flex items-center justify-center h-32 text-zinc-400 dark:text-white/30 text-sm">
-            {t('queue.empty')}
-          </div>
-        ) : groupByFormat ? (
+        {jobs.length === 0 ? emptyState : groupByFormat ? (
           <div className="flex flex-col gap-4 p-1">
             {groups.map((group) => (
               <div key={group.label}>
-                <div className="text-xs font-semibold uppercase text-zinc-400 dark:text-white/40 px-1 pb-1.5 border-b border-zinc-200 dark:border-white/10 mb-2">
-                  {group.label} <span className="text-zinc-300 dark:text-white/25 font-normal">({group.jobs.length})</span>
-                </div>
-                <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
-                  <SortableContext items={group.jobs.map((j) => j.id)} strategy={rectSortingStrategy}>
-                    <div
-                      className="grid grid-cols-3 gap-2"
-                      onClick={(e) => { if (e.target === e.currentTarget) clearSelection(); }}
-                    >
-                      {group.jobs.map((job) => (
-                        <SortableJobCard
-                          key={job.id}
-                          job={job}
-                          isSelected={selectedJobIds.includes(job.id)}
-                          onSelect={(e) => handleRowClick(e, job.id)}
-                        />
-                      ))}
-                    </div>
-                  </SortableContext>
-                </DndContext>
+                <button
+                  onClick={() => toggleGroup(group.label)}
+                  className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wider text-slate-500 dark:text-white/35 px-1 pb-2 border-b border-slate-200 dark:border-white/[0.07] mb-2 w-full hover:text-slate-700 dark:hover:text-white/60 transition-colors"
+                >
+                  <ChevronRight size={11} className={`transition-transform shrink-0 ${collapsedGroups.has(group.label) ? '' : 'rotate-90'}`} />
+                  {group.label}
+                  <span className="text-slate-300 dark:text-white/20 font-normal ml-0.5">({group.jobs.length})</span>
+                </button>
+                {!collapsedGroups.has(group.label) && (
+                  <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+                    <SortableContext items={group.jobs.map((j) => j.id)} strategy={rectSortingStrategy}>
+                      <div
+                        className="grid grid-cols-3 gap-2"
+                        onClick={(e) => { if (e.target === e.currentTarget) clearSelection(); }}
+                      >
+                        {group.jobs.map((job) => (
+                          <SortableJobCard
+                            key={job.id}
+                            job={job}
+                            isSelected={selectedJobIds.includes(job.id)}
+                            onSelect={(e) => handleRowClick(e, job.id)}
+                          />
+                        ))}
+                      </div>
+                    </SortableContext>
+                  </DndContext>
+                )}
               </div>
             ))}
           </div>
@@ -506,67 +581,79 @@ export default function QueueGrid(): JSX.Element {
 
   const tableHeader = (
     <thead>
-      <tr className="border-b border-zinc-200 dark:border-white/10 text-zinc-400 dark:text-white/40 text-xs uppercase tracking-wider sticky top-0 bg-zinc-50/90 dark:bg-neutral-900/80 backdrop-blur">
-        <th className="px-2 py-2 w-8" />
-        <th className="px-2 py-2 w-8" />
-        <th className="px-4 py-2 w-10">#</th>
-        <th className="resizable-th px-2 py-2 text-left" style={{ width: colWidths.filename, minWidth: 80 }}>
+      <tr className="text-slate-500 dark:text-white/35 font-semibold text-[10px] uppercase tracking-wider sticky top-0 bg-slate-50 dark:bg-[#090E1B] border-b-2 border-slate-200 dark:border-white/[0.08]">
+        <th className="px-2 py-2.5 w-8" />
+        <th className="px-2 py-2.5 w-8" />
+        <th className="px-4 py-2.5 w-10">#</th>
+        <th className="resizable-th px-2 py-2.5 text-left" style={{ width: colWidths.filename, minWidth: 80 }}>
           <span className="px-2">{t('queue.col.filename')}</span>
           <ResizeHandle onDelta={(d) => adjustWidth('filename', d)} />
         </th>
-        <th className="resizable-th px-2 py-2 text-left" style={{ width: colWidths.destination, minWidth: 80 }}>
+        <th className="resizable-th px-2 py-2.5 text-left" style={{ width: colWidths.destination, minWidth: 80 }}>
           <span className="px-2">{t('queue.col.destination')}</span>
           <ResizeHandle onDelta={(d) => adjustWidth('destination', d)} />
         </th>
-        <th className="px-4 py-2 w-20">{t('queue.col.size')}</th>
-        <th className="px-4 py-2 w-16">{t('queue.col.type')}</th>
-        <th className="px-4 py-2 w-24">{t('queue.col.output')}</th>
-        <th className="px-4 py-2 w-24">{t('queue.col.bitrate')}</th>
-        <th className="px-4 py-2 w-28 whitespace-nowrap">{t('queue.col.sampleHz')}</th>
-        <th className="px-4 py-2 w-40">{t('queue.col.status')}</th>
+        <th className="px-4 py-2.5 w-20">{t('queue.col.size')}</th>
+        <th className="px-4 py-2.5 w-16">{t('queue.col.type')}</th>
+        <th className="px-4 py-2.5 w-24">{t('queue.col.output')}</th>
+        <th className="px-4 py-2.5 w-24">{t('queue.col.bitrate')}</th>
+        <th className="px-4 py-2.5 w-28 whitespace-nowrap">{t('queue.col.sampleHz')}</th>
+        <th className="px-4 py-2.5 w-40">{t('queue.col.status')}</th>
+        <th className="px-2 py-2.5 w-8 text-center">
+          <Lock size={11} className="mx-auto text-slate-400 dark:text-white/30" />
+        </th>
       </tr>
     </thead>
   );
 
   return (
     <div
-      className="flex-1 overflow-auto rounded-xl bg-zinc-50 dark:bg-white/5"
+      className="flex-1 overflow-auto rounded-xl bg-white dark:bg-[#0C1120] shadow-sm border border-slate-200 dark:border-white/[0.06] scrollbar-thin"
       onClick={(e) => { if ((e.target as HTMLElement).closest('tr') === null) clearSelection(); }}
     >
-      <table className="w-full text-left">
+      <table className="w-full text-left queue-table">
         {tableHeader}
         <tbody>
           {jobs.length === 0 ? (
             <tr>
-              <td colSpan={11} className="px-4 py-16 text-center text-zinc-400 dark:text-white/30 text-sm">
+              <td colSpan={12} className="px-4 py-16 text-center text-slate-400 dark:text-white/25 text-sm">
                 {t('queue.empty')}
               </td>
             </tr>
           ) : groupByFormat ? (
             <>
               {groups.map((group, gi) => (
-                <>
-                  <tr key={`group-${gi}`}>
-                    <td colSpan={11} className="px-4 pt-3 pb-1 text-xs font-semibold uppercase text-violet-500 dark:text-violet-400/70">
-                      {group.label} <span className="text-zinc-300 dark:text-white/25 font-normal">({group.jobs.length})</span>
+                <React.Fragment key={`group-${gi}`}>
+                  <tr>
+                    <td colSpan={12} className="px-4 pt-3 pb-1">
+                      <button
+                        onClick={() => toggleGroup(group.label)}
+                        className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wider text-violet-600 dark:text-violet-400/80 hover:text-violet-700 dark:hover:text-violet-300 transition-colors"
+                      >
+                        <ChevronRight size={11} className={`transition-transform shrink-0 ${collapsedGroups.has(group.label) ? '' : 'rotate-90'}`} />
+                        {group.label}
+                        <span className="text-slate-300 dark:text-white/20 font-normal ml-0.5">({group.jobs.length})</span>
+                      </button>
                     </td>
                   </tr>
-                  <DndContext key={`dnd-${gi}`} sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
-                    <SortableContext items={group.jobs.map((j) => j.id)} strategy={verticalListSortingStrategy}>
-                      <AnimatePresence>
-                        {group.jobs.map((job, i) => (
-                          <SortableJobRow
-                            key={job.id}
-                            job={job}
-                            index={i}
-                            isSelected={selectedJobIds.includes(job.id)}
-                            onSelect={(e) => handleRowClick(e, job.id)}
-                          />
-                        ))}
-                      </AnimatePresence>
-                    </SortableContext>
-                  </DndContext>
-                </>
+                  {!collapsedGroups.has(group.label) && (
+                    <DndContext key={`dnd-${gi}`} sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+                      <SortableContext items={group.jobs.map((j) => j.id)} strategy={verticalListSortingStrategy}>
+                        <AnimatePresence>
+                          {group.jobs.map((job, i) => (
+                            <SortableJobRow
+                              key={job.id}
+                              job={job}
+                              index={i}
+                              isSelected={selectedJobIds.includes(job.id)}
+                              onSelect={(e) => handleRowClick(e, job.id)}
+                            />
+                          ))}
+                        </AnimatePresence>
+                      </SortableContext>
+                    </DndContext>
+                  )}
+                </React.Fragment>
               ))}
             </>
           ) : (

@@ -2,12 +2,12 @@ import { useEffect, useCallback, useRef } from 'react';
 import { useState } from 'react';
 import { getCurrentWindow } from '@tauri-apps/api/window';
 import { open as openDialog } from '@tauri-apps/plugin-dialog';
-import { Upload } from 'lucide-react';
+import { Music, Video, Upload } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { clsx } from 'clsx';
 import { useTranslation } from 'react-i18next';
 import { validateFile, getFilename } from '@/lib/fileValidation';
-import { invokeAddFiles } from '@/lib/ipc';
+import { invokeAddFiles, invokeListFolderFiles } from '@/lib/ipc';
 import { useQueueStore } from '@/stores/useQueueStore';
 import { useUIStore } from '@/stores/useUIStore';
 
@@ -47,21 +47,39 @@ export default function DropZone(): JSX.Element {
     }
   }, [addJobs]);
 
+  const resolveDroppedPaths = useCallback(async (paths: string[]): Promise<string[]> => {
+    const resolved: string[] = [];
+    for (const p of paths) {
+      const folderRes = await invokeListFolderFiles(p);
+      if (folderRes.success && folderRes.data && folderRes.data.length > 0) {
+        resolved.push(...folderRes.data);
+      } else {
+        resolved.push(p);
+      }
+    }
+    return resolved;
+  }, []);
+
   const handleFilesRef = useRef(handleFiles);
   handleFilesRef.current = handleFiles;
+  const resolveRef = useRef(resolveDroppedPaths);
+  resolveRef.current = resolveDroppedPaths;
 
   useEffect(() => {
     let cancelled = false;
     let unlisten: (() => void) | null = null;
 
-    getCurrentWindow().onDragDropEvent((event) => {
+    getCurrentWindow().onDragDropEvent(async (event) => {
       const type = event.payload.type;
       if (type === 'over') {
         setIsDragging(true);
       } else if (type === 'drop') {
         setIsDragging(false);
         const paths = (event.payload as { type: 'drop'; paths: string[]; position: unknown }).paths;
-        if (paths?.length) handleFilesRef.current(paths);
+        if (paths?.length) {
+          const resolved = await resolveRef.current(paths);
+          if (resolved.length) handleFilesRef.current(resolved);
+        }
       } else {
         setIsDragging(false);
       }
@@ -105,15 +123,22 @@ export default function DropZone(): JSX.Element {
     if (paths.length) await handleFiles(paths);
   };
 
-  const dropText = activeTab === 'audio' ? t('dropzone.audio') : t('dropzone.video');
+  const isAudio = activeTab === 'audio';
+  const dropText = isAudio ? t('dropzone.audio') : t('dropzone.video');
+  const TabIcon = isAudio ? Music : Video;
 
   return (
     <div
       className={clsx(
-        'flex flex-col items-center justify-center h-28 rounded-xl border-2 border-dashed transition-colors shrink-0 cursor-pointer',
+        'relative flex flex-col items-center justify-center h-[100px] rounded-xl border-2 border-dashed transition-all duration-200 shrink-0 cursor-pointer overflow-hidden group',
         isDragging
-          ? 'border-violet-400 bg-violet-500/10'
-          : 'border-zinc-300 dark:border-white/20 bg-zinc-50 dark:bg-white/5 hover:border-zinc-400 dark:hover:border-white/40 hover:bg-zinc-100 dark:hover:bg-white/10'
+          ? 'border-violet-400 bg-violet-500/10 dark:bg-violet-500/[0.08]'
+          : [
+              'border-slate-300 dark:border-white/[0.12]',
+              'bg-white dark:bg-[#0F172A]',
+              'hover:border-violet-300 dark:hover:border-violet-500/40',
+              'hover:bg-violet-50/40 dark:hover:bg-violet-900/[0.06]',
+            ],
       )}
       onDragEnter={onDragEnter}
       onDragOver={onDragOver}
@@ -121,25 +146,57 @@ export default function DropZone(): JSX.Element {
       onDrop={onDrop}
       onClick={handleClick}
     >
+      {/* Subtle background glow on hover */}
+      <div className="absolute inset-0 bg-gradient-to-b from-violet-500/[0.02] to-transparent pointer-events-none" />
+
       <motion.div
-        animate={{ scale: isDragging ? 1.1 : 1 }}
-        transition={{ type: 'spring', stiffness: 300 }}
-        className="flex flex-col items-center gap-2 text-zinc-400 dark:text-white/50"
+        animate={{ scale: isDragging ? 1.08 : 1, y: isDragging ? -2 : 0 }}
+        transition={{ type: 'spring', stiffness: 400, damping: 25 }}
+        className="flex items-center gap-4 text-slate-400 dark:text-white/40 z-10"
       >
-        <Upload size={24} />
-        <div className="text-center">
-          <span className="text-sm block">{dropText}</span>
-          <span className="text-xs text-zinc-400 dark:text-white/30">{t('dropzone.browse')}</span>
+        {/* Icon cluster */}
+        <div className="relative">
+          <div className={clsx(
+            'w-9 h-9 rounded-xl flex items-center justify-center transition-colors duration-200',
+            isDragging
+              ? 'bg-violet-500/20 text-violet-400'
+              : 'bg-slate-100 dark:bg-white/[0.05] text-slate-400 dark:text-white/30 group-hover:bg-violet-100 dark:group-hover:bg-violet-500/10 group-hover:text-violet-500 dark:group-hover:text-violet-400',
+          )}>
+            <Upload size={18} />
+          </div>
+          <div className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-slate-200 dark:bg-[#1A2237] border border-slate-300 dark:border-white/[0.08] flex items-center justify-center">
+            <TabIcon size={9} className="text-slate-500 dark:text-white/50" />
+          </div>
+        </div>
+
+        {/* Text */}
+        <div>
+          <p className="text-sm font-medium text-slate-600 dark:text-slate-300 leading-tight">{dropText}</p>
+          <p className="text-xs text-slate-400 dark:text-white/30 mt-0.5">
+            {t('dropzone.browse')}
+            {' · '}
+            <span className="text-slate-400 dark:text-white/20">
+              {isAudio ? 'MP3, WAV, FLAC, AAC +7' : 'MP4, MKV, MOV, AVI +2'}
+            </span>
+          </p>
         </div>
       </motion.div>
+
       <AnimatePresence>
         {error && (
-          <motion.p initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}
-            className="text-xs text-red-400 mt-2">{error}</motion.p>
+          <motion.p
+            initial={{ opacity: 0, y: 4 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0 }}
+            className="absolute bottom-2 text-xs text-red-400 dark:text-red-400"
+          >
+            {error}
+          </motion.p>
         )}
       </AnimatePresence>
+
       {limitWarning && (
-        <p className="mt-2 px-3 py-2 bg-orange-500/20 border border-orange-500/40 rounded-lg text-orange-400 dark:text-orange-300 text-xs text-center">
+        <p className="absolute bottom-2 px-3 py-1.5 bg-amber-500/15 border border-amber-500/30 rounded-lg text-amber-600 dark:text-amber-400 text-xs text-center">
           {limitWarning}
         </p>
       )}

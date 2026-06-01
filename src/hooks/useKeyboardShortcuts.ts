@@ -7,6 +7,7 @@ import { useUIStore } from '@/stores/useUIStore';
 import { useAudioPlayer } from '@/stores/useAudioPlayer';
 import {
   invokeAddFiles,
+  invokeListFolderFiles,
   invokeConvertFiles,
   invokeProcessQueue,
   invokeSeparateStems,
@@ -144,8 +145,14 @@ export function useKeyboardShortcuts(): void {
       if (matches(e, sc.focusSearch)) { e.preventDefault(); ui.requestFocusSearch(); return; }
       if (matches(e, sc.browseFolder)) {
         e.preventDefault();
-        const folder = await open({ directory: true, multiple: false, title: 'Select Output Folder' });
-        if (typeof folder === 'string' && folder) await saveSettings({ outputFolder: folder });
+        const folder = await open({ directory: true, multiple: false, title: 'Import Files from Folder' });
+        if (typeof folder === 'string' && folder) {
+          const listRes = await invokeListFolderFiles(folder);
+          if (listRes.success && listRes.data && listRes.data.length > 0) {
+            const addRes = await invokeAddFiles(listRes.data);
+            if (addRes.success && addRes.data) q.addJobs(addRes.data);
+          }
+        }
         return;
       }
 

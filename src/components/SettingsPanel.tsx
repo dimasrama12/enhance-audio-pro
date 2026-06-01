@@ -19,8 +19,6 @@ import type { KeyboardShortcutMap } from '@/types/settings';
 type SettingsTab = 'general' | 'guide' | 'shortcuts' | 'formats';
 interface Props { open: boolean; onClose: () => void; }
 
-// (Guide content is fully i18n-driven — see en.json guide.title / guide.content)
-
 // ─── Shortcuts tab ────────────────────────────────────────────────────────────
 
 function formatKey(e: KeyboardEvent): string {
@@ -58,16 +56,16 @@ function ShortcutsTab(): JSX.Element {
 
   return (
     <div className="flex flex-col gap-2">
-      <p className="text-xs text-zinc-400 dark:text-white/40 mb-2">Click a binding to record a new shortcut. Press Escape to cancel.</p>
+      <p className="text-xs text-slate-400 dark:text-white/40 mb-2">Click a binding to record a new shortcut. Press Escape to cancel.</p>
       {(Object.keys(SHORTCUT_LABELS) as (keyof KeyboardShortcutMap)[]).map((key) => (
         <div key={key} className="flex items-center justify-between gap-3">
-          <span className="text-xs text-zinc-600 dark:text-white/60 flex-1 truncate">{SHORTCUT_LABELS[key]}</span>
+          <span className="text-xs text-slate-600 dark:text-white/60 flex-1 truncate">{SHORTCUT_LABELS[key]}</span>
           <button
             onClick={() => startRecording(key)}
-            className={`min-w-[90px] text-center px-2 py-1 rounded text-xs font-mono border transition-colors ${
+            className={`min-w-[90px] text-center px-2 py-1 rounded-lg text-xs font-mono border transition-colors ${
               recording === key
-                ? 'border-violet-500 bg-violet-600/20 text-violet-500 dark:text-violet-300 animate-pulse'
-                : 'border-zinc-200 dark:border-white/20 bg-zinc-50 dark:bg-white/5 text-zinc-700 dark:text-white/70 hover:border-violet-500/60 hover:text-zinc-900 dark:hover:text-white'
+                ? 'border-violet-500 bg-violet-600/15 text-violet-500 dark:text-violet-300 animate-pulse'
+                : 'border-slate-200 dark:border-white/[0.10] bg-slate-50 dark:bg-white/[0.04] text-slate-700 dark:text-white/60 hover:border-violet-400/60 hover:text-slate-900 dark:hover:text-white'
             }`}
           >
             {recording === key ? 'Press key…' : (keyboardShortcuts?.[key] ?? DEFAULT_KEYBOARD_SHORTCUTS[key])}
@@ -76,7 +74,7 @@ function ShortcutsTab(): JSX.Element {
       ))}
       <button
         onClick={() => setKeyboardShortcuts({ ...DEFAULT_KEYBOARD_SHORTCUTS })}
-        className="mt-3 text-xs text-zinc-400 dark:text-white/30 hover:text-zinc-700 dark:hover:text-white/60 transition-colors self-end"
+        className="mt-3 text-xs text-slate-400 dark:text-white/30 hover:text-slate-700 dark:hover:text-white/60 transition-colors self-end"
       >
         Reset all to defaults
       </button>
@@ -112,28 +110,39 @@ function FormatsTab(): JSX.Element {
   return (
     <div className="flex flex-col gap-6">
       <div>
-        <h4 className="text-xs font-semibold uppercase text-zinc-400 dark:text-white/40 mb-3">Audio</h4>
+        <h4 className="text-xs font-semibold uppercase tracking-wider text-slate-400 dark:text-white/40 mb-3">Audio</h4>
         <div className="grid grid-cols-2 gap-2">
           {AUDIO_FORMATS.map(({ ext, desc }) => (
-            <div key={ext} className="flex items-center gap-3 px-3 py-2 rounded-lg bg-zinc-50 dark:bg-white/5 border border-zinc-100 dark:border-white/5">
-              <span className="text-xs font-mono font-bold text-violet-500 dark:text-violet-400 w-10 shrink-0">{ext}</span>
-              <span className="text-xs text-zinc-500 dark:text-white/40">{desc}</span>
+            <div key={ext} className="flex items-center gap-3 px-3 py-2 rounded-lg bg-slate-50 dark:bg-white/[0.04] border border-slate-200 dark:border-white/[0.06]">
+              <span className="text-xs font-mono font-bold text-violet-600 dark:text-violet-400 w-10 shrink-0">{ext}</span>
+              <span className="text-xs text-slate-500 dark:text-white/40">{desc}</span>
             </div>
           ))}
         </div>
       </div>
       <div>
-        <h4 className="text-xs font-semibold uppercase text-zinc-400 dark:text-white/40 mb-3">Video (audio extraction)</h4>
+        <h4 className="text-xs font-semibold uppercase tracking-wider text-slate-400 dark:text-white/40 mb-3">Video (audio extraction)</h4>
         <div className="grid grid-cols-2 gap-2">
           {VIDEO_FORMATS.map(({ ext, desc }) => (
-            <div key={ext} className="flex items-center gap-3 px-3 py-2 rounded-lg bg-zinc-50 dark:bg-white/5 border border-zinc-100 dark:border-white/5">
+            <div key={ext} className="flex items-center gap-3 px-3 py-2 rounded-lg bg-slate-50 dark:bg-white/[0.04] border border-slate-200 dark:border-white/[0.06]">
               <span className="text-xs font-mono font-bold text-teal-600 dark:text-teal-400 w-10 shrink-0">{ext}</span>
-              <span className="text-xs text-zinc-500 dark:text-white/40">{desc}</span>
+              <span className="text-xs text-slate-500 dark:text-white/40">{desc}</span>
             </div>
           ))}
         </div>
       </div>
     </div>
+  );
+}
+
+// ─── Section wrapper ──────────────────────────────────────────────────────────
+
+function Section({ title, children }: { title: string; children: React.ReactNode }): JSX.Element {
+  return (
+    <section className="flex flex-col gap-3 p-4 rounded-xl bg-slate-50 dark:bg-white/[0.03] border border-slate-200 dark:border-white/[0.06]">
+      <h3 className="text-[10px] font-semibold uppercase tracking-widest text-slate-400 dark:text-white/30">{title}</h3>
+      {children}
+    </section>
   );
 }
 
@@ -176,62 +185,61 @@ export default function SettingsPanel({ open, onClose }: Props): JSX.Element {
     <AnimatePresence>
       {open && (
         <>
-          {/* Backdrop — blocks all interaction with the page behind the modal */}
+          {/* Backdrop */}
           <motion.div
             initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
             onClick={onClose}
-            className="fixed inset-0 bg-black/70 backdrop-blur-sm z-40"
+            className="fixed inset-0 bg-black/60 backdrop-blur-sm z-40"
           />
 
           {/* Centered modal */}
           <div className="fixed inset-0 z-50 flex items-center justify-center pointer-events-none">
             <motion.div
-              initial={{ opacity: 0, scale: 0.95, y: 12 }}
+              initial={{ opacity: 0, scale: 0.96, y: 10 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.95, y: 12 }}
-              transition={{ type: 'spring', stiffness: 380, damping: 28 }}
-              className="pointer-events-auto w-[700px] max-h-[78vh] bg-white dark:bg-neutral-900 border border-zinc-200 dark:border-white/10 rounded-2xl shadow-2xl flex flex-col overflow-hidden"
+              exit={{ opacity: 0, scale: 0.96, y: 10 }}
+              transition={{ type: 'spring', stiffness: 420, damping: 32 }}
+              className="pointer-events-auto w-[430px] max-h-[78vh] bg-white dark:bg-[#0D1422] border border-slate-200 dark:border-white/[0.08] rounded-2xl shadow-2xl flex flex-col overflow-hidden"
             >
               {/* Header */}
-              <div className="flex items-center justify-between px-5 py-3.5 border-b border-zinc-200 dark:border-white/10 shrink-0">
-                <h2 className="font-semibold text-sm text-zinc-900 dark:text-white">{t('settings.title')}</h2>
+              <div className="flex items-center justify-between px-5 py-3.5 border-b border-slate-200 dark:border-white/[0.06] shrink-0">
+                <h2 className="font-semibold text-sm text-slate-900 dark:text-slate-100">{t('settings.title')}</h2>
                 <button
                   onClick={onClose}
-                  className="p-1 rounded-lg text-zinc-400 dark:text-white/40 hover:text-zinc-900 dark:hover:text-white hover:bg-zinc-100 dark:hover:bg-white/10 transition-colors"
+                  className="p-1.5 rounded-lg text-slate-400 dark:text-white/40 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-white/[0.08] transition-colors"
                 >
-                  <X size={15} />
+                  <X size={14} />
                 </button>
               </div>
 
-              {/* Tab bar */}
-              <div className="flex border-b border-zinc-200 dark:border-white/10 shrink-0 px-4 gap-1">
+              {/* Tab bar — underline style */}
+              <div className="flex border-b border-slate-200 dark:border-white/[0.06] shrink-0 px-4 gap-0.5">
                 {TABS.map(({ id, label, Icon }) => (
                   <button
                     key={id}
                     onClick={() => setActiveTab(id)}
-                    className={`flex items-center gap-1.5 px-3 py-2.5 text-xs font-medium border-b-2 -mb-px transition-colors ${
+                    className={`flex items-center gap-1.5 px-3 py-2.5 text-xs font-medium border-b-2 -mb-px transition-all duration-150 ${
                       activeTab === id
-                        ? 'border-violet-500 text-violet-500 dark:text-violet-400'
-                        : 'border-transparent text-zinc-400 dark:text-white/40 hover:text-zinc-700 dark:hover:text-white/70'
+                        ? 'border-violet-500 text-violet-600 dark:text-violet-400'
+                        : 'border-transparent text-slate-400 dark:text-white/35 hover:text-slate-700 dark:hover:text-white/65'
                     }`}
                   >
-                    <Icon size={12} />
+                    <Icon size={11} />
                     {label}
                   </button>
                 ))}
               </div>
 
-              {/* Tab content — scrollbar hidden but content remains scrollable */}
-              <div className="flex-1 overflow-y-auto scrollbar-hide p-5">
+              {/* Tab content */}
+              <div className="flex-1 overflow-y-auto scrollbar-hide p-4">
 
                 {/* ── General ──────────────────────────────────────────── */}
                 {activeTab === 'general' && (
-                  <div className="flex flex-col gap-5">
-                    <section>
-                      <h3 className="text-xs font-semibold uppercase text-zinc-400 dark:text-white/40 mb-3">{t('settings.appearance')}</h3>
+                  <div className="flex flex-col gap-3">
+                    <Section title={t('settings.appearance')}>
                       <div className="flex items-center justify-between">
-                        <span className="text-sm text-zinc-900 dark:text-white">{t('settings.theme')}</span>
-                        <div className="flex rounded-lg overflow-hidden border border-zinc-200 dark:border-white/20">
+                        <span className="text-sm text-slate-900 dark:text-slate-100">{t('settings.theme')}</span>
+                        <div className="flex rounded-lg overflow-hidden border border-slate-200 dark:border-white/[0.10]">
                           {(['dark', 'light'] as const).map((th) => (
                             <button
                               key={th}
@@ -239,7 +247,7 @@ export default function SettingsPanel({ open, onClose }: Props): JSX.Element {
                               className={`px-4 py-1.5 text-xs capitalize transition-colors ${
                                 store.theme === th
                                   ? 'bg-violet-600 text-white'
-                                  : 'text-zinc-500 dark:text-white/50 hover:text-zinc-900 dark:hover:text-white'
+                                  : 'text-slate-500 dark:text-white/50 hover:text-slate-900 dark:hover:text-white'
                               }`}
                             >
                               {t(`settings.${th}`)}
@@ -247,11 +255,10 @@ export default function SettingsPanel({ open, onClose }: Props): JSX.Element {
                           ))}
                         </div>
                       </div>
-                    </section>
+                    </Section>
 
-                    <section>
-                      <h3 className="text-xs font-semibold uppercase text-zinc-400 dark:text-white/40 mb-3">{t('settings.enhancement')}</h3>
-                      <label className="text-sm block mb-2 text-zinc-900 dark:text-white">{t('settings.strengthLabel')}</label>
+                    <Section title={t('settings.enhancement')}>
+                      <label className="text-sm text-slate-900 dark:text-slate-100">{t('settings.strengthLabel')}</label>
                       <div className="flex items-center gap-3">
                         <input
                           type="range" min={0} max={100} step={1}
@@ -263,66 +270,61 @@ export default function SettingsPanel({ open, onClose }: Props): JSX.Element {
                           }}
                           className="flex-1 accent-violet-500"
                         />
-                        <span className="text-sm text-zinc-500 dark:text-white/60 w-8 text-right tabular-nums">
+                        <span className="text-sm text-slate-500 dark:text-white/60 w-8 text-right tabular-nums">
                           {store.enhancementStrength}
                         </span>
                       </div>
-                      <p className="text-[10px] text-zinc-400 dark:text-white/30 mt-1">{t('settings.strengthHint')}</p>
-                    </section>
+                      <p className="text-[10px] text-slate-400 dark:text-white/30">{t('settings.strengthHint')}</p>
+                    </Section>
 
-                    <section>
-                      <h3 className="text-xs font-semibold uppercase text-zinc-400 dark:text-white/40 mb-3">{t('settings.output')}</h3>
-                      <label className="text-sm block mb-2 text-zinc-900 dark:text-white">{t('settings.outputFolder')}</label>
+                    <Section title={t('settings.output')}>
+                      <label className="text-sm text-slate-900 dark:text-slate-100">{t('settings.outputFolder')}</label>
                       <div className="flex gap-2">
                         <input
                           type="text" readOnly
                           value={store.outputFolder || t('settings.notSet')}
-                          className="flex-1 px-3 py-1.5 bg-zinc-100 dark:bg-white/10 border border-zinc-200 dark:border-transparent rounded-lg text-sm text-zinc-500 dark:text-white/60 outline-none truncate"
+                          className="flex-1 px-3 py-1.5 bg-slate-100 dark:bg-white/[0.06] border border-slate-200 dark:border-white/[0.08] rounded-lg text-sm text-slate-500 dark:text-white/50 outline-none truncate"
                         />
                         <button
                           onClick={browseFolder}
-                          className="p-1.5 rounded-lg bg-zinc-100 dark:bg-white/10 hover:bg-zinc-200 dark:hover:bg-white/20 text-zinc-500 dark:text-white/60 hover:text-zinc-900 dark:hover:text-white transition-colors shrink-0"
+                          className="p-2 rounded-lg bg-slate-100 dark:bg-white/[0.06] hover:bg-slate-200 dark:hover:bg-white/[0.10] text-slate-500 dark:text-white/50 hover:text-slate-900 dark:hover:text-white transition-colors shrink-0"
                         >
-                          <FolderOpen size={16} />
+                          <FolderOpen size={15} />
                         </button>
                       </div>
-                    </section>
 
-                    <section>
-                      <h3 className="text-xs font-semibold uppercase text-zinc-400 dark:text-white/40 mb-3">Output Filename</h3>
-                      <label className="text-sm block mb-2 text-zinc-900 dark:text-white">Template</label>
+                      <label className="text-sm text-slate-900 dark:text-slate-100 mt-1">Output Filename Template</label>
                       <input
                         type="text"
                         value={store.filenameTemplate}
                         onChange={(e) => save({ filenameTemplate: e.target.value })}
                         placeholder="{name}_enhanced"
-                        className="w-full px-3 py-1.5 bg-zinc-100 dark:bg-white/10 border border-zinc-200 dark:border-transparent rounded-lg text-sm text-zinc-900 dark:text-white outline-none focus:ring-1 focus:ring-violet-500 transition"
+                        className="w-full px-3 py-1.5 bg-slate-100 dark:bg-white/[0.06] border border-slate-200 dark:border-white/[0.08] rounded-lg text-sm text-slate-900 dark:text-white outline-none focus:ring-1 focus:ring-violet-500 transition"
                       />
-                      <p className="text-[10px] text-zinc-400 dark:text-white/30 mt-1">
-                        Tokens: <code>{'{name}'}</code>, <code>{'{date}'}</code>, <code>{'{format}'}</code>
+                      <p className="text-[10px] text-slate-400 dark:text-white/30">
+                        Tokens: <code className="font-mono">{'{name}'}</code>, <code className="font-mono">{'{date}'}</code>, <code className="font-mono">{'{format}'}</code>
                       </p>
-                    </section>
+                    </Section>
 
-                    <section>
-                      <h3 className="text-xs font-semibold uppercase text-zinc-400 dark:text-white/40 mb-3">{t('settings.language')}</h3>
+                    <Section title={t('settings.language')}>
                       <select
                         value={store.language}
                         onChange={(e) => save({ language: e.target.value })}
-                        className="w-full bg-zinc-100 dark:bg-white/10 text-zinc-900 dark:text-white text-sm rounded-lg px-3 py-2 outline-none border border-zinc-200 dark:border-transparent focus:ring-1 focus:ring-violet-500 transition"
+                        className="w-full bg-slate-100 dark:bg-white/[0.06] text-slate-900 dark:text-white text-sm rounded-lg px-3 py-2 outline-none border border-slate-200 dark:border-white/[0.08] focus:ring-1 focus:ring-violet-500 transition"
                       >
                         {SUPPORTED_LANGUAGES.map((l) => (
-                          <option key={l.code} value={l.code} className="bg-white dark:bg-neutral-800">{l.label}</option>
+                          <option key={l.code} value={l.code} className="bg-white dark:bg-[#0D1422]">{l.label}</option>
                         ))}
                       </select>
-                    </section>
+                    </Section>
                   </div>
                 )}
 
                 {/* ── User Guide ───────────────────────────────────────── */}
                 {activeTab === 'guide' && (
                   <div>
-                    <h4 className="text-sm font-semibold text-zinc-800 dark:text-white/80 mb-3">{t('guide.title')}</h4>
-                    <p className="text-sm text-zinc-500 dark:text-white/50 leading-relaxed">{t('guide.content')}</p>
+                    <h4 className="text-sm font-semibold text-slate-800 dark:text-white/80 mb-3">{t('guide.title')}</h4>
+                    <p className="text-sm text-slate-500 dark:text-white/50 leading-relaxed">{t('guide.content')}</p>
                   </div>
                 )}
 

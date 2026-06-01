@@ -30,53 +30,79 @@ export default function Sidebar(): JSX.Element {
     await invokeSaveSettings(settings);
   };
 
-  const btnBase = 'p-2 rounded-lg transition-colors text-zinc-500 hover:text-zinc-900 hover:bg-zinc-300 dark:text-white/50 dark:hover:text-white dark:hover:bg-white/10';
+  const utilBtn = clsx(
+    'p-2 rounded-lg transition-colors duration-150',
+    'text-slate-500 dark:text-white/40 hover:text-slate-800 dark:hover:text-white',
+    'hover:bg-slate-200 dark:hover:bg-white/[0.08]',
+  );
 
   return (
     <>
-      <aside className="flex flex-col w-16 bg-zinc-200 dark:bg-neutral-950 items-center py-4 gap-2 shrink-0 transition-colors duration-200">
-        {tabs.map(({ id, label, Icon }) => (
+      <aside className="flex flex-col w-16 bg-[#EFF2F6] dark:bg-[#080D18] border-r border-slate-200 dark:border-white/[0.06] items-center py-3 gap-1.5 shrink-0 transition-colors duration-200">
+        {/* Nav tabs */}
+        <div className="flex flex-col gap-1 w-full px-2">
+          {tabs.map(({ id, label, Icon }) => (
+            <button
+              key={id}
+              onClick={() => setActiveTab(id)}
+              title={`${label} tab`}
+              className={clsx(
+                'flex flex-col items-center gap-0.5 py-2 rounded-xl w-full transition-all duration-150',
+                activeTab === id
+                  ? [
+                      'bg-white dark:bg-white/[0.08]',
+                      'text-violet-600 dark:text-violet-400',
+                      'shadow-sm dark:shadow-none',
+                      'border-2 border-violet-300 dark:border-violet-500/50',
+                    ]
+                  : [
+                      'text-slate-500 dark:text-white/40',
+                      'hover:text-slate-800 dark:hover:text-white',
+                      'hover:bg-slate-200/60 dark:hover:bg-white/[0.05]',
+                      'border-2 border-transparent',
+                    ]
+              )}
+            >
+              <Icon size={17} />
+              <span className="text-[9px] font-semibold tracking-wide">{label}</span>
+            </button>
+          ))}
+        </div>
+
+        {/* Divider */}
+        <div className="w-8 border-t border-slate-300 dark:border-white/[0.08] my-1" />
+
+        <div className="flex-1" />
+
+        {/* Utility cluster */}
+        <div className="flex flex-col gap-1 w-full px-2">
           <button
-            key={id}
-            onClick={() => setActiveTab(id)}
+            onClick={toggleHistory}
+            title="Recent files [Ctrl+H]"
             className={clsx(
-              'flex flex-col items-center gap-1 p-2 rounded-lg w-12 transition-colors',
-              activeTab === id
-                ? 'bg-violet-600 text-white'
-                : 'text-zinc-500 hover:text-zinc-900 hover:bg-zinc-300 dark:text-white/50 dark:hover:text-white dark:hover:bg-white/10'
+              'p-2 w-full flex items-center justify-center rounded-xl transition-all duration-150',
+              historyOpen
+                ? 'bg-violet-600 text-white shadow-glow-violet-sm'
+                : utilBtn,
             )}
           >
-            <Icon size={18} />
-            <span className="text-[9px] font-medium">{label}</span>
+            <Clock size={17} />
           </button>
-        ))}
-        <div className="flex-1" />
-        <button
-          onClick={toggleHistory}
-          className={clsx(
-            'p-2 rounded-lg transition-colors',
-            historyOpen
-              ? 'bg-violet-600 text-white'
-              : btnBase
-          )}
-          title="Recent files [Ctrl+H]"
-        >
-          <Clock size={18} />
-        </button>
-        <button
-          onClick={toggleTheme}
-          title={store.theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
-          className={btnBase}
-        >
-          {store.theme === 'dark' ? <Sun size={18} /> : <Moon size={18} />}
-        </button>
-        <button
-          onClick={openSettings}
-          className={btnBase}
-          title="Settings (Ctrl+,)"
-        >
-          <Settings size={18} />
-        </button>
+          <button
+            onClick={toggleTheme}
+            title={store.theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
+            className={clsx('w-full flex items-center justify-center rounded-xl', utilBtn)}
+          >
+            {store.theme === 'dark' ? <Sun size={17} /> : <Moon size={17} />}
+          </button>
+          <button
+            onClick={openSettings}
+            title="Settings (Ctrl+,)"
+            className={clsx('w-full flex items-center justify-center rounded-xl', utilBtn)}
+          >
+            <Settings size={17} />
+          </button>
+        </div>
       </aside>
       <HistoryPanel open={historyOpen} onClose={closeHistory} />
     </>

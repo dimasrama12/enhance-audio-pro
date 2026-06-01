@@ -9,15 +9,15 @@ import WaveformPlayer from '@/components/WaveformPlayer';
 type Tab = 'trim' | 'speed' | 'pitch' | 'volume' | 'fade' | 'merge' | 'loop' | 'eq' | 'waveform';
 
 const TABS: { id: Tab; label: string; icon: React.ReactNode }[] = [
-  { id: 'trim',     label: 'Trim',     icon: <Scissors size={12} /> },
-  { id: 'speed',    label: 'Speed',    icon: <Gauge size={12} /> },
-  { id: 'pitch',    label: 'Pitch',    icon: <Music size={12} /> },
-  { id: 'volume',   label: 'Volume',   icon: <Volume2 size={12} /> },
-  { id: 'fade',     label: 'Fade',     icon: <Waves size={12} /> },
-  { id: 'merge',    label: 'Merge',    icon: <GitMerge size={12} /> },
-  { id: 'loop',     label: 'Loop',     icon: <Repeat size={12} /> },
-  { id: 'eq',       label: 'EQ',       icon: <SlidersHorizontal size={12} /> },
-  { id: 'waveform', label: 'Waveform', icon: <Activity size={12} /> },
+  { id: 'trim',     label: 'Trim',     icon: <Scissors size={11} /> },
+  { id: 'speed',    label: 'Speed',    icon: <Gauge size={11} /> },
+  { id: 'pitch',    label: 'Pitch',    icon: <Music size={11} /> },
+  { id: 'volume',   label: 'Volume',   icon: <Volume2 size={11} /> },
+  { id: 'fade',     label: 'Fade',     icon: <Waves size={11} /> },
+  { id: 'merge',    label: 'Merge',    icon: <GitMerge size={11} /> },
+  { id: 'loop',     label: 'Loop',     icon: <Repeat size={11} /> },
+  { id: 'eq',       label: 'EQ',       icon: <SlidersHorizontal size={11} /> },
+  { id: 'waveform', label: 'Waveform', icon: <Activity size={11} /> },
 ];
 
 function NumInput({
@@ -27,8 +27,8 @@ function NumInput({
   onChange: (v: number) => void;
 }): JSX.Element {
   return (
-    <div className="flex flex-col gap-1 flex-1">
-      <span className="text-white/40 text-[10px] uppercase tracking-wider">{label}</span>
+    <div className="flex flex-col gap-1 flex-1 min-w-[72px]">
+      <span className="text-slate-400 dark:text-white/35 text-[10px] uppercase tracking-wider font-medium">{label}</span>
       <div className="flex items-center gap-1">
         <input
           type="number"
@@ -37,9 +37,9 @@ function NumInput({
           max={max}
           step={step}
           onChange={(e) => onChange(Number(e.target.value))}
-          className="w-full bg-white/10 text-white text-xs rounded-lg px-2 py-1.5 outline-none focus:ring-1 focus:ring-violet-500 transition"
+          className="w-full bg-slate-100 dark:bg-white/[0.08] text-slate-900 dark:text-white text-xs rounded-lg px-2 py-1.5 outline-none focus:ring-1 focus:ring-violet-500 transition border border-slate-200 dark:border-white/[0.06]"
         />
-        {unit && <span className="text-white/30 text-[10px]">{unit}</span>}
+        {unit && <span className="text-slate-400 dark:text-white/30 text-[10px] shrink-0">{unit}</span>}
       </div>
     </div>
   );
@@ -49,7 +49,7 @@ function ApplyButton({ onClick, label = 'Apply' }: { onClick: () => void; label?
   return (
     <button
       onClick={onClick}
-      className="px-4 py-1.5 bg-violet-600 hover:bg-violet-500 text-white text-xs font-medium rounded-lg transition-colors"
+      className="px-4 py-1.5 bg-violet-600 hover:bg-violet-500 text-white text-xs font-medium rounded-lg transition-colors duration-150 shadow-glow-violet-sm shrink-0"
     >
       {label}
     </button>
@@ -138,17 +138,17 @@ export default function ManipulationPanel(): JSX.Element {
           initial={{ height: 0, opacity: 0 }}
           animate={{ height: 'auto', opacity: 1 }}
           exit={{ height: 0, opacity: 0 }}
-          transition={{ duration: 0.2, ease: 'easeOut' }}
-          className="overflow-hidden"
+          transition={{ duration: 0.18, ease: 'easeOut' }}
+          className="overflow-hidden shrink-0"
         >
-          <div className="rounded-xl bg-white/5 border border-white/10 p-3 flex flex-col gap-3">
+          <div className="rounded-xl bg-white dark:bg-[#0D1525] border border-slate-200 dark:border-white/[0.07] shadow-sm dark:shadow-none p-3 flex flex-col gap-3">
             {/* Header */}
             <div className="flex items-center justify-between">
-              <span className="text-xs text-white/50">
-                <span className="text-violet-400 font-medium">{selectedJob.filename}</span>
-                {' '}— manipulation tools
+              <span className="text-xs text-slate-500 dark:text-white/40 truncate max-w-[70%]">
+                <span className="text-violet-600 dark:text-violet-400 font-medium">{selectedJob.filename}</span>
+                <span className="hidden sm:inline"> — manipulation tools</span>
               </span>
-              <div className="flex items-center gap-1">
+              <div className="flex items-center gap-1 shrink-0">
                 <button
                   onClick={() => {
                     setTrimStart(0); setTrimEnd(30); setSpeed(1.0); setSemitones(0);
@@ -157,34 +157,34 @@ export default function ManipulationPanel(): JSX.Element {
                     setEqGains(Array(11).fill(0));
                   }}
                   title="Reset all values to defaults"
-                  className="px-2 py-0.5 text-[10px] rounded text-white/30 hover:text-white hover:bg-white/10 transition-colors"
+                  className="px-2 py-0.5 text-[10px] rounded-md text-slate-400 dark:text-white/30 hover:text-slate-800 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-white/[0.08] transition-colors"
                 >
                   Reset All
                 </button>
                 <button
                   onClick={() => setSelectedJob(null)}
-                  className="p-1 rounded-md text-white/30 hover:text-white hover:bg-white/10 transition-colors"
+                  className="p-1 rounded-md text-slate-400 dark:text-white/30 hover:text-slate-800 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-white/[0.08] transition-colors"
                 >
                   <X size={12} />
                 </button>
               </div>
             </div>
 
-            {/* Tabs */}
-            <div className="flex gap-1 overflow-x-auto">
+            {/* Tab bar — segmented pill style */}
+            <div className="flex gap-0.5 overflow-x-auto scrollbar-hide bg-slate-100 dark:bg-white/[0.04] rounded-lg p-0.5">
               {TABS.map(({ id, label, icon }) => (
                 <button
                   key={id}
                   onClick={() => setTab(id)}
                   className={[
-                    'flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-medium whitespace-nowrap transition-colors',
+                    'flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium whitespace-nowrap transition-all duration-150 flex-1 justify-center',
                     tab === id
-                      ? 'bg-violet-600 text-white'
-                      : 'text-white/50 hover:text-white hover:bg-white/10',
+                      ? 'bg-white dark:bg-[#1A2237] text-violet-600 dark:text-violet-400 shadow-sm'
+                      : 'text-slate-500 dark:text-white/40 hover:text-slate-800 dark:hover:text-white/70',
                   ].join(' ')}
                 >
                   {icon}
-                  {label}
+                  <span className="hidden sm:inline">{label}</span>
                 </button>
               ))}
             </div>
@@ -234,17 +234,17 @@ export default function ManipulationPanel(): JSX.Element {
                           key={j.id}
                           onClick={() => toggleMergeId(j.id)}
                           className={[
-                            'px-2 py-0.5 rounded text-xs transition-colors',
+                            'px-2 py-0.5 rounded-lg text-xs transition-colors',
                             mergeIds.includes(j.id)
                               ? 'bg-violet-600 text-white'
-                              : 'bg-white/10 text-white/50 hover:text-white',
+                              : 'bg-slate-100 dark:bg-white/[0.08] text-slate-500 dark:text-white/50 hover:text-slate-900 dark:hover:text-white border border-slate-200 dark:border-white/[0.06]',
                           ].join(' ')}
                         >
                           {j.filename}
                         </button>
                       ))}
                     {jobs.length <= 1 && (
-                      <span className="text-white/30 text-xs">Add more files to the queue to merge.</span>
+                      <span className="text-slate-400 dark:text-white/30 text-xs">Add more files to the queue to merge.</span>
                     )}
                   </div>
                   <div className="flex items-end gap-3">
