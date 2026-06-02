@@ -70,6 +70,15 @@ export function useKeyboardShortcuts(): void {
         await invokeSaveSettings(next);
       };
 
+      // ── Playback / Focus separation ───────────────────────────────────────
+      const isPlayerFocused = !!document.activeElement?.closest('.waveform-player-container');
+      if (isPlayerFocused) {
+        // Space, L, J, and bare Shift keys are handled inside WaveformPlayer
+        if (e.key === ' ' || e.key.toLowerCase() === 'l' || e.key.toLowerCase() === 'j' || e.key === 'Shift') {
+          return;
+        }
+      }
+
       // ── Playback ──────────────────────────────────────────────────────────
       if (e.key === ' ') {
         e.preventDefault();
@@ -181,6 +190,13 @@ export function useKeyboardShortcuts(): void {
 
       // ── History ───────────────────────────────────────────────────────────
       if (matches(e, sc.openHistory)) { e.preventDefault(); ui.toggleHistory(); return; }
+
+      // ── Close Player ──────────────────────────────────────────────────────
+      if (matches(e, sc.closePlayer) || (e.key.toLowerCase() === 'w' && !e.ctrlKey && !e.metaKey && !e.altKey)) {
+        e.preventDefault();
+        ui.setPlayerOpen(false);
+        return;
+      }
 
       // ── Theme ─────────────────────────────────────────────────────────────
       if (matches(e, sc.themeDark)) { await saveSettings({ theme: 'dark' }); return; }

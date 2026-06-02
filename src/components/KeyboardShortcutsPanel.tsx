@@ -78,6 +78,31 @@ export default function KeyboardShortcutsPanel(): JSX.Element {
           >
             Reset to defaults
           </button>
+
+          {/* Waveform Player — fixed shortcuts (info only, active when player is focused) */}
+          <div className="mt-3 pt-3 border-t border-white/10">
+            <span className="text-[10px] font-semibold uppercase text-white/30 mb-2 block tracking-wider">
+              Waveform Player (fixed)
+            </span>
+            {([
+              ['Space', 'Play / Pause (or stop accelerated mode)'],
+              ['← →', 'Skip −5s / +5s'],
+              ['Left Shift', 'One frame backward (1/30 s)'],
+              ['Right Shift', 'One frame forward (1/30 s)'],
+              ['J', 'Step back: 0 → −2x → −4x'],
+              ['L', 'Step forward: 0 → 2x → 4x'],
+              ['J / L interact', 'Bidirectional: 4x fwd + J → 2x fwd'],
+              ['↑ / ↓', 'Volume +1 dB / −1 dB (max ±40)'],
+              ['W', 'Close waveform player'],
+            ] as [string, string][]).map(([key, label]) => (
+              <div key={key} className="flex items-center justify-between gap-2 mb-1">
+                <span className="text-xs text-white/50 flex-1 truncate">{label}</span>
+                <span className="min-w-[80px] text-center px-2 py-0.5 rounded text-xs font-mono border border-white/10 bg-white/[0.03] text-white/40">
+                  {key}
+                </span>
+              </div>
+            ))}
+          </div>
         </div>
       )}
     </section>

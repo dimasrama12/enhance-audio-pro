@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import WaveSurfer from 'wavesurfer.js';
-import { Play, Pause, Square, ToggleLeft, ToggleRight } from 'lucide-react';
+import TimelinePlugin from 'wavesurfer.js/dist/plugins/timeline.js';
+import { Play, Pause, ToggleLeft, ToggleRight, RotateCcw } from 'lucide-react';
 import { useSettingsStore } from '@/stores/useSettingsStore';
 
 interface Props {
@@ -10,37 +11,40 @@ interface Props {
   filename: string;
 }
 
-function fmt(s: number): string {
-  const m = Math.floor(s / 60);
-  const sec = Math.floor(s % 60);
-  return `${m}:${sec.toString().padStart(2, '0')}`;
+function dbToLinear(db: number): number {
+  if (db <= -40) return 0;
+  return Math.min(4.0, Math.pow(10, db / 20));
+}
+
+function formatTimeHHMMSSFF(sec: number): string {
+  const hours = Math.floor(sec / 3600);
+  const minutes = Math.floor((sec % 3600) / 60);
+  const seconds = Math.floor(sec % 60);
+  const frames = Math.floor((sec % 1) * 30);
+  return `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}:${frames.toString().padStart(2, '0')}`;
 }
 
 function getMimeType(path: string): string {
   const ext = path.split('.').pop()?.toLowerCase() ?? '';
   const map: Record<string, string> = {
-    mp3: 'audio/mpeg',
-    wav: 'audio/wav',
-    flac: 'audio/flac',
-    aac: 'audio/aac',
-    ogg: 'audio/ogg',
-    opus: 'audio/ogg',
-    m4a: 'audio/mp4',
-    wma: 'audio/x-ms-wma',
-    aiff: 'audio/aiff',
-    mp4: 'video/mp4',
-    webm: 'video/webm',
-    mov: 'video/quicktime',
-    avi: 'video/x-msvideo',
-    mkv: 'video/x-matroska',
+    mp3: 'audio/mpeg', wav: 'audio/wav', flac: 'audio/flac', aac: 'audio/aac',
+    ogg: 'audio/ogg', opus: 'audio/ogg', m4a: 'audio/mp4', wma: 'audio/x-ms-wma',
+    aiff: 'audio/aiff', mp4: 'video/mp4', webm: 'video/webm',
+    mov: 'video/quicktime', avi: 'video/x-msvideo', mkv: 'video/x-matroska',
   };
   return map[ext] ?? 'audio/mpeg';
 }
+
+// Speed steps: negative = backward, positive = forward, 0 = stopped
+// J decrements, L increments. Each step: -4 -2 0 2 4
+const JL_STEPS = [-4, -2, 0, 2, 4];
+const FRAME_SIZE = 1 / 30; // ~0.0333s at 30fps
 
 export default function WaveformPlayer({ filepath, outputFilepath, filename }: Props): JSX.Element {
   const waveformRef = useRef<HTMLDivElement>(null);
   const wsRef = useRef<WaveSurfer | null>(null);
   const blobUrlRef = useRef<string | null>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
   const theme = useSettingsStore((s) => s.theme);
 
   const [isPlaying, setIsPlaying] = useState(false);
@@ -51,24 +55,108 @@ export default function WaveformPlayer({ filepath, outputFilepath, filename }: P
   const [duration, setDuration] = useState(0);
   const [loadError, setLoadError] = useState<string | null>(null);
 
+  const [zoom, setZoom] = useState(0);
+  const [minZoom, setMinZoom] = useState(0);
+  const minZoomRef = useRef(0);
+  minZoomRef.current = minZoom;
+  const maxZoom = 2000;
+
+  const [isFocused, setIsFocused] = useState(false);
+  const [volumeDb, setVolumeDb] = useState(0);
+  // jlSpeed: -4 | -2 | 0 | 2 | 4  (sign = direction, magnitude = multiplier)
+  const [jlSpeed, setJlSpeed] = useState(0);
+
+  const jlSpeedRef = useRef(0);
+  jlSpeedRef.current = jlSpeed;
+
+  const volumeDbRef = useRef(0);
+  volumeDbRef.current = volumeDb;
+
+  const reverseTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const audioContextRef = useRef<AudioContext | null>(null);
+  const gainNodeRef = useRef<GainNode | null>(null);
+  const isProgrammaticSeekRef = useRef(false);
+
+  useEffect(() => {
+    return () => {
+      audioContextRef.current?.close().catch(() => {});
+      audioContextRef.current = null;
+    };
+  }, []);
+
   const activeFile = showOutput && outputFilepath ? outputFilepath : filepath;
 
-  // Theme-derived WaveSurfer colors
   const waveColor = theme === 'dark' ? '#6d28d9' : '#7c3aed';
   const progressColor = theme === 'dark' ? '#a78bfa' : '#4c1d95';
   const cursorColor = theme === 'dark' ? 'rgba(255,255,255,0.7)' : 'rgba(0,0,0,0.6)';
 
-  // (Re-)create WaveSurfer and load via Blob URL whenever the source file changes
+  const clearReverseTimer = (): void => {
+    if (reverseTimerRef.current) {
+      clearInterval(reverseTimerRef.current);
+      reverseTimerRef.current = null;
+    }
+  };
+
+  // Central speed-state machine: sets jlSpeed, starts/stops reverse timer, adjusts playback rate
+  const applySpeed = (speed: number): void => {
+    jlSpeedRef.current = speed;
+    setJlSpeed(speed);
+    clearReverseTimer();
+
+    if (speed === 0) {
+      wsRef.current?.pause();
+      wsRef.current?.setPlaybackRate(1.0);
+    } else if (speed > 0) {
+      if (audioContextRef.current?.state === 'suspended') audioContextRef.current.resume();
+      wsRef.current?.setPlaybackRate(speed);
+      wsRef.current?.play();
+    } else {
+      // Backward via timer (WaveSurfer has no native reverse)
+      wsRef.current?.pause();
+      wsRef.current?.setPlaybackRate(1.0);
+      if (audioContextRef.current?.state === 'suspended') audioContextRef.current.resume();
+      const stepSize = 0.05 * Math.abs(speed); // 50ms * speed factor
+      reverseTimerRef.current = setInterval(() => {
+        const ws = wsRef.current;
+        if (!ws) return;
+        const cur = ws.getCurrentTime();
+        if (cur <= 0) {
+          clearReverseTimer();
+          jlSpeedRef.current = 0;
+          setJlSpeed(0);
+        } else {
+          const next = Math.max(0, cur - stepSize);
+          isProgrammaticSeekRef.current = true;
+          ws.setTime(next);
+          isProgrammaticSeekRef.current = false;
+          setCurrentTime(next);
+        }
+      }, 50);
+    }
+  };
+
+  // L increments speed (toward +4x); J decrements (toward -4x)
+  const handleL = (): void => {
+    const idx = JL_STEPS.indexOf(jlSpeedRef.current);
+    const safeIdx = idx === -1 ? 2 : idx;
+    applySpeed(JL_STEPS[Math.min(safeIdx + 1, JL_STEPS.length - 1)]);
+  };
+
+  const handleJ = (): void => {
+    const idx = JL_STEPS.indexOf(jlSpeedRef.current);
+    const safeIdx = idx === -1 ? 2 : idx;
+    applySpeed(JL_STEPS[Math.max(safeIdx - 1, 0)]);
+  };
+
+  const resetSpeed = (): void => applySpeed(0);
+
+  // (Re-)create WaveSurfer whenever active file changes
   useEffect(() => {
     if (!waveformRef.current) return;
 
-    // Tear down previous instance and revoke any stale Blob URL
     wsRef.current?.destroy();
     wsRef.current = null;
-    if (blobUrlRef.current) {
-      URL.revokeObjectURL(blobUrlRef.current);
-      blobUrlRef.current = null;
-    }
+    if (blobUrlRef.current) { URL.revokeObjectURL(blobUrlRef.current); blobUrlRef.current = null; }
 
     setIsReady(false);
     setIsPlaying(false);
@@ -76,6 +164,11 @@ export default function WaveformPlayer({ filepath, outputFilepath, filename }: P
     setDuration(0);
     setLoadError(null);
     setIsLoading(true);
+    setZoom(0);
+    setMinZoom(0);
+    clearReverseTimer();
+    jlSpeedRef.current = 0;
+    setJlSpeed(0);
 
     const ws = WaveSurfer.create({
       container: waveformRef.current,
@@ -83,108 +176,328 @@ export default function WaveformPlayer({ filepath, outputFilepath, filename }: P
       progressColor,
       cursorColor,
       cursorWidth: 2,
-      barWidth: 3,
-      barGap: 1.5,
-      barRadius: 3,
       height: 72,
       normalize: true,
       interact: true,
+      dragToSeek: true,
+      hideScrollbar: true,
+      renderFunction: (channels, ctx) => {
+        const { width, height } = ctx.canvas;
+        const channel = channels[0];
+        if (!channel) return;
+        const len = channel.length;
+        const step = len / width;
+        ctx.beginPath();
+        ctx.moveTo(0, height);
+        const gain = dbToLinear(volumeDbRef.current);
+        for (let x = 0; x < width; x++) {
+          const start = Math.floor(x * step);
+          const end = Math.max(start + 1, Math.floor((x + 1) * step));
+          let maxVal = 0;
+          for (let i = start; i < end; i++) {
+            const val = Math.abs(channel[i] || 0);
+            if (val > maxVal) maxVal = val;
+          }
+          const amp = Math.min(0.98, maxVal * gain);
+          ctx.lineTo(x, height - amp * height);
+        }
+        ctx.lineTo(width, height);
+        ctx.closePath();
+        ctx.fill();
+      },
+      plugins: [
+        TimelinePlugin.create({
+          height: 18,
+          insertPosition: 'beforebegin',
+          style: {
+            color: theme === 'dark' ? 'rgba(255,255,255,0.5)' : 'rgba(0,0,0,0.5)',
+            fontSize: '9px',
+            fontFamily: 'monospace',
+          },
+          formatTimeCallback: (sec) => {
+            const h = Math.floor(sec / 3600), m = Math.floor((sec % 3600) / 60), s = Math.floor(sec % 60);
+            const f = Math.floor((sec % 1) * 30);
+            return `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}:${String(f).padStart(2,'0')}`;
+          },
+        }),
+      ],
     });
 
     ws.on('ready', () => {
       setIsReady(true);
       setIsLoading(false);
-      setDuration(ws.getDuration());
+      const dur = ws.getDuration();
+      setDuration(dur);
+      const containerWidth = waveformRef.current?.clientWidth ?? 0;
+      const fitPxPerSec = dur > 0 ? containerWidth / dur : 0;
+      minZoomRef.current = fitPxPerSec;
+      setMinZoom(fitPxPerSec);
+      setZoom(fitPxPerSec);
+      ws.zoom(fitPxPerSec);
+
+      let audioCtx = audioContextRef.current;
+      if (!audioCtx) {
+        audioCtx = new (window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext)();
+        audioContextRef.current = audioCtx;
+      }
+      gainNodeRef.current = null;
+      const mediaEl = ws.getMediaElement();
+      if (mediaEl) {
+        try {
+          const source = audioCtx.createMediaElementSource(mediaEl);
+          const gainNode = audioCtx.createGain();
+          source.connect(gainNode);
+          gainNode.connect(audioCtx.destination);
+          gainNode.gain.value = dbToLinear(volumeDbRef.current);
+          gainNodeRef.current = gainNode;
+        } catch (err) {
+          console.error('Error creating Web Audio source:', err);
+        }
+      }
+      ws.setVolume(1.0);
     });
+
     ws.on('audioprocess', () => setCurrentTime(ws.getCurrentTime()));
-    ws.on('seeking', () => setCurrentTime(ws.getCurrentTime()));
-    ws.on('play', () => setIsPlaying(true));
-    ws.on('pause', () => setIsPlaying(false));
-    ws.on('finish', () => setIsPlaying(false));
-    ws.on('error', (err) => {
-      setLoadError(String(err));
-      setIsLoading(false);
+    ws.on('seeking', () => {
+      setCurrentTime(ws.getCurrentTime());
+      if (jlSpeedRef.current < 0) {
+        clearReverseTimer();
+        jlSpeedRef.current = 0;
+        setJlSpeed(0);
+      }
     });
+    ws.on('play', () => setIsPlaying(true));
+    ws.on('pause', () => {
+      setIsPlaying(false);
+      if (jlSpeedRef.current > 0) {
+        jlSpeedRef.current = 0;
+        setJlSpeed(0);
+        ws.setPlaybackRate(1.0);
+      }
+    });
+    ws.on('finish', () => { setIsPlaying(false); });
+    ws.on('error', (err) => { setLoadError(String(err)); setIsLoading(false); });
 
     wsRef.current = ws;
 
-    // Use IPC to read raw bytes, create a Blob URL, and hand it to WaveSurfer.
-    // Direct asset:// URLs fail because WaveSurfer's internal fetch() hits CORS
-    // restrictions on Tauri's custom protocol.
+    const resizeObserver = new ResizeObserver(() => {
+      if (wsRef.current && waveformRef.current) {
+        const dur = wsRef.current.getDuration();
+        const containerWidth = waveformRef.current.clientWidth ?? 0;
+        if (dur > 0 && containerWidth > 0) {
+          const fitPxPerSec = containerWidth / dur;
+          minZoomRef.current = fitPxPerSec;
+          setMinZoom(fitPxPerSec);
+          setZoom((prev) => {
+            if (prev <= minZoomRef.current + 0.1) { wsRef.current?.zoom(fitPxPerSec); return fitPxPerSec; }
+            return prev;
+          });
+        }
+      }
+      try { ws.setOptions({}); } catch (err) { console.error('Resize setOptions error:', err); }
+    });
+    if (waveformRef.current) resizeObserver.observe(waveformRef.current);
+
+    const container = waveformRef.current;
+    const handleWheel = (e: WheelEvent) => {
+      const currentMinZoom = minZoomRef.current;
+      if (e.altKey) {
+        e.preventDefault();
+        const zoomFactor = e.deltaY > 0 ? -3 : 3;
+        const currentZoom = ws.options.minPxPerSec ?? currentMinZoom;
+        const newZoom = Math.max(currentMinZoom, Math.min(maxZoom, currentZoom + zoomFactor));
+        ws.zoom(newZoom);
+        setZoom(newZoom);
+      } else {
+        e.preventDefault();
+        const currentZoom = ws.options.minPxPerSec ?? currentMinZoom;
+        if (currentZoom > currentMinZoom + 0.1) {
+          const scrollDelta = Math.abs(e.deltaX) > Math.abs(e.deltaY) ? e.deltaX : e.deltaY;
+          ws.setScroll(ws.getScroll() + scrollDelta);
+        }
+      }
+    };
+    if (container) container.addEventListener('wheel', handleWheel, { passive: false });
+
     let cancelled = false;
     (async () => {
       try {
-        const arrayBuffer = await invoke<ArrayBuffer>('read_audio_file', { path: activeFile });
+        const rawData = await invoke<unknown>('read_audio_file', { path: activeFile });
         if (cancelled) return;
-        const blob = new Blob([arrayBuffer], { type: getMimeType(activeFile) });
+        let bufferSource = rawData;
+        if (rawData && typeof rawData === 'object' && 'body' in rawData) bufferSource = (rawData as Record<string, unknown>).body;
+        let binaryData: ArrayBuffer | Uint8Array;
+        if (bufferSource instanceof Uint8Array || bufferSource instanceof ArrayBuffer) {
+          binaryData = bufferSource;
+        } else if (Array.isArray(bufferSource)) {
+          binaryData = new Uint8Array(bufferSource as number[]);
+        } else {
+          throw new Error('Unsupported binary response format from backend');
+        }
+        const blob = new Blob([binaryData as BlobPart], { type: getMimeType(activeFile) });
         const blobUrl = URL.createObjectURL(blob);
         blobUrlRef.current = blobUrl;
         ws.load(blobUrl);
       } catch (err) {
-        if (!cancelled) {
-          setLoadError(String(err));
-          setIsLoading(false);
-        }
+        if (!cancelled) { setLoadError(String(err)); setIsLoading(false); }
       }
     })();
 
     return () => {
       cancelled = true;
+      clearReverseTimer();
+      if (container) container.removeEventListener('wheel', handleWheel);
+      resizeObserver.disconnect();
       ws.destroy();
       wsRef.current = null;
-      if (blobUrlRef.current) {
-        URL.revokeObjectURL(blobUrlRef.current);
-        blobUrlRef.current = null;
-      }
+      if (blobUrlRef.current) { URL.revokeObjectURL(blobUrlRef.current); blobUrlRef.current = null; }
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeFile]);
 
-  // Update colors without reloading when theme changes
   useEffect(() => {
     wsRef.current?.setOptions({ waveColor, progressColor, cursorColor });
   }, [waveColor, progressColor, cursorColor]);
 
-  // Space = play/pause, ← = −5 s, → = +5 s
+  // Keyboard handler — only active when player container is focused
   useEffect(() => {
     function handleKey(e: KeyboardEvent): void {
-      if (!isReady || !wsRef.current) return;
+      if (!isReady || !wsRef.current || !isFocused) return;
       const tag = (e.target as HTMLElement).tagName;
       if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
+
       if (e.key === ' ') {
         e.preventDefault();
-        wsRef.current.playPause();
+        // In accelerated mode, Space stops; otherwise toggle
+        if (jlSpeedRef.current !== 0) {
+          applySpeed(0);
+        } else {
+          if (audioContextRef.current?.state === 'suspended') audioContextRef.current.resume();
+          wsRef.current.playPause();
+        }
       } else if (e.key === 'ArrowLeft') {
         e.preventDefault();
         wsRef.current.skip(-5);
       } else if (e.key === 'ArrowRight') {
         e.preventDefault();
         wsRef.current.skip(5);
+      } else if (e.code === 'ShiftLeft' && e.key === 'Shift') {
+        // Frame-by-frame backward
+        e.preventDefault();
+        const newTime = Math.max(0, wsRef.current.getCurrentTime() - FRAME_SIZE);
+        wsRef.current.setTime(newTime);
+        setCurrentTime(newTime);
+      } else if (e.code === 'ShiftRight' && e.key === 'Shift') {
+        // Frame-by-frame forward
+        e.preventDefault();
+        const newTime = Math.min(wsRef.current.getDuration(), wsRef.current.getCurrentTime() + FRAME_SIZE);
+        wsRef.current.setTime(newTime);
+        setCurrentTime(newTime);
+      } else if (e.key.toLowerCase() === 'j') {
+        e.preventDefault();
+        handleJ();
+      } else if (e.key.toLowerCase() === 'l') {
+        e.preventDefault();
+        handleL();
+      } else if (e.key === 'ArrowUp') {
+        e.preventDefault();
+        const next = Math.min(10, volumeDbRef.current + 1);
+        volumeDbRef.current = next;
+        setVolumeDb(next);
+        try {
+          if (gainNodeRef.current) gainNodeRef.current.gain.value = dbToLinear(next);
+          wsRef.current.setOptions({});
+        } catch (err) { console.error('Error setting volume:', err); }
+      } else if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        const next = Math.max(-40, volumeDbRef.current - 1);
+        volumeDbRef.current = next;
+        setVolumeDb(next);
+        try {
+          if (gainNodeRef.current) gainNodeRef.current.gain.value = dbToLinear(next);
+          wsRef.current.setOptions({});
+        } catch (err) { console.error('Error setting volume:', err); }
       }
     }
     window.addEventListener('keydown', handleKey);
     return () => window.removeEventListener('keydown', handleKey);
-  }, [isReady]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isReady, isFocused]);
 
-  function togglePlay(): void { wsRef.current?.playPause(); }
-  function stop(): void { wsRef.current?.stop(); setCurrentTime(0); }
+  function togglePlay(): void {
+    if (!wsRef.current) return;
+    if (audioContextRef.current?.state === 'suspended') audioContextRef.current.resume();
+    if (jlSpeedRef.current !== 0) {
+      applySpeed(0);
+    } else {
+      wsRef.current.playPause();
+    }
+  }
+
+  function handleZoomChange(level: number): void {
+    setZoom(level);
+    wsRef.current?.zoom(level);
+  }
+
+  const handleReset = (): void => {
+    if (!wsRef.current) return;
+    wsRef.current.pause();
+    setIsPlaying(false);
+    wsRef.current.setTime(0);
+    setCurrentTime(0);
+    resetSpeed();
+    volumeDbRef.current = 0;
+    setVolumeDb(0);
+    if (gainNodeRef.current) gainNodeRef.current.gain.value = dbToLinear(0);
+    wsRef.current.setVolume(1.0);
+    const initialMin = minZoomRef.current;
+    wsRef.current.zoom(initialMin);
+    setZoom(initialMin);
+    try { wsRef.current.setOptions({}); } catch (err) { console.error('Error redrawing on reset:', err); }
+  };
+
+  const handleFocus = (): void => setIsFocused(true);
+  const handleBlur = (e: React.FocusEvent): void => {
+    if (e.currentTarget.contains(e.relatedTarget as Node)) return;
+    setIsFocused(false);
+  };
+
+  // Human-readable speed badge
+  const speedLabel = jlSpeed !== 0
+    ? (jlSpeed > 0 ? `${jlSpeed}x ▶` : `${Math.abs(jlSpeed)}x ◀`)
+    : null;
 
   return (
-    <div className="flex flex-col gap-3">
-      {/* Header: filename + A/B toggle */}
+    <div
+      ref={containerRef}
+      tabIndex={0}
+      onFocus={handleFocus}
+      onBlur={handleBlur}
+      className={`waveform-player-container flex flex-col gap-3 focus:outline-none p-3 rounded-xl border transition-all duration-200 ${
+        isFocused
+          ? 'border-violet-500/40 bg-violet-500/[0.02] shadow-sm shadow-violet-500/5'
+          : 'border-transparent'
+      }`}
+    >
+      {/* Header: filename + speed indicator + A/B toggle */}
       <div className="flex items-center justify-between gap-2">
-        <span className="text-[10px] text-slate-500 dark:text-white/40 uppercase tracking-wider truncate max-w-[200px]">
-          {showOutput && outputFilepath ? `${filename} (enhanced)` : filename}
-        </span>
+        <div className="flex items-center gap-2 min-w-0">
+          <span className="text-[10px] text-slate-500 dark:text-white/40 uppercase tracking-wider truncate max-w-[200px]">
+            {showOutput && outputFilepath ? `${filename} (enhanced)` : filename}
+          </span>
+          {speedLabel && (
+            <span className="text-[9px] font-mono px-1.5 py-0.5 rounded bg-violet-500/20 text-violet-400 shrink-0">
+              {speedLabel}
+            </span>
+          )}
+        </div>
         {outputFilepath && (
           <button
             onClick={() => setShowOutput((v) => !v)}
             className="flex items-center gap-1 text-[10px] text-slate-500 dark:text-white/50 hover:text-violet-600 dark:hover:text-violet-400 transition-colors shrink-0"
             title="Toggle A/B: original vs enhanced"
           >
-            {showOutput
-              ? <ToggleRight size={14} className="text-violet-500" />
-              : <ToggleLeft size={14} />}
+            {showOutput ? <ToggleRight size={14} className="text-violet-500" /> : <ToggleLeft size={14} />}
             {showOutput ? 'Enhanced' : 'Original'}
           </button>
         )}
@@ -196,41 +509,76 @@ export default function WaveformPlayer({ filepath, outputFilepath, filename }: P
         className="rounded-lg overflow-hidden bg-slate-100 dark:bg-white/[0.05] border border-slate-200 dark:border-white/[0.08] min-h-[72px]"
       />
       {isLoading && (
-        <p className="text-[10px] text-slate-400 dark:text-white/30 text-center -mt-2">
-          Loading waveform…
-        </p>
+        <p className="text-[10px] text-slate-400 dark:text-white/30 text-center -mt-2">Loading waveform…</p>
       )}
       {loadError && (
-        <p className="text-[10px] text-red-400 text-center -mt-2 truncate" title={loadError}>
-          Failed to load audio
-        </p>
+        <p className="text-[10px] text-red-400 text-center -mt-2 truncate" title={loadError}>Failed to load audio</p>
       )}
 
-      {/* Playback controls */}
-      <div className="flex items-center gap-2">
+      {/* Combined Playback & Zoom Controls Row */}
+      <div className="flex items-center gap-3 px-1 select-none w-full">
         <button
           onClick={togglePlay}
           disabled={!isReady}
-          className="p-1.5 rounded-md bg-violet-600 hover:bg-violet-500 disabled:opacity-40 transition-colors text-white"
+          className="p-1.5 rounded-md bg-violet-600 hover:bg-violet-500 disabled:opacity-40 transition-colors text-white shrink-0"
           title="Play / Pause  [Space]"
         >
           {isPlaying ? <Pause size={12} /> : <Play size={12} />}
         </button>
+
         <button
-          onClick={stop}
+          onClick={handleReset}
           disabled={!isReady}
-          className="p-1.5 rounded-md bg-slate-200 dark:bg-white/[0.10] hover:bg-slate-300 dark:hover:bg-white/20 disabled:opacity-40 transition-colors text-slate-700 dark:text-white"
-          title="Stop"
+          className="p-1.5 rounded-md bg-red-600 hover:bg-red-500 disabled:opacity-40 transition-colors text-white shrink-0"
+          title="Reset (pause, seek 0, speed 1x, vol 0 dB, zoom fit)"
         >
-          <Square size={12} />
+          <RotateCcw size={12} />
         </button>
-        <span className="text-[10px] text-slate-500 dark:text-white/40 tabular-nums ml-1">
-          {fmt(currentTime)} / {fmt(duration)}
+
+        <span className="text-[10px] text-slate-500 dark:text-white/40 tabular-nums shrink-0">
+          {formatTimeHHMMSSFF(currentTime)} / {formatTimeHHMMSSFF(duration)}
+          <span className="ml-1.5 px-1 rounded bg-slate-200/50 dark:bg-white/[0.06] text-slate-600 dark:text-white/50 text-[9px] font-mono">
+            {volumeDb > -40 ? `${volumeDb > 0 ? '+' : ''}${volumeDb} dB` : 'Muted'}
+          </span>
         </span>
-        <span className="text-[10px] text-slate-400 dark:text-white/25 ml-auto">
-          ← → skip 5s · Space play/pause
-        </span>
+
+        <input
+          type="range"
+          min="0"
+          max={duration || 100}
+          step="0.01"
+          value={currentTime}
+          onChange={(e) => {
+            const val = Number(e.target.value);
+            setCurrentTime(val);
+            wsRef.current?.setTime(val);
+            if (jlSpeedRef.current < 0) { clearReverseTimer(); jlSpeedRef.current = 0; setJlSpeed(0); }
+          }}
+          disabled={!isReady}
+          className="flex-1 h-1 bg-slate-200 dark:bg-white/[0.08] rounded-lg appearance-none cursor-pointer accent-violet-600 dark:accent-violet-400 focus:outline-none"
+        />
+
+        <div className="flex items-center gap-1 shrink-0">
+          <span className="text-[10px] text-slate-500 dark:text-white/40 font-medium">Zoom:</span>
+          <input
+            type="range"
+            min={minZoom}
+            max={maxZoom}
+            value={Math.max(minZoom, zoom)}
+            onChange={(e) => handleZoomChange(Number(e.target.value))}
+            disabled={!isReady}
+            className="w-24 h-1 bg-slate-200 dark:bg-white/[0.08] rounded-lg appearance-none cursor-pointer accent-violet-600 dark:accent-violet-400 focus:outline-none"
+          />
+          <span className="text-[10px] text-slate-500 dark:text-white/40 w-12 text-right tabular-nums">
+            {Math.round(zoom)}px
+          </span>
+        </div>
       </div>
+
+      {/* Shortcuts footer */}
+      <span className="text-[9px] text-slate-400 dark:text-white/20 px-1">
+        Space (pause/play) · ← → (skip 5s) · Left/Right Shift (±1 frame) · J (step back: 0→−2x→−4x) · L (step fwd: 0→2x→4x) · J/L interact bidirectionally · ↑↓ (vol dB)
+      </span>
     </div>
   );
 }
