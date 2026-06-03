@@ -79,6 +79,24 @@ export default function KeyboardShortcutsPanel(): JSX.Element {
             Reset to defaults
           </button>
 
+          {/* Queue — fixed shortcuts */}
+          <div className="mt-3 pt-3 border-t border-white/10">
+            <span className="text-[10px] font-semibold uppercase text-white/30 mb-2 block tracking-wider">
+              Queue (fixed)
+            </span>
+            {([
+              ['Delete / Backspace', 'Delete selected items (locked items protected)'],
+              ['Click + Drag', 'Marquee select multiple items'],
+            ] as [string, string][]).map(([key, label]) => (
+              <div key={key} className="flex items-center justify-between gap-2 mb-1">
+                <span className="text-xs text-white/50 flex-1 truncate">{label}</span>
+                <span className="min-w-[80px] text-center px-2 py-0.5 rounded text-xs font-mono border border-white/10 bg-white/[0.03] text-white/40">
+                  {key}
+                </span>
+              </div>
+            ))}
+          </div>
+
           {/* Waveform Player — fixed shortcuts (info only, active when player is focused) */}
           <div className="mt-3 pt-3 border-t border-white/10">
             <span className="text-[10px] font-semibold uppercase text-white/30 mb-2 block tracking-wider">
@@ -86,13 +104,15 @@ export default function KeyboardShortcutsPanel(): JSX.Element {
             </span>
             {([
               ['Space', 'Play / Pause (or stop accelerated mode)'],
-              ['← →', 'Skip −5s / +5s'],
+              ['← →', 'Skip −1s / +1s'],
+              ['Shift + ← / →', 'Skip −5s / +5s'],
+              ['Ctrl + ← / →', 'Go to start / end of audio'],
               ['Left Shift', 'One frame backward (1/30 s)'],
               ['Right Shift', 'One frame forward (1/30 s)'],
-              ['J', 'Step back: 0 → −2x → −4x'],
-              ['L', 'Step forward: 0 → 2x → 4x'],
-              ['J / L interact', 'Bidirectional: 4x fwd + J → 2x fwd'],
-              ['↑ / ↓', 'Volume +1 dB / −1 dB (max ±40)'],
+              ['J', 'Step back: 4x → 2x → 1x → 0 → −2x → −4x'],
+              ['L', 'Step forward: −4x → −2x → 0 → 2x → 4x'],
+              ['J / L interact', 'Bidirectional speed control'],
+              ['↑ / ↓', 'Volume +1 dB / −1 dB (+10 dB to −40 dB)'],
               ['W', 'Close waveform player'],
             ] as [string, string][]).map(([key, label]) => (
               <div key={key} className="flex items-center justify-between gap-2 mb-1">

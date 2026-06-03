@@ -35,8 +35,15 @@ function getMimeType(path: string): string {
   return map[ext] ?? 'audio/mpeg';
 }
 
+interface AudioCacheItem {
+  blobUrl: string;
+  reversedBuffer: AudioBuffer | null;
+  peaks: Float32Array[] | null;
+  duration: number;
+}
+const audioCache = new Map<string, AudioCacheItem>();
+
 const FRAME_SIZE = 1 / 30;
-const FPS = 30;
 
 export default function WaveformPlayer({ filepath, outputFilepath, filename }: Props): JSX.Element {
   const waveformRef = useRef<HTMLDivElement>(null);
@@ -174,6 +181,8 @@ export default function WaveformPlayer({ filepath, outputFilepath, filename }: P
             }
             reversedBufferRef.current = rev;
             reversed = rev;
+            const item = audioCache.get(activeFile);
+            if (item) item.reversedBuffer = rev;
           } catch (e) {
             console.warn('Failed to decode audio for backward playback:', e);
             return;
@@ -274,8 +283,7 @@ export default function WaveformPlayer({ filepath, outputFilepath, filename }: P
 
   const resetSpeed = (): void => applySpeed(0);
 
-  const computeMaxZoom = (containerWidth: number): number =>
-    Math.max(2000, Math.round(containerWidth * FPS));
+
 
   // (Re-)create WaveSurfer whenever active file changes
   useEffect(() => {
@@ -283,7 +291,7 @@ export default function WaveformPlayer({ filepath, outputFilepath, filename }: P
 
     wsRef.current?.destroy();
     wsRef.current = null;
-    if (blobUrlRef.current) { URL.revokeObjectURL(blobUrlRef.current); blobUrlRef.current = null; }
+    blobUrlRef.current = null;
 
     setIsReady(false);
     setIsPlaying(false);
@@ -297,7 +305,6 @@ export default function WaveformPlayer({ filepath, outputFilepath, filename }: P
     stopPlaybackRaf();
     jlSpeedRef.current = 0;
     setJlSpeed(0);
-    // Clear cached reversed buffer for new file
     reversedBufferRef.current = null;
 
     const ws = WaveSurfer.create({
@@ -354,6 +361,7 @@ export default function WaveformPlayer({ filepath, outputFilepath, filename }: P
     });
 
     ws.on('ready', () => {
+      if (cancelled) return;
       setIsReady(true);
       setIsLoading(false);
       const dur = ws.getDuration();
@@ -365,10 +373,10 @@ export default function WaveformPlayer({ filepath, outputFilepath, filename }: P
       setZoom(fitPxPerSec);
       ws.zoom(fitPxPerSec);
 
-      // Compute Premiere Pro-style max zoom (1 frame = full container width)
-      const newMaxZoom = computeMaxZoom(containerWidth);
-      maxZoomRef.current = newMaxZoom;
-      setMaxZoom(newMaxZoom);
+      // Compute max zoom: capped at 200, but at least fitPxPerSec for short files
+      const calculatedMaxZoom = Math.max(200, fitPxPerSec);
+      maxZoomRef.current = calculatedMaxZoom;
+      setMaxZoom(calculatedMaxZoom);
 
       let audioCtx = audioContextRef.current;
       if (!audioCtx) {
@@ -390,10 +398,70 @@ export default function WaveformPlayer({ filepath, outputFilepath, filename }: P
         }
       }
       ws.setVolume(1.0);
+
+      // Cache the loaded audio details when it is fully loaded
+      if (!audioCache.has(activeFile) && blobUrlRef.current) {
+        let peaks: Float32Array[] | null = null;
+        try {
+          const decoded = ws.getDecodedData();
+          if (decoded) {
+            const channels: Float32Array[] = [];
+            for (let i = 0; i < decoded.numberOfChannels; i++) {
+              channels.push(decoded.getChannelData(i));
+            }
+            peaks = channels;
+          }
+        } catch (e) {
+          console.warn('Failed to get decoded peaks for caching:', e);
+        }
+        audioCache.set(activeFile, {
+          blobUrl: blobUrlRef.current,
+          reversedBuffer: reversedBufferRef.current,
+          peaks,
+          duration: dur,
+        });
+      }
+
+      // Pre-decode and reverse the buffer in the background for instant backward playback
+      const prepareReverseBuffer = async () => {
+        const currentFile = activeFile;
+        const cached = audioCache.get(currentFile);
+        if (cached && cached.reversedBuffer) {
+          reversedBufferRef.current = cached.reversedBuffer;
+          return;
+        }
+
+        if (blobUrlRef.current && audioCtx) {
+          try {
+            const resp = await fetch(blobUrlRef.current);
+            const ab = await resp.arrayBuffer();
+            const buf = await audioCtx.decodeAudioData(ab);
+            const rev = audioCtx.createBuffer(buf.numberOfChannels, buf.length, buf.sampleRate);
+            for (let ch = 0; ch < buf.numberOfChannels; ch++) {
+              const srcData = buf.getChannelData(ch);
+              const dstData = rev.getChannelData(ch);
+              for (let i = 0; i < srcData.length; i++) {
+                dstData[i] = srcData[srcData.length - 1 - i];
+              }
+            }
+            if (activeFile === currentFile) {
+              reversedBufferRef.current = rev;
+            }
+            const item = audioCache.get(currentFile);
+            if (item) {
+              item.reversedBuffer = rev;
+            }
+          } catch (e) {
+            console.warn('Failed to pre-decode reverse buffer:', e);
+          }
+        }
+      };
+      void prepareReverseBuffer();
     });
 
-    ws.on('audioprocess', () => setCurrentTime(ws.getCurrentTime()));
+    ws.on('audioprocess', () => { if (!cancelled) setCurrentTime(ws.getCurrentTime()); });
     ws.on('seeking', () => {
+      if (cancelled) return;
       setCurrentTime(ws.getCurrentTime());
     });
     ws.on('interaction', () => {
@@ -405,6 +473,7 @@ export default function WaveformPlayer({ filepath, outputFilepath, filename }: P
       }
     });
     ws.on('play', () => {
+      if (cancelled) return;
       setIsPlaying(true);
       // Supplement audioprocess with RAF for smooth time display during forward playback
       const rafTick = (): void => {
@@ -415,6 +484,7 @@ export default function WaveformPlayer({ filepath, outputFilepath, filename }: P
       playbackRafRef.current = requestAnimationFrame(rafTick);
     });
     ws.on('pause', () => {
+      if (cancelled) return;
       setIsPlaying(false);
       stopPlaybackRaf();
       if (jlSpeedRef.current > 0) {
@@ -424,10 +494,15 @@ export default function WaveformPlayer({ filepath, outputFilepath, filename }: P
       }
     });
     ws.on('finish', () => {
+      if (cancelled) return;
       setIsPlaying(false);
       stopPlaybackRaf();
     });
-    ws.on('error', (err) => { setLoadError(String(err)); setIsLoading(false); });
+    ws.on('error', (err) => {
+      if (cancelled) return;
+      setLoadError(String(err));
+      setIsLoading(false);
+    });
 
     wsRef.current = ws;
 
@@ -440,10 +515,10 @@ export default function WaveformPlayer({ filepath, outputFilepath, filename }: P
           minZoomRef.current = fitPxPerSec;
           setMinZoom(fitPxPerSec);
 
-          // Update maxZoom when container resizes
-          const newMaxZoom = computeMaxZoom(containerWidth);
-          maxZoomRef.current = newMaxZoom;
-          setMaxZoom(newMaxZoom);
+          // Update maxZoom when container resizes, capped at 200 (or fitPxPerSec)
+          const calculatedMaxZoom = Math.max(200, fitPxPerSec);
+          maxZoomRef.current = calculatedMaxZoom;
+          setMaxZoom(calculatedMaxZoom);
 
           setZoom((prev) => {
             if (prev <= minZoomRef.current + 0.1) { wsRef.current?.zoom(fitPxPerSec); return fitPxPerSec; }
@@ -480,6 +555,16 @@ export default function WaveformPlayer({ filepath, outputFilepath, filename }: P
     let cancelled = false;
     (async () => {
       try {
+        const cached = audioCache.get(activeFile);
+        if (cached) {
+          blobUrlRef.current = cached.blobUrl;
+          reversedBufferRef.current = cached.reversedBuffer;
+          if (!cancelled) {
+            ws.load(cached.blobUrl, cached.peaks ?? undefined, cached.duration);
+          }
+          return;
+        }
+
         const rawData = await invoke<unknown>('read_audio_file', { path: activeFile });
         if (cancelled) return;
         let bufferSource = rawData;
@@ -495,7 +580,9 @@ export default function WaveformPlayer({ filepath, outputFilepath, filename }: P
         const blob = new Blob([binaryData as BlobPart], { type: getMimeType(activeFile) });
         const blobUrl = URL.createObjectURL(blob);
         blobUrlRef.current = blobUrl;
-        ws.load(blobUrl);
+        if (!cancelled) {
+          ws.load(blobUrl);
+        }
       } catch (err) {
         if (!cancelled) { setLoadError(String(err)); setIsLoading(false); }
       }
@@ -505,13 +592,12 @@ export default function WaveformPlayer({ filepath, outputFilepath, filename }: P
       cancelled = true;
       clearReverseTimer();
       stopPlaybackRaf();
-      // Clear cached reversed buffer when switching files
       reversedBufferRef.current = null;
       if (container) container.removeEventListener('wheel', handleWheel);
       resizeObserver.disconnect();
       ws.destroy();
       wsRef.current = null;
-      if (blobUrlRef.current) { URL.revokeObjectURL(blobUrlRef.current); blobUrlRef.current = null; }
+      blobUrlRef.current = null;
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeFile]);
@@ -541,10 +627,35 @@ export default function WaveformPlayer({ filepath, outputFilepath, filename }: P
         }
       } else if (e.key === 'ArrowLeft') {
         e.preventDefault();
-        wsRef.current.skip(-5);
+        if (jlSpeedRef.current < 0) {
+          clearReverseTimer();
+          jlSpeedRef.current = 0;
+          setJlSpeed(0);
+        }
+        if (e.ctrlKey) {
+          wsRef.current.setTime(0);
+          setCurrentTime(0);
+        } else if (e.shiftKey) {
+          wsRef.current.skip(-5);
+        } else {
+          wsRef.current.skip(-1);
+        }
       } else if (e.key === 'ArrowRight') {
         e.preventDefault();
-        wsRef.current.skip(5);
+        if (jlSpeedRef.current < 0) {
+          clearReverseTimer();
+          jlSpeedRef.current = 0;
+          setJlSpeed(0);
+        }
+        if (e.ctrlKey) {
+          const dur = wsRef.current.getDuration();
+          wsRef.current.setTime(dur);
+          setCurrentTime(dur);
+        } else if (e.shiftKey) {
+          wsRef.current.skip(5);
+        } else {
+          wsRef.current.skip(1);
+        }
       } else if (e.key === 'Shift') {
         e.preventDefault();
         const isLeft = e.code === 'ShiftLeft' || e.location === 1;
@@ -743,7 +854,7 @@ export default function WaveformPlayer({ filepath, outputFilepath, filename }: P
 
       {/* Shortcuts footer */}
       <span className="text-[9px] text-slate-400 dark:text-white/20 px-1">
-        Space (pause/play) · ← → (skip 5s) · ⇧Left/⇧Right (±1 frame) · J/L (speed ladder: −4x↔−2x↔1x↔2x↔4x) · ↑↓ (vol dB) · Alt+Scroll (zoom)
+        Space (pause/play) · ← → (skip 1s) · ⇧← / ⇧→ (skip 5s) · Ctrl+←/→ (start/end) · ⇧Left/⇧Right (±1 frame) · J/L (speed ladder: −4x↔−2x↔1x↔2x↔4x) · ↑↓ (vol dB) · Alt+Scroll (zoom)
       </span>
     </div>
   );

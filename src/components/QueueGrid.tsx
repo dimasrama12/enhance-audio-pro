@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { listen } from '@tauri-apps/api/event';
 import { motion, AnimatePresence } from 'framer-motion';
 import { clsx } from 'clsx';
-import { GripVertical, Play, Pause, FolderOpen, Lock, ChevronRight } from 'lucide-react';
+import { GripVertical, Play, Pause, FolderOpen, Lock, ChevronRight, Trash2 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { open as openDialog } from '@tauri-apps/plugin-dialog';
 import {
@@ -27,7 +27,7 @@ import { useQueueStore } from '@/stores/useQueueStore';
 import { useUIStore } from '@/stores/useUIStore';
 import { useSettingsStore } from '@/stores/useSettingsStore';
 import { useAudioPlayer } from '@/stores/useAudioPlayer';
-import { invokeSetOutputFormat, invokeSetBitrate, invokeSetSampleRate } from '@/lib/ipc';
+import { invokeSetOutputFormat, invokeSetBitrate, invokeSetSampleRate, invokeArchiveJobs } from '@/lib/ipc';
 import type { QueueJob, JobStatus } from '@/types/queue';
 
 // ─── Resize handle ────────────────────────────────────────────────────────────
@@ -168,11 +168,12 @@ function SampleRateSelect({ job }: { job: QueueJob }): JSX.Element {
 
 // ─── Sortable row ─────────────────────────────────────────────────────────────
 
-function SortableJobRow({ job, index, isSelected, onSelect }: {
+function SortableJobRow({ job, index, isSelected, onSelect, isImporting }: {
   job: QueueJob;
   index: number;
   isSelected: boolean;
   onSelect: (e: React.MouseEvent) => void;
+  isImporting?: boolean;
 }): JSX.Element {
   const { attributes, listeners, setNodeRef, transform, transition } = useSortable({ id: job.id });
   const setAbMode = useQueueStore((s) => s.setAbMode);
@@ -186,14 +187,20 @@ function SortableJobRow({ job, index, isSelected, onSelect }: {
     <tr
       ref={setNodeRef}
       style={{ transform: CSS.Transform.toString(transform), transition }}
-      onClick={onSelect}
+      onClick={isImporting ? undefined : onSelect}
+      data-job-id={job.id}
       className={clsx(
-        'group border-b border-slate-100 dark:border-white/[0.04] last:border-0 transition-colors duration-100 cursor-pointer',
-        isSelected
-          ? 'bg-violet-50 dark:bg-violet-500/[0.08] border-l-2 border-l-violet-500'
-          : isEnhanced
-            ? 'bg-emerald-50/40 dark:bg-emerald-500/[0.05] hover:bg-emerald-50 dark:hover:bg-emerald-500/[0.08]'
-            : 'hover:bg-slate-50 dark:hover:bg-white/[0.03]',
+        'group border-b border-slate-100 dark:border-white/[0.04] last:border-0 transition-colors duration-100',
+        isImporting
+          ? 'opacity-40 pointer-events-none cursor-default bg-slate-50 dark:bg-white/[0.02]'
+          : clsx(
+              'cursor-pointer',
+              isSelected
+                ? 'bg-violet-50 dark:bg-violet-500/[0.08] border-l-2 border-l-violet-500'
+                : isEnhanced
+                  ? 'bg-emerald-50/40 dark:bg-emerald-500/[0.05] hover:bg-emerald-50 dark:hover:bg-emerald-500/[0.08]'
+                  : 'hover:bg-slate-50 dark:hover:bg-white/[0.03]',
+            ),
       )}
     >
       <td className="px-2 py-2 w-8">
@@ -209,7 +216,22 @@ function SortableJobRow({ job, index, isSelected, onSelect }: {
         </button>
       </td>
       <td className="px-4 py-2 text-slate-400 dark:text-white/25 text-xs w-10 tabular-nums">{index + 1}</td>
-      <td className="px-4 py-2 text-sm text-slate-800 dark:text-slate-100 font-medium truncate max-w-[180px]">{job.filename}</td>
+      <td className="px-4 py-2 text-sm text-slate-800 dark:text-slate-100 font-medium truncate max-w-[180px]">
+        <div className="flex items-center gap-2">
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              useUIStore.getState().setActivePlayerJobId(job.id);
+              useUIStore.getState().setPlayerOpen(true);
+            }}
+            className="p-1 rounded bg-violet-500/10 hover:bg-violet-500/20 text-violet-600 dark:text-violet-400 transition shrink-0"
+            title="Open in Waveform Player"
+          >
+            <Play size={10} fill="currentColor" />
+          </button>
+          <span className="truncate">{job.filename}</span>
+        </div>
+      </td>
       <td
         className="px-2 py-2 text-xs text-slate-400 dark:text-white/40 truncate max-w-[130px] group/dest"
         title={job.destination || 'Click to set destination'}
@@ -282,16 +304,35 @@ function SortableJobRow({ job, index, isSelected, onSelect }: {
           <Lock size={12} />
         </button>
       </td>
+      <td className="px-2 py-2 w-8 group/trash">
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            const { deleteJobs } = useQueueStore.getState();
+            const activePlayerJobId = useUIStore.getState().activePlayerJobId;
+            if (activePlayerJobId === job.id) {
+              useUIStore.setState({ activePlayerJobId: null, playerOpen: false });
+            }
+            deleteJobs([job.id]);
+            void invokeArchiveJobs([job.id]);
+          }}
+          title="Delete item"
+          className="block mx-auto text-slate-300 dark:text-white/25 hover:text-red-500 dark:hover:text-red-400 opacity-0 group-hover/trash:opacity-100 transition-all duration-150"
+        >
+          <Trash2 size={12} />
+        </button>
+      </td>
     </tr>
   );
 }
 
 // ─── Sortable card (grid view) ────────────────────────────────────────────────
 
-function SortableJobCard({ job, isSelected, onSelect }: {
+function SortableJobCard({ job, isSelected, onSelect, isImporting }: {
   job: QueueJob;
   isSelected: boolean;
   onSelect: (e: React.MouseEvent) => void;
+  isImporting?: boolean;
 }): JSX.Element {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: job.id });
   const { playingJobId, isPlaying, toggle } = useAudioPlayer();
@@ -312,15 +353,21 @@ function SortableJobCard({ job, isSelected, onSelect }: {
     <div
       ref={setNodeRef}
       style={{ transform: CSS.Transform.toString(transform), transition }}
-      onClick={onSelect}
+      onClick={isImporting ? undefined : onSelect}
+      data-job-id={job.id}
       className={clsx(
-        'rounded-xl p-3 border cursor-pointer transition-all duration-150 select-none',
-        isDragging ? 'opacity-40 scale-[0.98]' : '',
-        isSelected
-          ? 'bg-violet-50 dark:bg-violet-500/[0.08] border-violet-300 dark:border-violet-500/40'
-          : isEnhanced
-            ? 'bg-emerald-50/40 dark:bg-emerald-500/[0.05] border-emerald-200 dark:border-emerald-500/15 hover:bg-emerald-50 dark:hover:bg-emerald-500/[0.08]'
-            : 'bg-white dark:bg-white/[0.04] border-slate-200 dark:border-white/[0.07] hover:bg-slate-50 dark:hover:bg-white/[0.06] hover:border-slate-300 dark:hover:border-white/[0.10]',
+        'rounded-xl p-3 border transition-all duration-150 select-none',
+        isImporting
+          ? 'opacity-40 pointer-events-none cursor-default bg-slate-50 dark:bg-white/[0.02] border-slate-100 dark:border-white/[0.04]'
+          : clsx(
+              'cursor-pointer',
+              isDragging ? 'opacity-40 scale-[0.98]' : '',
+              isSelected
+                ? 'bg-violet-50 dark:bg-violet-500/[0.08] border-violet-300 dark:border-violet-500/40'
+                : isEnhanced
+                  ? 'bg-emerald-50/40 dark:bg-emerald-500/[0.05] border-emerald-200 dark:border-emerald-500/15 hover:bg-emerald-50 dark:hover:bg-emerald-500/[0.08]'
+                  : 'bg-white dark:bg-white/[0.04] border-slate-200 dark:border-white/[0.07] hover:bg-slate-50 dark:hover:bg-white/[0.06] hover:border-slate-300 dark:hover:border-white/[0.10]',
+            ),
       )}
     >
       <div className="flex items-start justify-between gap-2 mb-2">
@@ -334,7 +381,20 @@ function SortableJobCard({ job, isSelected, onSelect }: {
         >
           <GripVertical size={14} />
         </button>
-        <span className="text-sm text-slate-800 dark:text-slate-100 font-medium truncate flex-1">{job.filename}</span>
+        <div className="flex items-center gap-1.5 min-w-0 flex-grow">
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              useUIStore.getState().setActivePlayerJobId(job.id);
+              useUIStore.getState().setPlayerOpen(true);
+            }}
+            className="p-1 rounded bg-violet-500/10 hover:bg-violet-500/20 text-violet-600 dark:text-violet-400 transition shrink-0"
+            title="Open in Waveform Player"
+          >
+            <Play size={10} fill="currentColor" />
+          </button>
+          <span className="text-sm text-slate-800 dark:text-slate-100 font-medium truncate flex-1">{job.filename}</span>
+        </div>
         <div className="flex items-center gap-1.5 shrink-0">
           <div className="group/lock">
             <button
@@ -424,6 +484,129 @@ export default function QueueGrid(): JSX.Element {
   const clearSelection = useQueueStore((s) => s.clearSelection);
   const { t } = useTranslation();
   const [colWidths, setColWidths] = useState({ filename: 180, destination: 140 });
+
+  const importingJobIds = useQueueStore((s) => s.importingJobIds);
+  const [selectionBox, setSelectionBox] = useState<{ left: number; top: number; width: number; height: number } | null>(null);
+  const [showClearConfirm, setShowClearConfirm] = useState(false);
+
+  async function handleClearQueue(): Promise<void> {
+    const { jobs, lockedJobIds, clearQueue } = useQueueStore.getState();
+    const idsToArchive = jobs.filter((j) => !lockedJobIds.includes(j.id)).map((j) => j.id);
+    const activePlayerJobId = useUIStore.getState().activePlayerJobId;
+    if (activePlayerJobId && idsToArchive.includes(activePlayerJobId)) {
+      useUIStore.setState({ activePlayerJobId: null, playerOpen: false });
+    }
+    clearQueue();
+    if (idsToArchive.length > 0) {
+      void invokeArchiveJobs(idsToArchive);
+    }
+  }
+
+  function handleContainerMouseDown(e: React.MouseEvent): void {
+    if (e.button !== 0) return;
+    const target = e.target as HTMLElement;
+    // Only block interactive elements — allow starting drag on rows
+    if (
+      target.closest('button') ||
+      target.closest('select') ||
+      target.closest('input')
+    ) {
+      return;
+    }
+
+    e.preventDefault();
+    const startX = e.clientX;
+    const startY = e.clientY;
+    // Capture container bounds so visual marquee stays within the queue area
+    const containerRect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+    let dragStarted = false;
+
+    const onMouseMove = (ev: MouseEvent) => {
+      // Clamp cursor to container bounds for the visual selection box
+      const clampedX = Math.max(containerRect.left, Math.min(containerRect.right, ev.clientX));
+      const clampedY = Math.max(containerRect.top, Math.min(containerRect.bottom, ev.clientY));
+
+      const left = Math.min(startX, clampedX);
+      const top = Math.min(startY, clampedY);
+      const width = Math.abs(startX - clampedX);
+      const height = Math.abs(startY - clampedY);
+
+      if (!dragStarted && (Math.abs(ev.clientX - startX) > 3 || Math.abs(ev.clientY - startY) > 3)) {
+        dragStarted = true;
+      }
+
+      if (dragStarted) {
+        setSelectionBox({ left, top, width, height });
+
+        const elements = document.querySelectorAll('[data-job-id]');
+        const intersectedIds: string[] = [];
+        elements.forEach((el) => {
+          const jobId = el.getAttribute('data-job-id');
+          if (!jobId) return;
+          const box = el.getBoundingClientRect();
+          const intersects = (
+            left < box.right &&
+            left + width > box.left &&
+            top < box.bottom &&
+            top + height > box.top
+          );
+          if (intersects) intersectedIds.push(jobId);
+        });
+
+        const { selectedJobIds } = useQueueStore.getState();
+        if (ev.shiftKey || ev.ctrlKey || ev.metaKey) {
+          const merged = [...new Set([...selectedJobIds, ...intersectedIds])];
+          useQueueStore.setState({ selectedJobIds: merged });
+        } else {
+          useQueueStore.setState({ selectedJobIds: intersectedIds });
+        }
+      }
+    };
+
+    const onMouseUp = () => {
+      setSelectionBox(null);
+      window.removeEventListener('mousemove', onMouseMove);
+      window.removeEventListener('mouseup', onMouseUp);
+      // If a drag occurred, cancel the next click so the row's onClick doesn't fire
+      if (dragStarted) {
+        const cancelClick = (ev: Event): void => {
+          ev.stopPropagation();
+          window.removeEventListener('click', cancelClick, true);
+        };
+        window.addEventListener('click', cancelClick, true);
+      }
+    };
+
+    window.addEventListener('mousemove', onMouseMove);
+    window.addEventListener('mouseup', onMouseUp);
+  }
+
+  useEffect(() => {
+    function handleKeyDown(e: KeyboardEvent): void {
+      if (e.key === 'Delete' || e.key === 'Backspace') {
+        const tag = (e.target as HTMLElement).tagName;
+        if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
+
+        const { selectedJobIds, deleteJobs, lockedJobIds } = useQueueStore.getState();
+        if (selectedJobIds.length === 0) return;
+
+        e.preventDefault();
+        // Locked items must never be deleted via keyboard shortcuts
+        const idsToDelete = selectedJobIds.filter((id) => !lockedJobIds.includes(id));
+        if (idsToDelete.length === 0) return;
+
+        const activePlayerJobId = useUIStore.getState().activePlayerJobId;
+        if (idsToDelete.includes(activePlayerJobId || '')) {
+          useUIStore.setState({ activePlayerJobId: null, playerOpen: false });
+        }
+        deleteJobs(idsToDelete);
+        void invokeArchiveJobs(idsToDelete);
+      }
+    }
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, []);
   const adjustWidth = (col: keyof typeof colWidths, delta: number): void =>
     setColWidths((p) => ({ ...p, [col]: Math.max(80, p[col] + delta) }));
   const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set());
@@ -486,64 +669,81 @@ export default function QueueGrid(): JSX.Element {
 
   if (viewMode === 'grid') {
     return (
-      <div
-        className="flex-1 overflow-auto scrollbar-thin"
-        onClick={(e) => { if (e.target === e.currentTarget) clearSelection(); }}
-      >
-        {jobs.length === 0 ? emptyState : groupByFormat ? (
-          <div className="flex flex-col gap-4 p-1">
-            {groups.map((group) => (
-              <div key={group.label}>
-                <button
-                  onClick={() => toggleGroup(group.label)}
-                  className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wider text-slate-500 dark:text-white/35 px-1 pb-2 border-b border-slate-200 dark:border-white/[0.07] mb-2 w-full hover:text-slate-700 dark:hover:text-white/60 transition-colors"
+      <>
+        <div
+          className="flex-1 overflow-auto scrollbar-thin"
+          onMouseDown={handleContainerMouseDown}
+          onClick={(e) => { if (e.target === e.currentTarget) clearSelection(); }}
+        >
+          {jobs.length === 0 ? emptyState : groupByFormat ? (
+            <div className="flex flex-col gap-4 p-1">
+              {groups.map((group) => (
+                <div key={group.label}>
+                  <button
+                    onClick={() => toggleGroup(group.label)}
+                    className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wider text-slate-500 dark:text-white/35 px-1 pb-2 border-b border-slate-200 dark:border-white/[0.07] mb-2 w-full hover:text-slate-700 dark:hover:text-white/60 transition-colors"
+                  >
+                    <ChevronRight size={11} className={`transition-transform shrink-0 ${collapsedGroups.has(group.label) ? '' : 'rotate-90'}`} />
+                    {group.label}
+                    <span className="text-slate-300 dark:text-white/20 font-normal ml-0.5">({group.jobs.length})</span>
+                  </button>
+                  {!collapsedGroups.has(group.label) && (
+                    <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+                      <SortableContext items={group.jobs.map((j) => j.id)} strategy={rectSortingStrategy}>
+                        <div
+                          className="grid grid-cols-3 gap-2"
+                          onClick={(e) => { if (e.target === e.currentTarget) clearSelection(); }}
+                        >
+                          {group.jobs.map((job) => (
+                            <SortableJobCard
+                              key={job.id}
+                              job={job}
+                              isSelected={selectedJobIds.includes(job.id)}
+                              onSelect={(e) => handleRowClick(e, job.id)}
+                              isImporting={importingJobIds.includes(job.id)}
+                            />
+                          ))}
+                        </div>
+                      </SortableContext>
+                    </DndContext>
+                  )}
+                </div>
+              ))}
+            </div>
+          ) : (
+            <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+              <SortableContext items={jobs.map((j) => j.id)} strategy={rectSortingStrategy}>
+                <div
+                  className="grid grid-cols-3 gap-2 p-1"
+                  onClick={(e) => { if (e.target === e.currentTarget) clearSelection(); }}
                 >
-                  <ChevronRight size={11} className={`transition-transform shrink-0 ${collapsedGroups.has(group.label) ? '' : 'rotate-90'}`} />
-                  {group.label}
-                  <span className="text-slate-300 dark:text-white/20 font-normal ml-0.5">({group.jobs.length})</span>
-                </button>
-                {!collapsedGroups.has(group.label) && (
-                  <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
-                    <SortableContext items={group.jobs.map((j) => j.id)} strategy={rectSortingStrategy}>
-                      <div
-                        className="grid grid-cols-3 gap-2"
-                        onClick={(e) => { if (e.target === e.currentTarget) clearSelection(); }}
-                      >
-                        {group.jobs.map((job) => (
-                          <SortableJobCard
-                            key={job.id}
-                            job={job}
-                            isSelected={selectedJobIds.includes(job.id)}
-                            onSelect={(e) => handleRowClick(e, job.id)}
-                          />
-                        ))}
-                      </div>
-                    </SortableContext>
-                  </DndContext>
-                )}
-              </div>
-            ))}
-          </div>
-        ) : (
-          <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
-            <SortableContext items={jobs.map((j) => j.id)} strategy={rectSortingStrategy}>
-              <div
-                className="grid grid-cols-3 gap-2 p-1"
-                onClick={(e) => { if (e.target === e.currentTarget) clearSelection(); }}
-              >
-                {jobs.map((job) => (
-                  <SortableJobCard
-                    key={job.id}
-                    job={job}
-                    isSelected={selectedJobIds.includes(job.id)}
-                    onSelect={(e) => handleRowClick(e, job.id)}
-                  />
-                ))}
-              </div>
-            </SortableContext>
-          </DndContext>
+                  {jobs.map((job) => (
+                    <SortableJobCard
+                      key={job.id}
+                      job={job}
+                      isSelected={selectedJobIds.includes(job.id)}
+                      onSelect={(e) => handleRowClick(e, job.id)}
+                      isImporting={importingJobIds.includes(job.id)}
+                    />
+                  ))}
+                </div>
+              </SortableContext>
+            </DndContext>
+          )}
+        </div>
+
+        {selectionBox && (
+          <div
+            className="fixed z-50 pointer-events-none border border-violet-500 bg-violet-500/10 rounded"
+            style={{
+              left: selectionBox.left,
+              top: selectionBox.top,
+              width: selectionBox.width,
+              height: selectionBox.height,
+            }}
+          />
         )}
-      </div>
+      </>
     );
   }
 
@@ -569,79 +769,136 @@ export default function QueueGrid(): JSX.Element {
         <th className="px-2 py-2.5 w-8 text-center">
           <Lock size={11} className="mx-auto text-slate-400 dark:text-white/30" />
         </th>
+        <th className="px-2 py-2.5 w-8 text-center">
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              setShowClearConfirm(true);
+            }}
+            className="text-red-500 hover:text-red-400 font-semibold text-[10px] uppercase tracking-wider transition-colors"
+            title="Clear all non-locked items"
+          >
+            Clear
+          </button>
+        </th>
       </tr>
     </thead>
   );
 
   return (
-    <div
-      className="flex-1 overflow-auto rounded-xl bg-white dark:bg-[#0C1120] shadow-sm border border-slate-200 dark:border-white/[0.06] scrollbar-thin"
-      onClick={(e) => { if ((e.target as HTMLElement).closest('tr') === null) clearSelection(); }}
-    >
-      <table className="w-full text-left queue-table">
-        {tableHeader}
-        <tbody>
-          {jobs.length === 0 ? (
-            <tr>
-              <td colSpan={11} className="px-4 py-16 text-center text-slate-400 dark:text-white/25 text-sm">
-                {t('queue.empty')}
-              </td>
-            </tr>
-          ) : groupByFormat ? (
-            <>
-              {groups.map((group, gi) => (
-                <React.Fragment key={`group-${gi}`}>
-                  <tr>
-                    <td colSpan={11} className="px-4 pt-3 pb-1">
-                      <button
-                        onClick={() => toggleGroup(group.label)}
-                        className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wider text-violet-600 dark:text-violet-400/80 hover:text-violet-700 dark:hover:text-violet-300 transition-colors"
-                      >
-                        <ChevronRight size={11} className={`transition-transform shrink-0 ${collapsedGroups.has(group.label) ? '' : 'rotate-90'}`} />
-                        {group.label}
-                        <span className="text-slate-300 dark:text-white/20 font-normal ml-0.5">({group.jobs.length})</span>
-                      </button>
-                    </td>
-                  </tr>
-                  {!collapsedGroups.has(group.label) && (
-                    <DndContext key={`dnd-${gi}`} sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd} modifiers={[restrictToVerticalAxis]}>
-                      <SortableContext items={group.jobs.map((j) => j.id)} strategy={verticalListSortingStrategy}>
-                        <AnimatePresence>
-                          {group.jobs.map((job, i) => (
-                            <SortableJobRow
-                              key={job.id}
-                              job={job}
-                              index={i}
-                              isSelected={selectedJobIds.includes(job.id)}
-                              onSelect={(e) => handleRowClick(e, job.id)}
-                            />
-                          ))}
-                        </AnimatePresence>
-                      </SortableContext>
-                    </DndContext>
-                  )}
-                </React.Fragment>
-              ))}
-            </>
-          ) : (
-            <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd} modifiers={[restrictToVerticalAxis]}>
-              <SortableContext items={jobs.map((j) => j.id)} strategy={verticalListSortingStrategy}>
-                <AnimatePresence>
-                  {jobs.map((job, i) => (
-                    <SortableJobRow
-                      key={job.id}
-                      job={job}
-                      index={i}
-                      isSelected={selectedJobIds.includes(job.id)}
-                      onSelect={(e) => handleRowClick(e, job.id)}
-                    />
-                  ))}
-                </AnimatePresence>
-              </SortableContext>
-            </DndContext>
-          )}
-        </tbody>
-      </table>
-    </div>
+    <>
+      <div
+        className="flex-1 overflow-auto rounded-xl bg-white dark:bg-[#0C1120] shadow-sm border border-slate-200 dark:border-white/[0.06] scrollbar-thin"
+        onMouseDown={handleContainerMouseDown}
+        onClick={(e) => { if ((e.target as HTMLElement).closest('tr') === null) clearSelection(); }}
+      >
+        <table className="w-full text-left queue-table">
+          {tableHeader}
+          <tbody>
+            {jobs.length === 0 ? (
+              <tr>
+                <td colSpan={12} className="px-4 py-16 text-center text-slate-400 dark:text-white/25 text-sm">
+                  {t('queue.empty')}
+                </td>
+              </tr>
+            ) : groupByFormat ? (
+              <>
+                {groups.map((group, gi) => (
+                  <React.Fragment key={`group-${gi}`}>
+                    <tr>
+                      <td colSpan={12} className="px-4 pt-3 pb-1">
+                        <button
+                          onClick={() => toggleGroup(group.label)}
+                          className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wider text-violet-600 dark:text-violet-400/80 hover:text-violet-700 dark:hover:text-violet-300 transition-colors"
+                        >
+                          <ChevronRight size={11} className={`transition-transform shrink-0 ${collapsedGroups.has(group.label) ? '' : 'rotate-90'}`} />
+                          {group.label}
+                          <span className="text-slate-300 dark:text-white/20 font-normal ml-0.5">({group.jobs.length})</span>
+                        </button>
+                      </td>
+                    </tr>
+                    {!collapsedGroups.has(group.label) && (
+                      <DndContext key={`dnd-${gi}`} sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd} modifiers={[restrictToVerticalAxis]}>
+                        <SortableContext items={group.jobs.map((j) => j.id)} strategy={verticalListSortingStrategy}>
+                          <AnimatePresence>
+                            {group.jobs.map((job, i) => (
+                              <SortableJobRow
+                                key={job.id}
+                                job={job}
+                                index={i}
+                                isSelected={selectedJobIds.includes(job.id)}
+                                onSelect={(e) => handleRowClick(e, job.id)}
+                                isImporting={importingJobIds.includes(job.id)}
+                              />
+                            ))}
+                          </AnimatePresence>
+                        </SortableContext>
+                      </DndContext>
+                    )}
+                  </React.Fragment>
+                ))}
+              </>
+            ) : (
+              <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd} modifiers={[restrictToVerticalAxis]}>
+                <SortableContext items={jobs.map((j) => j.id)} strategy={verticalListSortingStrategy}>
+                  <AnimatePresence>
+                    {jobs.map((job, i) => (
+                      <SortableJobRow
+                        key={job.id}
+                        job={job}
+                        index={i}
+                        isSelected={selectedJobIds.includes(job.id)}
+                        onSelect={(e) => handleRowClick(e, job.id)}
+                        isImporting={importingJobIds.includes(job.id)}
+                      />
+                    ))}
+                  </AnimatePresence>
+                </SortableContext>
+              </DndContext>
+            )}
+          </tbody>
+        </table>
+      </div>
+
+      {selectionBox && (
+        <div
+          className="fixed z-50 pointer-events-none border border-violet-500 bg-violet-500/10 rounded"
+          style={{
+            left: selectionBox.left,
+            top: selectionBox.top,
+            width: selectionBox.width,
+            height: selectionBox.height,
+          }}
+        />
+      )}
+
+      {showClearConfirm && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
+          <div className="bg-slate-900 border border-white/10 p-6 rounded-2xl max-w-sm w-full shadow-2xl flex flex-col gap-4">
+            <h3 className="text-sm font-semibold text-white uppercase tracking-wider">Confirm Clear Queue</h3>
+            <p className="text-xs text-white/60 leading-relaxed">
+              Are you sure you want to clear the entire queue? Locked files will not be deleted. This action cannot be undone.
+            </p>
+            <div className="flex justify-end gap-2 mt-2">
+              <button
+                onClick={() => setShowClearConfirm(false)}
+                className="px-3 py-1.5 rounded-lg text-xs font-medium bg-white/5 hover:bg-white/10 text-white transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={async () => {
+                  setShowClearConfirm(false);
+                  await handleClearQueue();
+                }}
+                className="px-3 py-1.5 rounded-lg text-xs font-medium bg-red-600 hover:bg-red-500 text-white transition-colors"
+              >
+                Yes, Clear All
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </>
   );
 }

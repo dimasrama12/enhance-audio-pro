@@ -12,6 +12,7 @@ interface QueueState {
   searchQuery: string;
   selectedJobIds: string[];
   lockedJobIds: string[];
+  importingJobIds: string[];
   viewMode: ViewMode;
   groupByFormat: boolean;
   setJobs: (jobs: QueueJob[]) => void;
@@ -48,6 +49,7 @@ interface QueueState {
   // View
   setViewMode: (mode: ViewMode) => void;
   setGroupByFormat: (v: boolean) => void;
+  deleteJobs: (ids: string[]) => void;
 }
 
 export const useQueueStore = create<QueueState>()(
@@ -58,6 +60,7 @@ export const useQueueStore = create<QueueState>()(
   searchQuery: '',
   selectedJobIds: [],
   lockedJobIds: [],
+  importingJobIds: [],
   viewMode: 'table',
   groupByFormat: false,
 
@@ -65,7 +68,17 @@ export const useQueueStore = create<QueueState>()(
   addJobs: (newJobs) => set((s) => {
     const existing = new Set(s.jobs.map((j) => j.id));
     const unique = newJobs.filter((j) => !existing.has(j.id));
-    return unique.length ? { jobs: [...s.jobs, ...unique] } : s;
+    if (!unique.length) return s;
+    const newIds = unique.map((j) => j.id);
+    setTimeout(() => {
+      useQueueStore.setState((prev) => ({
+        importingJobIds: prev.importingJobIds.filter((id) => !newIds.includes(id)),
+      }));
+    }, 1500);
+    return {
+      jobs: [...s.jobs, ...unique],
+      importingJobIds: [...new Set([...s.importingJobIds, ...newIds])],
+    };
   }),
   setFilter: (filter) => set({ filter }),
   setSearchQuery: (searchQuery) => set({ searchQuery }),
@@ -204,6 +217,13 @@ export const useQueueStore = create<QueueState>()(
   setViewMode: (viewMode) => set({ viewMode }),
 
   setGroupByFormat: (groupByFormat) => set({ groupByFormat }),
+
+  deleteJobs: (ids) =>
+    set((s) => ({
+      jobs: s.jobs.filter((j) => !ids.includes(j.id)),
+      selectedJobIds: s.selectedJobIds.filter((id) => !ids.includes(id)),
+      lockedJobIds: s.lockedJobIds.filter((id) => !ids.includes(id)),
+    })),
     }),
     {
       name: 'queue-ui-prefs',
