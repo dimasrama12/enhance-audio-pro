@@ -103,6 +103,12 @@ export default function WaveformPlayer({ filepath, outputFilepath, filename }: P
     };
   }, []);
 
+  // Auto-focus on mount so keyboard shortcuts work immediately after opening
+  useEffect(() => {
+    const t = setTimeout(() => { containerRef.current?.focus(); }, 200);
+    return () => clearTimeout(t);
+  }, []);
+
   const activeFile = showOutput && outputFilepath ? outputFilepath : filepath;
 
   const waveColor = theme === 'dark' ? '#6d28d9' : '#7c3aed';
@@ -618,7 +624,12 @@ export default function WaveformPlayer({ filepath, outputFilepath, filename }: P
       reversedBufferRef.current = null;
       if (container && handleWheel) container.removeEventListener('wheel', handleWheel);
       if (resizeObserver) resizeObserver.disconnect();
+      if (gainNodeRef.current) {
+        try { gainNodeRef.current.disconnect(); } catch { /* already disconnected */ }
+        gainNodeRef.current = null;
+      }
       if (wsRef.current) {
+        wsRef.current.unAll();
         wsRef.current.destroy();
         wsRef.current = null;
       }
@@ -628,7 +639,8 @@ export default function WaveformPlayer({ filepath, outputFilepath, filename }: P
   }, [activeFile]);
 
   useEffect(() => {
-    wsRef.current?.setOptions({ waveColor, progressColor, cursorColor });
+    if (!wsRef.current) return;
+    try { wsRef.current.setOptions({ waveColor, progressColor, cursorColor }); } catch { /* mid-destroy */ }
   }, [waveColor, progressColor, cursorColor]);
 
   // Keyboard handler — only active when player container is focused or for global keys
@@ -760,7 +772,12 @@ export default function WaveformPlayer({ filepath, outputFilepath, filename }: P
   const handleFocus = (): void => setIsFocused(true);
   const handleBlur = (e: React.FocusEvent): void => {
     if (e.currentTarget.contains(e.relatedTarget as Node)) return;
-    setIsFocused(false);
+    // Defer so onClick → focus() on non-focusable inner elements (waveform canvas)
+    // fires first, preventing a visible border-disappear flicker.
+    const container = e.currentTarget;
+    setTimeout(() => {
+      if (!container.contains(document.activeElement)) setIsFocused(false);
+    }, 0);
   };
 
   // Human-readable speed badge

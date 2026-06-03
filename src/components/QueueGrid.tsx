@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { listen } from '@tauri-apps/api/event';
 import { motion, AnimatePresence } from 'framer-motion';
 import { clsx } from 'clsx';
@@ -499,6 +499,12 @@ export default function QueueGrid(): JSX.Element {
   const [showClearConfirm, setShowClearConfirm] = useState(false);
   const [activeDragId, setActiveDragId] = useState<string | null>(null);
 
+  const draggingJobs = useMemo((): QueueJob[] => {
+    if (!activeDragId) return [];
+    const ids = selectedJobIds.includes(activeDragId) ? selectedJobIds : [activeDragId];
+    return ids.map((id) => jobs.find((j) => j.id === id)).filter((j): j is QueueJob => j !== undefined);
+  }, [activeDragId, selectedJobIds, jobs]);
+
   async function handleClearQueue(): Promise<void> {
     const { jobs, lockedJobIds, clearQueue } = useQueueStore.getState();
     const idsToArchive = jobs.filter((j) => !lockedJobIds.includes(j.id)).map((j) => j.id);
@@ -694,12 +700,21 @@ export default function QueueGrid(): JSX.Element {
                           ))}
                         </div>
                       </SortableContext>
-                      <DragOverlay>
-                        {activeDragId && (
-                          <div className="px-3 py-1.5 rounded-lg bg-violet-600 text-white text-xs font-medium shadow-xl select-none opacity-90 border border-violet-400/30">
-                            {selectedJobIds.includes(activeDragId) && selectedJobIds.length > 1
-                              ? `Moving ${selectedJobIds.length} items`
-                              : 'Moving 1 item'}
+                      <DragOverlay dropAnimation={null}>
+                        {activeDragId && draggingJobs.length > 0 && (
+                          <div className="relative select-none w-[220px]">
+                            {draggingJobs.length > 1 && (
+                              <div className="absolute left-2 top-2 w-full h-full rounded-xl bg-violet-400/15 border border-violet-300/25" />
+                            )}
+                            <div className="relative rounded-xl p-3 bg-white dark:bg-[#0D1525] border border-violet-400/50 shadow-xl shadow-violet-500/15">
+                              <span className="text-sm font-medium text-slate-800 dark:text-slate-100 truncate block">{draggingJobs[0].filename}</span>
+                              <span className="text-[10px] text-slate-400 dark:text-white/35 mt-1 block">{formatBytes(draggingJobs[0].size_bytes)}</span>
+                              {draggingJobs.length > 1 && (
+                                <span className="absolute -top-2 -right-2 w-5 h-5 rounded-full bg-violet-600 text-white text-[10px] font-bold flex items-center justify-center shadow-md">
+                                  {draggingJobs.length}
+                                </span>
+                              )}
+                            </div>
                           </div>
                         )}
                       </DragOverlay>
@@ -726,12 +741,21 @@ export default function QueueGrid(): JSX.Element {
                   ))}
                 </div>
               </SortableContext>
-              <DragOverlay>
-                {activeDragId && (
-                  <div className="px-3 py-1.5 rounded-lg bg-violet-600 text-white text-xs font-medium shadow-xl select-none opacity-90 border border-violet-400/30">
-                    {selectedJobIds.includes(activeDragId) && selectedJobIds.length > 1
-                      ? `Moving ${selectedJobIds.length} items`
-                      : 'Moving 1 item'}
+              <DragOverlay dropAnimation={null}>
+                {activeDragId && draggingJobs.length > 0 && (
+                  <div className="relative select-none w-[220px]">
+                    {draggingJobs.length > 1 && (
+                      <div className="absolute left-2 top-2 w-full h-full rounded-xl bg-violet-400/15 border border-violet-300/25" />
+                    )}
+                    <div className="relative rounded-xl p-3 bg-white dark:bg-[#0D1525] border border-violet-400/50 shadow-xl shadow-violet-500/15">
+                      <span className="text-sm font-medium text-slate-800 dark:text-slate-100 truncate block">{draggingJobs[0].filename}</span>
+                      <span className="text-[10px] text-slate-400 dark:text-white/35 mt-1 block">{formatBytes(draggingJobs[0].size_bytes)}</span>
+                      {draggingJobs.length > 1 && (
+                        <span className="absolute -top-2 -right-2 w-5 h-5 rounded-full bg-violet-600 text-white text-[10px] font-bold flex items-center justify-center shadow-md">
+                          {draggingJobs.length}
+                        </span>
+                      )}
+                    </div>
                   </div>
                 )}
               </DragOverlay>
@@ -854,12 +878,19 @@ export default function QueueGrid(): JSX.Element {
                             ))}
                           </AnimatePresence>
                         </SortableContext>
-                        <DragOverlay>
-                          {activeDragId && (
-                            <div className="px-3 py-1.5 rounded-lg bg-violet-600 text-white text-xs font-medium shadow-xl select-none opacity-90 border border-violet-400/30">
-                              {selectedJobIds.includes(activeDragId) && selectedJobIds.length > 1
-                                ? `Moving ${selectedJobIds.length} items`
-                                : 'Moving 1 item'}
+                        <DragOverlay dropAnimation={null}>
+                          {activeDragId && draggingJobs.length > 0 && (
+                            <div className="relative select-none" style={{ width: 340 }}>
+                              {draggingJobs.length > 1 && (
+                                <div className="absolute left-1.5 top-1.5 right-0 h-10 rounded-lg bg-violet-400/10 border border-violet-300/20" />
+                              )}
+                              <div className="flex items-center gap-3 px-3 py-2.5 rounded-lg bg-white dark:bg-[#0D1525] border border-violet-400/50 shadow-xl shadow-violet-500/15">
+                                <GripVertical size={13} className="text-violet-400/50 shrink-0" />
+                                <span className="text-sm font-medium text-slate-800 dark:text-slate-100 truncate flex-1">{draggingJobs[0].filename}</span>
+                                {draggingJobs.length > 1 && (
+                                  <span className="px-2 py-0.5 rounded-full bg-violet-600 text-white text-[10px] font-semibold shrink-0">+{draggingJobs.length - 1}</span>
+                                )}
+                              </div>
                             </div>
                           )}
                         </DragOverlay>
@@ -884,12 +915,19 @@ export default function QueueGrid(): JSX.Element {
                     ))}
                   </AnimatePresence>
                 </SortableContext>
-                <DragOverlay>
-                  {activeDragId && (
-                    <div className="px-3 py-1.5 rounded-lg bg-violet-600 text-white text-xs font-medium shadow-xl select-none opacity-90 border border-violet-400/30">
-                      {selectedJobIds.includes(activeDragId) && selectedJobIds.length > 1
-                        ? `Moving ${selectedJobIds.length} items`
-                        : 'Moving 1 item'}
+                <DragOverlay dropAnimation={null}>
+                  {activeDragId && draggingJobs.length > 0 && (
+                    <div className="relative select-none" style={{ width: 340 }}>
+                      {draggingJobs.length > 1 && (
+                        <div className="absolute left-1.5 top-1.5 right-0 h-10 rounded-lg bg-violet-400/10 border border-violet-300/20" />
+                      )}
+                      <div className="flex items-center gap-3 px-3 py-2.5 rounded-lg bg-white dark:bg-[#0D1525] border border-violet-400/50 shadow-xl shadow-violet-500/15">
+                        <GripVertical size={13} className="text-violet-400/50 shrink-0" />
+                        <span className="text-sm font-medium text-slate-800 dark:text-slate-100 truncate flex-1">{draggingJobs[0].filename}</span>
+                        {draggingJobs.length > 1 && (
+                          <span className="px-2 py-0.5 rounded-full bg-violet-600 text-white text-[10px] font-semibold shrink-0">+{draggingJobs.length - 1}</span>
+                        )}
+                      </div>
                     </div>
                   )}
                 </DragOverlay>
