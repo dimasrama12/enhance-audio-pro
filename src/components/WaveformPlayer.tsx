@@ -35,10 +35,8 @@ function getMimeType(path: string): string {
   return map[ext] ?? 'audio/mpeg';
 }
 
-// Speed steps: negative = backward, positive = forward, 0 = stopped
-// J decrements, L increments. Each step: -4 -2 0 2 4
-const JL_STEPS = [-4, -2, 0, 2, 4];
-const FRAME_SIZE = 1 / 30; // ~0.0333s at 30fps
+const FRAME_SIZE = 1 / 30;
+const FPS = 30;
 
 export default function WaveformPlayer({ filepath, outputFilepath, filename }: Props): JSX.Element {
   const waveformRef = useRef<HTMLDivElement>(null);
@@ -59,11 +57,14 @@ export default function WaveformPlayer({ filepath, outputFilepath, filename }: P
   const [minZoom, setMinZoom] = useState(0);
   const minZoomRef = useRef(0);
   minZoomRef.current = minZoom;
-  const maxZoom = 2000;
+
+  // Dynamic maxZoom: containerWidth * FPS so 1 frame fills the full width (Premiere Pro style)
+  const [maxZoom, setMaxZoom] = useState(2000);
+  const maxZoomRef = useRef(2000);
 
   const [isFocused, setIsFocused] = useState(false);
   const [volumeDb, setVolumeDb] = useState(0);
-  // jlSpeed: -4 | -2 | 0 | 2 | 4  (sign = direction, magnitude = multiplier)
+  // jlSpeed: -4 | -2 | -1 | 0 | 1 | 2 | 4  (sign = direction, magnitude = multiplier)
   const [jlSpeed, setJlSpeed] = useState(0);
 
   const jlSpeedRef = useRef(0);
@@ -72,7 +73,17 @@ export default function WaveformPlayer({ filepath, outputFilepath, filename }: P
   const volumeDbRef = useRef(0);
   volumeDbRef.current = volumeDb;
 
-  const reverseTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  // Forward playback RAF for smooth time display
+  const playbackRafRef = useRef<number | null>(null);
+
+  // Refs for backward audio via AudioContext (reversed AudioBuffer)
+  const reversedBufferRef = useRef<AudioBuffer | null>(null);
+  const reverseSourceRef = useRef<AudioBufferSourceNode | null>(null);
+  const reverseStartCtxTimeRef = useRef<number>(0);
+  const reverseStartPosRef = useRef<number>(0);
+  const reverseSpeedMagRef = useRef<number>(1);
+  const reverseRafRef = useRef<number | null>(null);
+
   const audioContextRef = useRef<AudioContext | null>(null);
   const gainNodeRef = useRef<GainNode | null>(null);
   const isProgrammaticSeekRef = useRef(false);
@@ -90,18 +101,36 @@ export default function WaveformPlayer({ filepath, outputFilepath, filename }: P
   const progressColor = theme === 'dark' ? '#a78bfa' : '#4c1d95';
   const cursorColor = theme === 'dark' ? 'rgba(255,255,255,0.7)' : 'rgba(0,0,0,0.6)';
 
-  const clearReverseTimer = (): void => {
-    if (reverseTimerRef.current) {
-      clearInterval(reverseTimerRef.current);
-      reverseTimerRef.current = null;
+  const stopPlaybackRaf = (): void => {
+    if (playbackRafRef.current !== null) {
+      cancelAnimationFrame(playbackRafRef.current);
+      playbackRafRef.current = null;
     }
   };
 
-  // Central speed-state machine: sets jlSpeed, starts/stops reverse timer, adjusts playback rate
+  // Stop reverse audio source and cancel its RAF loop
+  const stopReverseAudio = (): void => {
+    if (reverseRafRef.current !== null) {
+      cancelAnimationFrame(reverseRafRef.current);
+      reverseRafRef.current = null;
+    }
+    if (reverseSourceRef.current) {
+      try { reverseSourceRef.current.stop(0); } catch { /* already stopped */ }
+      try { reverseSourceRef.current.disconnect(); } catch { /* already disconnected */ }
+      reverseSourceRef.current = null;
+    }
+  };
+
+  const clearReverseTimer = (): void => {
+    stopReverseAudio();
+  };
+
+  // Central speed-state machine
   const applySpeed = (speed: number): void => {
     jlSpeedRef.current = speed;
     setJlSpeed(speed);
-    clearReverseTimer();
+    stopReverseAudio();
+    stopPlaybackRaf();
 
     if (speed === 0) {
       wsRef.current?.pause();
@@ -111,44 +140,142 @@ export default function WaveformPlayer({ filepath, outputFilepath, filename }: P
       wsRef.current?.setPlaybackRate(speed);
       wsRef.current?.play();
     } else {
-      // Backward via timer (WaveSurfer has no native reverse)
+      // Backward playback with actual audio via reversed AudioBuffer
       wsRef.current?.pause();
       wsRef.current?.setPlaybackRate(1.0);
       if (audioContextRef.current?.state === 'suspended') audioContextRef.current.resume();
-      const stepSize = 0.05 * Math.abs(speed); // 50ms * speed factor
-      reverseTimerRef.current = setInterval(() => {
+
+      const capturedSpeed = speed; // capture for async closure
+
+      const startBackward = async (): Promise<void> => {
+        const audioCtx = audioContextRef.current;
         const ws = wsRef.current;
-        if (!ws) return;
-        const cur = ws.getCurrentTime();
-        if (cur <= 0) {
-          clearReverseTimer();
-          jlSpeedRef.current = 0;
-          setJlSpeed(0);
-        } else {
-          const next = Math.max(0, cur - stepSize);
-          isProgrammaticSeekRef.current = true;
-          ws.setTime(next);
-          isProgrammaticSeekRef.current = false;
-          setCurrentTime(next);
+        if (!audioCtx || !ws) return;
+
+        // If the speed changed since we were scheduled, abort
+        if (jlSpeedRef.current !== capturedSpeed) return;
+
+        let reversed = reversedBufferRef.current;
+
+        // Decode and build reversed buffer on first backward use for this file
+        if (!reversed && blobUrlRef.current) {
+          try {
+            const resp = await fetch(blobUrlRef.current);
+            const ab = await resp.arrayBuffer();
+            const buf = await audioCtx.decodeAudioData(ab);
+
+            const rev = audioCtx.createBuffer(buf.numberOfChannels, buf.length, buf.sampleRate);
+            for (let ch = 0; ch < buf.numberOfChannels; ch++) {
+              const srcData = buf.getChannelData(ch);
+              const dstData = rev.getChannelData(ch);
+              for (let i = 0; i < srcData.length; i++) {
+                dstData[i] = srcData[srcData.length - 1 - i];
+              }
+            }
+            reversedBufferRef.current = rev;
+            reversed = rev;
+          } catch (e) {
+            console.warn('Failed to decode audio for backward playback:', e);
+            return;
+          }
         }
-      }, 50);
+
+        if (!reversed) return;
+        // Abort if speed changed while we were decoding
+        if (jlSpeedRef.current !== capturedSpeed) return;
+        // Abort if another reverse source is already running
+        if (reverseSourceRef.current) return;
+
+        const currentPos = ws.getCurrentTime();
+        const dur = ws.getDuration();
+        // In the reversed buffer, position (dur - currentPos) corresponds to our current position
+        const startOffset = Math.max(0, dur - currentPos);
+        const mag = Math.abs(capturedSpeed);
+
+        const source = audioCtx.createBufferSource();
+        source.buffer = reversed;
+        source.playbackRate.value = mag;
+
+        // Route through gain node for volume control
+        const dest = gainNodeRef.current ?? audioCtx.destination;
+        source.connect(dest);
+
+        reverseStartCtxTimeRef.current = audioCtx.currentTime;
+        reverseStartPosRef.current = currentPos;
+        reverseSpeedMagRef.current = mag;
+
+        source.start(0, startOffset);
+        reverseSourceRef.current = source;
+
+        // RAF loop: use AudioContext clock for sample-accurate position tracking
+        const rafTick = (): void => {
+          const wsInner = wsRef.current;
+          const ctxInner = audioContextRef.current;
+          // Stop if source was replaced or cleared
+          if (!wsInner || !ctxInner || reverseSourceRef.current !== source) return;
+
+          const elapsed = (ctxInner.currentTime - reverseStartCtxTimeRef.current) * reverseSpeedMagRef.current;
+          const newPos = Math.max(0, reverseStartPosRef.current - elapsed);
+
+          if (newPos <= 0) {
+            stopReverseAudio();
+            jlSpeedRef.current = 0;
+            setJlSpeed(0);
+            wsInner.setTime(0);
+            setCurrentTime(0);
+            return;
+          }
+
+          isProgrammaticSeekRef.current = true;
+          wsInner.setTime(newPos);
+          isProgrammaticSeekRef.current = false;
+          setCurrentTime(newPos);
+
+          reverseRafRef.current = requestAnimationFrame(rafTick);
+        };
+        reverseRafRef.current = requestAnimationFrame(rafTick);
+      };
+
+      void startBackward();
     }
   };
 
-  // L increments speed (toward +4x); J decrements (toward -4x)
+  // Speed ladder: −4 ↔ −2 ↔ 1 ↔ 2 ↔ 4
+  // L moves UP the ladder (toward +4x), J moves DOWN (toward −4x)
   const handleL = (): void => {
-    const idx = JL_STEPS.indexOf(jlSpeedRef.current);
-    const safeIdx = idx === -1 ? 2 : idx;
-    applySpeed(JL_STEPS[Math.min(safeIdx + 1, JL_STEPS.length - 1)]);
+    const cur = jlSpeedRef.current;
+    if (cur === -4) {
+      applySpeed(-2);
+    } else if (cur === -2) {
+      // Skip pause — resume at normal 1x
+      applySpeed(1);
+    } else if (cur === 0 || cur === 1) {
+      applySpeed(2);
+    } else if (cur === 2) {
+      applySpeed(4);
+    }
+    // at 4 already — no-op
   };
 
   const handleJ = (): void => {
-    const idx = JL_STEPS.indexOf(jlSpeedRef.current);
-    const safeIdx = idx === -1 ? 2 : idx;
-    applySpeed(JL_STEPS[Math.max(safeIdx - 1, 0)]);
+    const cur = jlSpeedRef.current;
+    if (cur === 4) {
+      applySpeed(2);
+    } else if (cur === 2) {
+      applySpeed(1);
+    } else if (cur === 1 || cur === 0) {
+      // Skip pause — jump directly to backward 2x
+      applySpeed(-2);
+    } else if (cur === -2) {
+      applySpeed(-4);
+    }
+    // at -4 already — no-op
   };
 
   const resetSpeed = (): void => applySpeed(0);
+
+  const computeMaxZoom = (containerWidth: number): number =>
+    Math.max(2000, Math.round(containerWidth * FPS));
 
   // (Re-)create WaveSurfer whenever active file changes
   useEffect(() => {
@@ -167,8 +294,11 @@ export default function WaveformPlayer({ filepath, outputFilepath, filename }: P
     setZoom(0);
     setMinZoom(0);
     clearReverseTimer();
+    stopPlaybackRaf();
     jlSpeedRef.current = 0;
     setJlSpeed(0);
+    // Clear cached reversed buffer for new file
+    reversedBufferRef.current = null;
 
     const ws = WaveSurfer.create({
       container: waveformRef.current,
@@ -228,12 +358,17 @@ export default function WaveformPlayer({ filepath, outputFilepath, filename }: P
       setIsLoading(false);
       const dur = ws.getDuration();
       setDuration(dur);
-      const containerWidth = waveformRef.current?.clientWidth ?? 0;
+      const containerWidth = waveformRef.current?.clientWidth ?? 800;
       const fitPxPerSec = dur > 0 ? containerWidth / dur : 0;
       minZoomRef.current = fitPxPerSec;
       setMinZoom(fitPxPerSec);
       setZoom(fitPxPerSec);
       ws.zoom(fitPxPerSec);
+
+      // Compute Premiere Pro-style max zoom (1 frame = full container width)
+      const newMaxZoom = computeMaxZoom(containerWidth);
+      maxZoomRef.current = newMaxZoom;
+      setMaxZoom(newMaxZoom);
 
       let audioCtx = audioContextRef.current;
       if (!audioCtx) {
@@ -260,22 +395,38 @@ export default function WaveformPlayer({ filepath, outputFilepath, filename }: P
     ws.on('audioprocess', () => setCurrentTime(ws.getCurrentTime()));
     ws.on('seeking', () => {
       setCurrentTime(ws.getCurrentTime());
+    });
+    ws.on('interaction', () => {
+      containerRef.current?.focus();
       if (jlSpeedRef.current < 0) {
         clearReverseTimer();
         jlSpeedRef.current = 0;
         setJlSpeed(0);
       }
     });
-    ws.on('play', () => setIsPlaying(true));
+    ws.on('play', () => {
+      setIsPlaying(true);
+      // Supplement audioprocess with RAF for smooth time display during forward playback
+      const rafTick = (): void => {
+        if (wsRef.current) setCurrentTime(wsRef.current.getCurrentTime());
+        playbackRafRef.current = requestAnimationFrame(rafTick);
+      };
+      stopPlaybackRaf();
+      playbackRafRef.current = requestAnimationFrame(rafTick);
+    });
     ws.on('pause', () => {
       setIsPlaying(false);
+      stopPlaybackRaf();
       if (jlSpeedRef.current > 0) {
         jlSpeedRef.current = 0;
         setJlSpeed(0);
         ws.setPlaybackRate(1.0);
       }
     });
-    ws.on('finish', () => { setIsPlaying(false); });
+    ws.on('finish', () => {
+      setIsPlaying(false);
+      stopPlaybackRaf();
+    });
     ws.on('error', (err) => { setLoadError(String(err)); setIsLoading(false); });
 
     wsRef.current = ws;
@@ -288,6 +439,12 @@ export default function WaveformPlayer({ filepath, outputFilepath, filename }: P
           const fitPxPerSec = containerWidth / dur;
           minZoomRef.current = fitPxPerSec;
           setMinZoom(fitPxPerSec);
+
+          // Update maxZoom when container resizes
+          const newMaxZoom = computeMaxZoom(containerWidth);
+          maxZoomRef.current = newMaxZoom;
+          setMaxZoom(newMaxZoom);
+
           setZoom((prev) => {
             if (prev <= minZoomRef.current + 0.1) { wsRef.current?.zoom(fitPxPerSec); return fitPxPerSec; }
             return prev;
@@ -301,11 +458,12 @@ export default function WaveformPlayer({ filepath, outputFilepath, filename }: P
     const container = waveformRef.current;
     const handleWheel = (e: WheelEvent) => {
       const currentMinZoom = minZoomRef.current;
+      const currentMaxZoom = maxZoomRef.current;
       if (e.altKey) {
         e.preventDefault();
         const zoomFactor = e.deltaY > 0 ? -3 : 3;
         const currentZoom = ws.options.minPxPerSec ?? currentMinZoom;
-        const newZoom = Math.max(currentMinZoom, Math.min(maxZoom, currentZoom + zoomFactor));
+        const newZoom = Math.max(currentMinZoom, Math.min(currentMaxZoom, currentZoom + zoomFactor));
         ws.zoom(newZoom);
         setZoom(newZoom);
       } else {
@@ -346,6 +504,9 @@ export default function WaveformPlayer({ filepath, outputFilepath, filename }: P
     return () => {
       cancelled = true;
       clearReverseTimer();
+      stopPlaybackRaf();
+      // Clear cached reversed buffer when switching files
+      reversedBufferRef.current = null;
       if (container) container.removeEventListener('wheel', handleWheel);
       resizeObserver.disconnect();
       ws.destroy();
@@ -359,12 +520,15 @@ export default function WaveformPlayer({ filepath, outputFilepath, filename }: P
     wsRef.current?.setOptions({ waveColor, progressColor, cursorColor });
   }, [waveColor, progressColor, cursorColor]);
 
-  // Keyboard handler — only active when player container is focused
+  // Keyboard handler — only active when player container is focused or for global keys
   useEffect(() => {
     function handleKey(e: KeyboardEvent): void {
-      if (!isReady || !wsRef.current || !isFocused) return;
+      if (!isReady || !wsRef.current) return;
       const tag = (e.target as HTMLElement).tagName;
       if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
+
+      const isGlobalKey = e.key === ' ' || e.key === 'Shift';
+      if (!isGlobalKey && !isFocused) return;
 
       if (e.key === ' ') {
         e.preventDefault();
@@ -381,18 +545,19 @@ export default function WaveformPlayer({ filepath, outputFilepath, filename }: P
       } else if (e.key === 'ArrowRight') {
         e.preventDefault();
         wsRef.current.skip(5);
-      } else if (e.code === 'ShiftLeft' && e.key === 'Shift') {
-        // Frame-by-frame backward
+      } else if (e.key === 'Shift') {
         e.preventDefault();
-        const newTime = Math.max(0, wsRef.current.getCurrentTime() - FRAME_SIZE);
-        wsRef.current.setTime(newTime);
-        setCurrentTime(newTime);
-      } else if (e.code === 'ShiftRight' && e.key === 'Shift') {
-        // Frame-by-frame forward
-        e.preventDefault();
-        const newTime = Math.min(wsRef.current.getDuration(), wsRef.current.getCurrentTime() + FRAME_SIZE);
-        wsRef.current.setTime(newTime);
-        setCurrentTime(newTime);
+        const isLeft = e.code === 'ShiftLeft' || e.location === 1;
+        const isRight = e.code === 'ShiftRight' || e.location === 2;
+        if (isLeft) {
+          const newTime = Math.max(0, wsRef.current.getCurrentTime() - FRAME_SIZE);
+          wsRef.current.setTime(newTime);
+          setCurrentTime(newTime);
+        } else if (isRight) {
+          const newTime = Math.min(wsRef.current.getDuration(), wsRef.current.getCurrentTime() + FRAME_SIZE);
+          wsRef.current.setTime(newTime);
+          setCurrentTime(newTime);
+        }
       } else if (e.key.toLowerCase() === 'j') {
         e.preventDefault();
         handleJ();
@@ -473,6 +638,7 @@ export default function WaveformPlayer({ filepath, outputFilepath, filename }: P
       tabIndex={0}
       onFocus={handleFocus}
       onBlur={handleBlur}
+      onClick={() => containerRef.current?.focus()}
       className={`waveform-player-container flex flex-col gap-3 focus:outline-none p-3 rounded-xl border transition-all duration-200 ${
         isFocused
           ? 'border-violet-500/40 bg-violet-500/[0.02] shadow-sm shadow-violet-500/5'
@@ -577,7 +743,7 @@ export default function WaveformPlayer({ filepath, outputFilepath, filename }: P
 
       {/* Shortcuts footer */}
       <span className="text-[9px] text-slate-400 dark:text-white/20 px-1">
-        Space (pause/play) · ← → (skip 5s) · Left/Right Shift (±1 frame) · J (step back: 0→−2x→−4x) · L (step fwd: 0→2x→4x) · J/L interact bidirectionally · ↑↓ (vol dB)
+        Space (pause/play) · ← → (skip 5s) · ⇧Left/⇧Right (±1 frame) · J/L (speed ladder: −4x↔−2x↔1x↔2x↔4x) · ↑↓ (vol dB) · Alt+Scroll (zoom)
       </span>
     </div>
   );

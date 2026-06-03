@@ -141,27 +141,27 @@ This document summarizes the update notes and functional improvements that need 
 - Change the header background color to contrast more with the table body.
 - Add vertical column dividers (borders) inside the table header to separate the columns.
 
-## 38. Record Button Visibility
+## 38. Record Button Visibility ✅
 - Display the "Record" button only when the "Audio" tab is active. Hide it when the user switches to the "Video" tab.
 
-## 39. Fix Drag & Drop Axis Constraints
+## 39. Fix Drag & Drop Axis Constraints ✅
 - Restrict drag-and-drop movement in Table View to the vertical axis only (up and down) to prevent unintended horizontal dragging.
 - Ensure that dragging in Grid View behaves correctly and items do not overflow excessively to the right.
 
-## 40. Waveform Visibility in Light Theme
+## 40. Waveform Visibility in Light Theme ✅
 - Fix the visibility and contrast of the Waveform tool container in Light Theme so its background and layout are clearly visible, matching the clarity provided in Dark Theme.
 
-## 41. Audio Recording Implementation & Custom Naming
+## 41. Audio Recording Implementation & Custom Naming ✅
 - Implement actual audio recording functionality to capture audio via a connected microphone or laptop microphone.
 - Upon stopping the recording, automatically add the newly recorded audio file to the file queue in the Audio tab.
 - Use a default naming convention for recorded files (e.g., `01_Record.wav`).
 - Add a new configurable option in the "Settings" menu to allow users to customize this default recording name prefix.
 
-## 42. Remove Play Icon Column
+## 42. Remove Play Icon Column✅
 - Remove the play icon located to the left of the "Filename" column in the queue table.
 - Remove the corresponding column entirely to simplify the table layout.
 
-## 43. Revamp Manipulation Tools (Focus on Waveform)
+## 43. Revamp Manipulation Tools (Focus on Waveform) ✅
 - Temporarily remove the following manipulation tools: Trim, Speed, Pitch, Volume, Fade, Merge, Loop, Spectrogram, and EQ. Focus strictly on the "Waveform" tool.
 - Automatically expand and display the Manipulation Tools panel containing the waveform visualizer when an audio file in the queue is selected.
 - Enhance the waveform visualization to display the audio signal as "spikes" (amplitude over time).
@@ -169,3 +169,80 @@ This document summarizes the update notes and functional improvements that need 
   - Press `Space` to play or pause the audio.
   - Press `Left Arrow` or `Right Arrow` to skip 5 seconds backward or forward.
   - Include an interactive vertical playhead (scrubber line) that can be clicked and dragged to navigate through the audio track.
+
+## 44. Waveform Interaction, Zoom, and Style Upgrades 🚀 ✅
+- **Real-time Scrubber Dragging:** When clicking and dragging the playhead (vertical scrubber line) to scrub through the audio, the playhead position and audio playback time must update smoothly in real-time under the mouse cursor.
+- **Alt + Scroll Wheel Zoom:** Allow the user to zoom in/out of the waveform horizontally by pressing the `Alt` key while scrolling the mouse wheel.
+- **Manual Zoom Slider:** Add a manual slider/seekbar below the waveform visualizer control area to allow adjusting the zoom level directly.
+- **Mouse Hover Scroll (Horizontal Panning):** When the waveform is zoomed in (overflowing the container), allow the user to pan/scroll the waveform horizontally (left and right) by simply hover-scrolling with the mouse wheel when the cursor is positioned over the waveform.
+- **Continuous Waveform Style:** Change the visual presentation of the waveform from separate spikes/bars to a continuous, solid filled wave outline (similar to Adobe Premiere Pro, as shown in the reference image). This means drawing a continuous wave outline with zero bar gaps.
+
+## 45. Waveform Timeline, Zoom, Volume, Shortcuts & Dropzone Layout Upgrades 🚀 ✅
+- **Unified Control Row:** Merge the playback seekbar (position slider) and the zoom slider into a single horizontal controls row to save space.
+- **Timeline Ruler (Premiere Pro style):** Add a timeline ruler directly above the waveform. Ticks and time labels must display in the `00:00:00:00` (HH:MM:SS:FF) format and synchronize dynamically with the zoom level.
+- **Focused Volume Control:** When the waveform player container is focused/clicked, allow the user to increase or decrease the audio volume in decibels (dB) by pressing `Arrow Up` (+1 dB) and `Arrow Down` (-1 dB). Show the current volume level in the UI next to the duration (e.g. `+2 dB`, `0 dB`, `-5 dB`).
+- **Scroll Panning Fix:** Ensure that mouse scroll wheel events over the waveform container scroll the timeline horizontally left and right when the waveform is stretched (zoomed in).
+- **Playback Shortcuts (J and L):** Add shortcuts:
+  - Press `J` to play the audio backward at 2x speed.
+  - Press `L` to play the audio forward at 2x speed.
+  - Pressing `Space` (Play/Pause) or another action must clear these modes and return playback rate to normal (1x).
+- **Simplify Playback Buttons:** Remove the physical "Stop" button next to the Play/Pause button under the waveform.
+- **Dropzone Slide Animation:** When the waveform player slides up from the bottom (due to a queue item being selected), the "Drop audio/video files here" dropzone visual box must slide out to the top and fade out (animating height/opacity to 0) to save vertical space. When the waveform player is closed, the dropzone must slide back down. Drag-and-drop functionality on the application window must remain active when the dropzone is hidden.
+
+## 46. Translation of User Request for Waveform & Dropzone Updates (Task 45 Reference) ✅
+- **Prompt:**
+  "1. Can the playback seekbar slider row be merged with the zoom slider row to save space? Also, add a video/audio timeline ruler ticks/grid above the waveform, synchronized with the zoom level, displaying time in the `00:00:00:00` (HH:MM:SS:FF) format (similar to Premiere Pro).
+  2. Implement a focused volume control feature: when the waveform player window/panel is clicked/focused, allow the user to increase the volume by pressing the Up Arrow (adds 1 dB) and decrease it by pressing the Down Arrow (subtracts 1 dB), displaying the current dB level next to the duration.
+  3. Fix the mouse scroll wheel functionality: when the waveform is stretched/zoomed in, scrolling the mouse wheel while hovering over the waveform should pan the waveform horizontally left/right. Zooming with Alt + Scroll should adjust the zoom in increments of 3 pixels per second.
+  4. Add keyboard shortcuts J and L: pressing J plays the audio backward at 2x speed (visual rewind), while pressing L plays the audio forward at 2x speed. Pressing Space (Play/Pause) or another control should revert the playback speed back to normal (1x).
+  5. Remove the physical 'Stop' button next to the Play/Pause button below the waveform.
+  6. When the waveform player slides up from the bottom (when a queue file is clicked/selected), the 'Drop audio/video files here' dropzone UI must animate (slide and fade) out of view to the top to save space, but remain mounted so that global window drag-and-drop is still active. When the waveform player is closed, the dropzone must slide back down from the top."
+
+## 47. Waveform Visual, Zoom Responsiveness, Vertical Gain Stretch & Frame-Level Zoom Upgrades 🚀 ✅
+- **Remove Waveform Scrollbar:** Hide wavesurfer's built-in white horizontal scrollbar completely (`hideScrollbar: true`), relying solely on mouse wheel panning.
+- **Immediate Zoom Response:** Calculate the default fit-to-width pixels-per-second value upon loading the file and use it as the minimum zoom boundary. Adjusting the zoom level must immediately scale the waveform without dead zones.
+- **Vertical Gain Stretching:** Synchronize the vertical visual height/scale of the waveform with the volume dB level. Increasing the volume (dB) stretches the waveform vertically, while decreasing it shrinks the waveform towards the center line.
+- **Rectified Half-Waveform View:** Change the waveform rendering from a double-sided symmetric view to a rectified half-waveform view (top half only), placing the zero baseline at the very bottom of the waveform player canvas.
+- **Frame-Level Maximum Zoom:** Set the maximum zoom limit higher (up to 2000 pixels per second) to allow frame-by-frame editing resolution.
+
+## 48. Fast Dropzone Transition, Initial Fit Zoom, Volume Cap, Crash Fix, W Shortcut, and Reset Feature 🚀 [NEW] ✅
+- **Fast Dropzone Animation:** Speed up the dropzone ("Drop audio files here") hide/show transitions. When a queue file is clicked, the dropzone must rapidly slide up and fade out (transition duration: 0.1s). The same quick transition must apply when it slides back down/reappears.
+- **Waveform Initial Fit-to-Width:** When the waveform player is opened or a new file is loaded, the waveform must fit exactly from start to end within the container (initial zoom level set exactly to `containerWidth / duration`). Disable mouse wheel horizontal panning when the waveform fits exactly (zoom level is at minimum/fit zoom). Panning should only be active when zoomed in (zoom level > min zoom).
+- **Volume Limit (10 dB):** Cap the maximum volume increase to +10 dB (with the minimum floor remaining at -40 dB).
+- **Blank Screen / Crash Fix:** Prevent the application from crashing (turning blank/black) when pressing Arrow Up or Arrow Down keys. Ensure side-effect updates to Wavesurfer are executed safely outside React's state update render lifecycle, wrapping calls in try-catch blocks.
+- **Persistent Waveform Player & W Shortcut:** The waveform player window must not close when clicking empty areas or other elements; it must only close when the user clicks the Close (X) icon or presses the shortcut key `W`. The shortcut `W` (Close Waveform Player) must be listed in the Keyboard Shortcuts settings panel.
+- **Red Close Icon:** The close (cross 'X') button in the waveform player header must be styled red.
+- **Red Reset Button:** Add a red Reset button (using a counter-clockwise circular arrow icon) next to the Play/Pause button under the waveform. Clicking it pauses playback and resets playhead to 0, speed to 1x, volume to 0 dB, and zoom level to the initial fit-to-width level.
+
+## 49. Dropzone Sync Bug, Separate 'L' Lock vs Speed Shortcuts, Rewind Fix, and Volume Gain Playback Fix 🚀 [NEW] ✅
+- **Dropzone Sync Fix:** Prevent the issue where the waveform player is closed/hidden but the "Drop audio/video files here" dropzone fails to reappear. Ensure that when the waveform player is closed, the dropzone immediately slides down and becomes visible.
+- **Separate Shortcut 'L' (Lock vs Playback Speed):**
+  - When the waveform player container is focused/clicked, pressing `L` must act solely as a playback speed booster. Pressing it once increases speed to 2x, pressing it again increases it to 4x (maximum speed limit is 4x). Pressing `L` in this state must NOT trigger the queue item lock action.
+  - When the user has clicked/focused the queue table/list or other parts of the app, pressing `L` behaves normally as the shortcut to lock/unlock selected queue items.
+- **Fix Backward Playback (J Shortcut):** Fix the `J` shortcut (visual rewind) so that pressing `J` plays the audio backward at 2x speed. Ensure that this reverse playback is actually audible and works correctly.
+- **Fix Volume dB Audio Playback Output:** Fix the volume control bug where pressing Arrow Up/Down changes the dB display (e.g. from 0 dB to +10 dB) and stretches the waveform visually, but the actual audible volume of the audio does not increase or decrease. Ensure the actual gain node / volume of WaveSurfer's audio output is updated dynamically and audibly.
+
+
+
+## 50. Playback Shortcuts Logic & Frame-by-Frame Navigation 🚀 [NEW]
+- **J & L Shortcut Enhancements:**
+  - The `L` shortcut (fast forward) maximum speed is 4x.
+  - The `J` shortcut (backward playback) maximum speed is 4x.
+  - When in accelerated mode (via `L` or `J`), pressing `Space` must immediately stop/pause the playback.
+  - The `L` and `J` shortcuts must affect each other dynamically. For example, if playing at 4x forward (by pressing `L`), pressing `J` decreases the forward speed to 2x (and vice versa). They act as dynamic increment/decrement controls for the playback speed/direction.
+- **Frame-by-Frame Navigation:** 
+  - Allow the user to move the playhead (vertical line) backward by exactly one frame by pressing the `Left Shift` key.
+  - Allow the user to move the playhead forward by exactly one frame by pressing the `Right Shift` key.
+- **Settings UI Sync:** Ensure that the shortcut information for all these new behaviors (`J`, `L`, `Left Shift`, `Right Shift`) is synchronized and updated correctly in the application's Settings UI / Keyboard Shortcuts menu.
+
+## 51. Waveform Playback, Zoom, Smooth Cursor & Clean App Shutdown 🚀 [NEW]
+- **J/L Speed Ladder Refinement:**
+  - When the user presses **Play** then **L**, playback immediately jumps to **2x** (skipping 1x), then pressing L again jumps to **4x**.
+  - Pressing **J** from 4x decreases to 2x → then to normal 1x forward playback → then directly to **backward 2x** (skipping the "paused" stop) → then backward 4x.
+  - Pressing **L** from backward 4x goes to backward 2x → then directly to **normal 1x forward playback** (skipping pause) → then 2x → 4x.
+  - Speed ladder: `−4x ↔ −2x ↔ 1x ↔ 2x ↔ 4x` (no pause state in the middle of the ladder).
+- **Backward Playback with Audible Sound:** Fix the backward playback (J shortcut) so that audio is actually played in reverse. Use the Web Audio API `AudioBufferSourceNode` with a pre-reversed `AudioBuffer` to produce real backward audio. The reversed buffer is computed from the loaded file's decoded audio data.
+- **Smooth Playhead at High Zoom:** Replace the `setInterval`-based reverse position ticker with a `requestAnimationFrame` loop synchronized to the `AudioContext` clock for pixel-accurate, display-rate (~60 fps) playhead position updates during backward playback.
+- **Premiere Pro-style Maximum Zoom:** Make the maximum zoom level dynamic: compute it as `containerWidth × 30 fps`, so that at full zoom exactly **one frame** fills the entire waveform container width — matching Adobe Premiere Pro's zoom ceiling.
+- **Cache Cleanup on App Close:** When the application is closed (via the close button or `Alt+X` shortcut), automatically clean up any temporary cached data before exiting.
+- **Complete Process Shutdown:** Ensure the application and **all background processes** (Python backend sidecar) are fully terminated when the app is closed. The Rust layer must explicitly kill the sidecar `CommandChild` on the `CloseRequested` window event and then force-exit the process so no orphaned processes remain.

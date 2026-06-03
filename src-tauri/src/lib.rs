@@ -1,5 +1,6 @@
 use std::sync::{Arc, Mutex};
 use tauri::Manager;
+use tauri_plugin_shell::process::CommandChild;
 
 mod callback;
 mod commands;
@@ -22,6 +23,8 @@ pub struct AppState {
     pub db: Arc<Mutex<rusqlite::Connection>>,
     pub backend_port: u16,
     pub callback_port: u16,
+    // Held so we can kill the Python sidecar on app close
+    pub sidecar_child: Mutex<Option<CommandChild>>,
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -59,15 +62,33 @@ pub fn run() {
             });
 
             let backend_port = sidecar::manager::available_port();
-            sidecar::manager::spawn(app.handle(), backend_port, callback_port)?;
+            let child = sidecar::manager::spawn(app.handle(), backend_port, callback_port)?;
 
             app.manage(AppState {
                 db,
                 backend_port,
                 callback_port,
+                sidecar_child: Mutex::new(Some(child)),
             });
 
             Ok(())
+        })
+        // Kill sidecar and force-exit when any window is closed
+        .on_window_event(|window, event| {
+            if let tauri::WindowEvent::CloseRequested { api, .. } = event {
+                api.prevent_close();
+
+                let state = window.state::<AppState>();
+                // Kill Python backend sidecar so no orphaned processes remain
+                if let Ok(mut child_lock) = state.sidecar_child.lock() {
+                    if let Some(child) = child_lock.take() {
+                        let _ = child.kill();
+                    }
+                }
+
+                // Force-exit the entire process (all threads, Axum server, etc.)
+                std::process::exit(0);
+            }
         })
         .invoke_handler(tauri::generate_handler![
             add_files,
