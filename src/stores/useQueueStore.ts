@@ -205,12 +205,40 @@ export const useQueueStore = create<QueueState>()(
 
   reorderJobs: (activeId, overId) =>
     set((s) => {
-      const oldIndex = s.jobs.findIndex((j) => j.id === activeId);
-      const newIndex = s.jobs.findIndex((j) => j.id === overId);
-      if (oldIndex === -1 || newIndex === -1) return s;
-      const newJobs = [...s.jobs];
-      const [item] = newJobs.splice(oldIndex, 1);
-      newJobs.splice(newIndex, 0, item);
+      const isMulti = s.selectedJobIds.includes(activeId) && s.selectedJobIds.length > 1;
+      if (!isMulti) {
+        const oldIndex = s.jobs.findIndex((j) => j.id === activeId);
+        const newIndex = s.jobs.findIndex((j) => j.id === overId);
+        if (oldIndex === -1 || newIndex === -1) return s;
+        const newJobs = [...s.jobs];
+        const [item] = newJobs.splice(oldIndex, 1);
+        newJobs.splice(newIndex, 0, item);
+        return { jobs: newJobs };
+      }
+
+      const selected = s.selectedJobIds;
+      const movingJobs = s.jobs.filter((j) => selected.includes(j.id));
+      const remainingJobs = s.jobs.filter((j) => !selected.includes(j.id));
+
+      let targetIdx = remainingJobs.findIndex((j) => j.id === overId);
+      if (targetIdx === -1) {
+        // overId is also a selected (moving) item — compute insertion point
+        // by counting how many remaining (non-selected) jobs precede overId
+        // in the original jobs array.
+        const overOrigIdx = s.jobs.findIndex((j) => j.id === overId);
+        targetIdx = remainingJobs.filter((j) =>
+          s.jobs.findIndex((jj) => jj.id === j.id) < overOrigIdx
+        ).length;
+      }
+
+      const oldActiveIdx = s.jobs.findIndex((j) => j.id === activeId);
+      const oldOverIdx = s.jobs.findIndex((j) => j.id === overId);
+      if (oldActiveIdx <= oldOverIdx) {
+        targetIdx += 1;
+      }
+
+      const newJobs = [...remainingJobs];
+      newJobs.splice(targetIdx, 0, ...movingJobs);
       return { jobs: newJobs };
     }),
 

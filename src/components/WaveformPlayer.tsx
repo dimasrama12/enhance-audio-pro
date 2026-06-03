@@ -94,6 +94,7 @@ export default function WaveformPlayer({ filepath, outputFilepath, filename }: P
   const audioContextRef = useRef<AudioContext | null>(null);
   const gainNodeRef = useRef<GainNode | null>(null);
   const isProgrammaticSeekRef = useRef(false);
+  const loadGenRef = useRef(0);
 
   useEffect(() => {
     return () => {
@@ -287,10 +288,15 @@ export default function WaveformPlayer({ filepath, outputFilepath, filename }: P
 
   // (Re-)create WaveSurfer whenever active file changes
   useEffect(() => {
-    if (!waveformRef.current) return;
+    let cancelled = false;
+    const gen = ++loadGenRef.current;
+    const isStale = (): boolean => cancelled || loadGenRef.current !== gen;
 
-    wsRef.current?.destroy();
-    wsRef.current = null;
+    // Immediate cleanup of any existing instance and state reset
+    if (wsRef.current) {
+      wsRef.current.destroy();
+      wsRef.current = null;
+    }
     blobUrlRef.current = null;
 
     setIsReady(false);
@@ -307,296 +313,315 @@ export default function WaveformPlayer({ filepath, outputFilepath, filename }: P
     setJlSpeed(0);
     reversedBufferRef.current = null;
 
-    const ws = WaveSurfer.create({
-      container: waveformRef.current,
-      waveColor,
-      progressColor,
-      cursorColor,
-      cursorWidth: 2,
-      height: 72,
-      normalize: true,
-      interact: true,
-      dragToSeek: true,
-      hideScrollbar: true,
-      renderFunction: (channels, ctx) => {
-        const { width, height } = ctx.canvas;
-        const channel = channels[0];
-        if (!channel) return;
-        const len = channel.length;
-        const step = len / width;
-        ctx.beginPath();
-        ctx.moveTo(0, height);
-        const gain = dbToLinear(volumeDbRef.current);
-        for (let x = 0; x < width; x++) {
-          const start = Math.floor(x * step);
-          const end = Math.max(start + 1, Math.floor((x + 1) * step));
-          let maxVal = 0;
-          for (let i = start; i < end; i++) {
-            const val = Math.abs(channel[i] || 0);
-            if (val > maxVal) maxVal = val;
-          }
-          const amp = Math.min(0.98, maxVal * gain);
-          ctx.lineTo(x, height - amp * height);
-        }
-        ctx.lineTo(width, height);
-        ctx.closePath();
-        ctx.fill();
-      },
-      plugins: [
-        TimelinePlugin.create({
-          height: 18,
-          insertPosition: 'beforebegin',
-          style: {
-            color: theme === 'dark' ? 'rgba(255,255,255,0.5)' : 'rgba(0,0,0,0.5)',
-            fontSize: '9px',
-            fontFamily: 'monospace',
-          },
-          formatTimeCallback: (sec) => {
-            const h = Math.floor(sec / 3600), m = Math.floor((sec % 3600) / 60), s = Math.floor(sec % 60);
-            const f = Math.floor((sec % 1) * 30);
-            return `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}:${String(f).padStart(2,'0')}`;
-          },
-        }),
-      ],
-    });
+    if (!waveformRef.current) return;
 
-    ws.on('ready', () => {
-      if (cancelled) return;
-      setIsReady(true);
-      setIsLoading(false);
-      const dur = ws.getDuration();
-      setDuration(dur);
-      const containerWidth = waveformRef.current?.clientWidth ?? 800;
-      const fitPxPerSec = dur > 0 ? containerWidth / dur : 0;
-      minZoomRef.current = fitPxPerSec;
-      setMinZoom(fitPxPerSec);
-      setZoom(fitPxPerSec);
-      ws.zoom(fitPxPerSec);
+    // Outer-scope refs for cleanup (populated inside the setTimeout callback)
+    let resizeObserver: ResizeObserver | null = null;
+    let container: HTMLDivElement | null = null;
+    let handleWheel: ((e: WheelEvent) => void) | null = null;
 
-      // Compute max zoom: capped at 200, but at least fitPxPerSec for short files
-      const calculatedMaxZoom = Math.max(200, fitPxPerSec);
-      maxZoomRef.current = calculatedMaxZoom;
-      setMaxZoom(calculatedMaxZoom);
+    // 50 ms debounce: if the user switches files rapidly, only the last
+    // switch actually creates a WaveSurfer instance, preventing the
+    // rapid create→destroy cycle that causes audio element error races.
+    const initTimer = setTimeout(() => {
+      if (isStale() || !waveformRef.current) return;
 
-      let audioCtx = audioContextRef.current;
-      if (!audioCtx) {
-        audioCtx = new (window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext)();
-        audioContextRef.current = audioCtx;
-      }
-      gainNodeRef.current = null;
-      const mediaEl = ws.getMediaElement();
-      if (mediaEl) {
-        try {
-          const source = audioCtx.createMediaElementSource(mediaEl);
-          const gainNode = audioCtx.createGain();
-          source.connect(gainNode);
-          gainNode.connect(audioCtx.destination);
-          gainNode.gain.value = dbToLinear(volumeDbRef.current);
-          gainNodeRef.current = gainNode;
-        } catch (err) {
-          console.error('Error creating Web Audio source:', err);
-        }
-      }
-      ws.setVolume(1.0);
-
-      // Cache the loaded audio details when it is fully loaded
-      if (!audioCache.has(activeFile) && blobUrlRef.current) {
-        let peaks: Float32Array[] | null = null;
-        try {
-          const decoded = ws.getDecodedData();
-          if (decoded) {
-            const channels: Float32Array[] = [];
-            for (let i = 0; i < decoded.numberOfChannels; i++) {
-              channels.push(decoded.getChannelData(i));
+      const ws = WaveSurfer.create({
+        container: waveformRef.current,
+        waveColor,
+        progressColor,
+        cursorColor,
+        cursorWidth: 2,
+        height: 72,
+        normalize: true,
+        interact: true,
+        dragToSeek: true,
+        hideScrollbar: true,
+        renderFunction: (channels, ctx) => {
+          const { width, height } = ctx.canvas;
+          const channel = channels[0];
+          if (!channel) return;
+          const len = channel.length;
+          const step = len / width;
+          ctx.beginPath();
+          ctx.moveTo(0, height);
+          const gain = dbToLinear(volumeDbRef.current);
+          for (let x = 0; x < width; x++) {
+            const start = Math.floor(x * step);
+            const end = Math.max(start + 1, Math.floor((x + 1) * step));
+            let maxVal = 0;
+            for (let i = start; i < end; i++) {
+              const val = Math.abs(channel[i] || 0);
+              if (val > maxVal) maxVal = val;
             }
-            peaks = channels;
+            const amp = Math.min(0.98, maxVal * gain);
+            ctx.lineTo(x, height - amp * height);
           }
-        } catch (e) {
-          console.warn('Failed to get decoded peaks for caching:', e);
-        }
-        audioCache.set(activeFile, {
-          blobUrl: blobUrlRef.current,
-          reversedBuffer: reversedBufferRef.current,
-          peaks,
-          duration: dur,
-        });
-      }
+          ctx.lineTo(width, height);
+          ctx.closePath();
+          ctx.fill();
+        },
+        plugins: [
+          TimelinePlugin.create({
+            height: 18,
+            insertPosition: 'beforebegin',
+            style: {
+              color: theme === 'dark' ? 'rgba(255,255,255,0.5)' : 'rgba(0,0,0,0.5)',
+              fontSize: '9px',
+              fontFamily: 'monospace',
+            },
+            formatTimeCallback: (sec) => {
+              const h = Math.floor(sec / 3600), m = Math.floor((sec % 3600) / 60), s = Math.floor(sec % 60);
+              const f = Math.floor((sec % 1) * 30);
+              return `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}:${String(f).padStart(2,'0')}`;
+            },
+          }),
+        ],
+      });
 
-      // Pre-decode and reverse the buffer in the background for instant backward playback
-      const prepareReverseBuffer = async () => {
-        const currentFile = activeFile;
-        const cached = audioCache.get(currentFile);
-        if (cached && cached.reversedBuffer) {
-          reversedBufferRef.current = cached.reversedBuffer;
-          return;
-        }
+      ws.on('ready', () => {
+        if (isStale()) return;
+        setIsReady(true);
+        setIsLoading(false);
+        const dur = ws.getDuration();
+        setDuration(dur);
+        const containerWidth = waveformRef.current?.clientWidth ?? 800;
+        const fitPxPerSec = dur > 0 ? containerWidth / dur : 0;
+        minZoomRef.current = fitPxPerSec;
+        setMinZoom(fitPxPerSec);
+        setZoom(fitPxPerSec);
+        ws.zoom(fitPxPerSec);
 
-        if (blobUrlRef.current && audioCtx) {
+        // Compute max zoom: capped at 200, but at least fitPxPerSec for short files
+        const calculatedMaxZoom = Math.max(200, fitPxPerSec);
+        maxZoomRef.current = calculatedMaxZoom;
+        setMaxZoom(calculatedMaxZoom);
+
+        let audioCtx = audioContextRef.current;
+        if (!audioCtx) {
+          audioCtx = new (window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext)();
+          audioContextRef.current = audioCtx;
+        }
+        gainNodeRef.current = null;
+        const mediaEl = ws.getMediaElement();
+        if (mediaEl) {
           try {
-            const resp = await fetch(blobUrlRef.current);
-            const ab = await resp.arrayBuffer();
-            const buf = await audioCtx.decodeAudioData(ab);
-            const rev = audioCtx.createBuffer(buf.numberOfChannels, buf.length, buf.sampleRate);
-            for (let ch = 0; ch < buf.numberOfChannels; ch++) {
-              const srcData = buf.getChannelData(ch);
-              const dstData = rev.getChannelData(ch);
-              for (let i = 0; i < srcData.length; i++) {
-                dstData[i] = srcData[srcData.length - 1 - i];
+            const source = audioCtx.createMediaElementSource(mediaEl);
+            const gainNode = audioCtx.createGain();
+            source.connect(gainNode);
+            gainNode.connect(audioCtx.destination);
+            gainNode.gain.value = dbToLinear(volumeDbRef.current);
+            gainNodeRef.current = gainNode;
+          } catch (err) {
+            console.error('Error creating Web Audio source:', err);
+          }
+        }
+        ws.setVolume(1.0);
+
+        // Cache the loaded audio details when it is fully loaded
+        if (!audioCache.has(activeFile) && blobUrlRef.current) {
+          let peaks: Float32Array[] | null = null;
+          try {
+            const decoded = ws.getDecodedData();
+            if (decoded) {
+              const channels: Float32Array[] = [];
+              for (let i = 0; i < decoded.numberOfChannels; i++) {
+                channels.push(decoded.getChannelData(i));
               }
-            }
-            if (activeFile === currentFile) {
-              reversedBufferRef.current = rev;
-            }
-            const item = audioCache.get(currentFile);
-            if (item) {
-              item.reversedBuffer = rev;
+              peaks = channels;
             }
           } catch (e) {
-            console.warn('Failed to pre-decode reverse buffer:', e);
+            console.warn('Failed to get decoded peaks for caching:', e);
           }
-        }
-      };
-      void prepareReverseBuffer();
-    });
-
-    ws.on('audioprocess', () => { if (!cancelled) setCurrentTime(ws.getCurrentTime()); });
-    ws.on('seeking', () => {
-      if (cancelled) return;
-      setCurrentTime(ws.getCurrentTime());
-    });
-    ws.on('interaction', () => {
-      containerRef.current?.focus();
-      if (jlSpeedRef.current < 0) {
-        clearReverseTimer();
-        jlSpeedRef.current = 0;
-        setJlSpeed(0);
-      }
-    });
-    ws.on('play', () => {
-      if (cancelled) return;
-      setIsPlaying(true);
-      // Supplement audioprocess with RAF for smooth time display during forward playback
-      const rafTick = (): void => {
-        if (wsRef.current) setCurrentTime(wsRef.current.getCurrentTime());
-        playbackRafRef.current = requestAnimationFrame(rafTick);
-      };
-      stopPlaybackRaf();
-      playbackRafRef.current = requestAnimationFrame(rafTick);
-    });
-    ws.on('pause', () => {
-      if (cancelled) return;
-      setIsPlaying(false);
-      stopPlaybackRaf();
-      if (jlSpeedRef.current > 0) {
-        jlSpeedRef.current = 0;
-        setJlSpeed(0);
-        ws.setPlaybackRate(1.0);
-      }
-    });
-    ws.on('finish', () => {
-      if (cancelled) return;
-      setIsPlaying(false);
-      stopPlaybackRaf();
-    });
-    ws.on('error', (err) => {
-      if (cancelled) return;
-      setLoadError(String(err));
-      setIsLoading(false);
-    });
-
-    wsRef.current = ws;
-
-    const resizeObserver = new ResizeObserver(() => {
-      if (wsRef.current && waveformRef.current) {
-        const dur = wsRef.current.getDuration();
-        const containerWidth = waveformRef.current.clientWidth ?? 0;
-        if (dur > 0 && containerWidth > 0) {
-          const fitPxPerSec = containerWidth / dur;
-          minZoomRef.current = fitPxPerSec;
-          setMinZoom(fitPxPerSec);
-
-          // Update maxZoom when container resizes, capped at 200 (or fitPxPerSec)
-          const calculatedMaxZoom = Math.max(200, fitPxPerSec);
-          maxZoomRef.current = calculatedMaxZoom;
-          setMaxZoom(calculatedMaxZoom);
-
-          setZoom((prev) => {
-            if (prev <= minZoomRef.current + 0.1) { wsRef.current?.zoom(fitPxPerSec); return fitPxPerSec; }
-            return prev;
+          audioCache.set(activeFile, {
+            blobUrl: blobUrlRef.current,
+            reversedBuffer: reversedBufferRef.current,
+            peaks,
+            duration: dur,
           });
         }
-      }
-      try { ws.setOptions({}); } catch (err) { console.error('Resize setOptions error:', err); }
-    });
-    if (waveformRef.current) resizeObserver.observe(waveformRef.current);
 
-    const container = waveformRef.current;
-    const handleWheel = (e: WheelEvent) => {
-      const currentMinZoom = minZoomRef.current;
-      const currentMaxZoom = maxZoomRef.current;
-      if (e.altKey) {
-        e.preventDefault();
-        const zoomFactor = e.deltaY > 0 ? -3 : 3;
-        const currentZoom = ws.options.minPxPerSec ?? currentMinZoom;
-        const newZoom = Math.max(currentMinZoom, Math.min(currentMaxZoom, currentZoom + zoomFactor));
-        ws.zoom(newZoom);
-        setZoom(newZoom);
-      } else {
-        e.preventDefault();
-        const currentZoom = ws.options.minPxPerSec ?? currentMinZoom;
-        if (currentZoom > currentMinZoom + 0.1) {
-          const scrollDelta = Math.abs(e.deltaX) > Math.abs(e.deltaY) ? e.deltaX : e.deltaY;
-          ws.setScroll(ws.getScroll() + scrollDelta);
-        }
-      }
-    };
-    if (container) container.addEventListener('wheel', handleWheel, { passive: false });
-
-    let cancelled = false;
-    (async () => {
-      try {
-        const cached = audioCache.get(activeFile);
-        if (cached) {
-          blobUrlRef.current = cached.blobUrl;
-          reversedBufferRef.current = cached.reversedBuffer;
-          if (!cancelled) {
-            ws.load(cached.blobUrl, cached.peaks ?? undefined, cached.duration);
+        // Pre-decode and reverse the buffer in the background for instant backward playback
+        const prepareReverseBuffer = async () => {
+          const currentFile = activeFile;
+          const cached = audioCache.get(currentFile);
+          if (cached && cached.reversedBuffer) {
+            if (isStale()) return;
+            reversedBufferRef.current = cached.reversedBuffer;
+            return;
           }
-          return;
-        }
 
-        const rawData = await invoke<unknown>('read_audio_file', { path: activeFile });
-        if (cancelled) return;
-        let bufferSource = rawData;
-        if (rawData && typeof rawData === 'object' && 'body' in rawData) bufferSource = (rawData as Record<string, unknown>).body;
-        let binaryData: ArrayBuffer | Uint8Array;
-        if (bufferSource instanceof Uint8Array || bufferSource instanceof ArrayBuffer) {
-          binaryData = bufferSource;
-        } else if (Array.isArray(bufferSource)) {
-          binaryData = new Uint8Array(bufferSource as number[]);
+          if (blobUrlRef.current && audioCtx) {
+            try {
+              const resp = await fetch(blobUrlRef.current);
+              if (isStale()) return;
+              const ab = await resp.arrayBuffer();
+              if (isStale()) return;
+              const buf = await audioCtx.decodeAudioData(ab);
+              if (isStale()) return;
+              const rev = audioCtx.createBuffer(buf.numberOfChannels, buf.length, buf.sampleRate);
+              for (let ch = 0; ch < buf.numberOfChannels; ch++) {
+                const srcData = buf.getChannelData(ch);
+                const dstData = rev.getChannelData(ch);
+                for (let i = 0; i < srcData.length; i++) {
+                  dstData[i] = srcData[srcData.length - 1 - i];
+                }
+              }
+              if (isStale()) return;
+              reversedBufferRef.current = rev;
+              const item = audioCache.get(currentFile);
+              if (item) {
+                item.reversedBuffer = rev;
+              }
+            } catch (e) {
+              console.warn('Failed to pre-decode reverse buffer:', e);
+            }
+          }
+        };
+        void prepareReverseBuffer();
+      });
+
+      ws.on('audioprocess', () => { if (!isStale()) setCurrentTime(ws.getCurrentTime()); });
+      ws.on('seeking', () => {
+        if (isStale()) return;
+        setCurrentTime(ws.getCurrentTime());
+      });
+      ws.on('interaction', () => {
+        containerRef.current?.focus();
+        if (jlSpeedRef.current < 0) {
+          clearReverseTimer();
+          jlSpeedRef.current = 0;
+          setJlSpeed(0);
+        }
+      });
+      ws.on('play', () => {
+        if (isStale()) return;
+        setIsPlaying(true);
+        // Supplement audioprocess with RAF for smooth time display during forward playback
+        const rafTick = (): void => {
+          if (wsRef.current) setCurrentTime(wsRef.current.getCurrentTime());
+          playbackRafRef.current = requestAnimationFrame(rafTick);
+        };
+        stopPlaybackRaf();
+        playbackRafRef.current = requestAnimationFrame(rafTick);
+      });
+      ws.on('pause', () => {
+        if (isStale()) return;
+        setIsPlaying(false);
+        stopPlaybackRaf();
+        if (jlSpeedRef.current > 0) {
+          jlSpeedRef.current = 0;
+          setJlSpeed(0);
+          ws.setPlaybackRate(1.0);
+        }
+      });
+      ws.on('finish', () => {
+        if (isStale()) return;
+        setIsPlaying(false);
+        stopPlaybackRaf();
+      });
+      ws.on('error', (err) => {
+        if (isStale()) return;
+        setLoadError(String(err));
+        setIsLoading(false);
+      });
+
+      wsRef.current = ws;
+
+      resizeObserver = new ResizeObserver(() => {
+        if (wsRef.current && waveformRef.current) {
+          const dur = wsRef.current.getDuration();
+          const containerWidth = waveformRef.current.clientWidth ?? 0;
+          if (dur > 0 && containerWidth > 0) {
+            const fitPxPerSec = containerWidth / dur;
+            minZoomRef.current = fitPxPerSec;
+            setMinZoom(fitPxPerSec);
+
+            // Update maxZoom when container resizes, capped at 200 (or fitPxPerSec)
+            const calculatedMaxZoom = Math.max(200, fitPxPerSec);
+            maxZoomRef.current = calculatedMaxZoom;
+            setMaxZoom(calculatedMaxZoom);
+
+            setZoom((prev) => {
+              if (prev <= minZoomRef.current + 0.1) { wsRef.current?.zoom(fitPxPerSec); return fitPxPerSec; }
+              return prev;
+            });
+          }
+        }
+        try { ws.setOptions({}); } catch (err) { console.error('Resize setOptions error:', err); }
+      });
+      if (waveformRef.current) resizeObserver.observe(waveformRef.current);
+
+      container = waveformRef.current;
+      handleWheel = (e: WheelEvent) => {
+        const currentMinZoom = minZoomRef.current;
+        const currentMaxZoom = maxZoomRef.current;
+        if (e.altKey) {
+          e.preventDefault();
+          const zoomFactor = e.deltaY > 0 ? -3 : 3;
+          const currentZoom = ws.options.minPxPerSec ?? currentMinZoom;
+          const newZoom = Math.max(currentMinZoom, Math.min(currentMaxZoom, currentZoom + zoomFactor));
+          ws.zoom(newZoom);
+          setZoom(newZoom);
         } else {
-          throw new Error('Unsupported binary response format from backend');
+          e.preventDefault();
+          const currentZoom = ws.options.minPxPerSec ?? currentMinZoom;
+          if (currentZoom > currentMinZoom + 0.1) {
+            const scrollDelta = Math.abs(e.deltaX) > Math.abs(e.deltaY) ? e.deltaX : e.deltaY;
+            ws.setScroll(ws.getScroll() + scrollDelta);
+          }
         }
-        const blob = new Blob([binaryData as BlobPart], { type: getMimeType(activeFile) });
-        const blobUrl = URL.createObjectURL(blob);
-        blobUrlRef.current = blobUrl;
-        if (!cancelled) {
-          ws.load(blobUrl);
+      };
+      if (container) container.addEventListener('wheel', handleWheel, { passive: false });
+
+      (async () => {
+        try {
+          const cached = audioCache.get(activeFile);
+          if (cached) {
+            blobUrlRef.current = cached.blobUrl;
+            reversedBufferRef.current = cached.reversedBuffer;
+            if (!isStale()) {
+              ws.load(cached.blobUrl, cached.peaks ?? undefined, cached.duration);
+            }
+            return;
+          }
+
+          const rawData = await invoke<unknown>('read_audio_file', { path: activeFile });
+          if (isStale()) return;
+          let bufferSource = rawData;
+          if (rawData && typeof rawData === 'object' && 'body' in rawData) bufferSource = (rawData as Record<string, unknown>).body;
+          let binaryData: ArrayBuffer | Uint8Array;
+          if (bufferSource instanceof Uint8Array || bufferSource instanceof ArrayBuffer) {
+            binaryData = bufferSource;
+          } else if (Array.isArray(bufferSource)) {
+            binaryData = new Uint8Array(bufferSource as number[]);
+          } else {
+            throw new Error('Unsupported binary response format from backend');
+          }
+          const blob = new Blob([binaryData as BlobPart], { type: getMimeType(activeFile) });
+          const blobUrl = URL.createObjectURL(blob);
+          blobUrlRef.current = blobUrl;
+          if (!isStale()) {
+            ws.load(blobUrl);
+          }
+        } catch (err) {
+          if (!isStale()) { setLoadError(String(err)); setIsLoading(false); }
         }
-      } catch (err) {
-        if (!cancelled) { setLoadError(String(err)); setIsLoading(false); }
-      }
-    })();
+      })();
+    }, 50); // end initTimer
 
     return () => {
       cancelled = true;
+      clearTimeout(initTimer);
       clearReverseTimer();
       stopPlaybackRaf();
       reversedBufferRef.current = null;
-      if (container) container.removeEventListener('wheel', handleWheel);
-      resizeObserver.disconnect();
-      ws.destroy();
-      wsRef.current = null;
+      if (container && handleWheel) container.removeEventListener('wheel', handleWheel);
+      if (resizeObserver) resizeObserver.disconnect();
+      if (wsRef.current) {
+        wsRef.current.destroy();
+        wsRef.current = null;
+      }
       blobUrlRef.current = null;
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps

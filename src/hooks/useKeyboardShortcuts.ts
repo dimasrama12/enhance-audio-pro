@@ -39,6 +39,7 @@ export function useKeyboardShortcuts(): void {
         (e.ctrlKey && e.shiftKey && e.key.toLowerCase() === 'r')
       ) {
         e.preventDefault();
+        window.location.reload();
         return;
       }
 
@@ -72,9 +73,14 @@ export function useKeyboardShortcuts(): void {
 
       // ── Playback / Focus separation ───────────────────────────────────────
       const isPlayerFocused = !!document.activeElement?.closest('.waveform-player-container');
+      const isPlayerOpen = ui.playerOpen;
+
+      if (isPlayerOpen && (e.key === ' ' || e.key === 'Shift')) {
+        return;
+      }
+
       if (isPlayerFocused) {
-        // Space, L, J, and bare Shift keys are handled inside WaveformPlayer
-        if (e.key === ' ' || e.key.toLowerCase() === 'l' || e.key.toLowerCase() === 'j' || e.key === 'Shift') {
+        if (e.key.toLowerCase() === 'l' || e.key.toLowerCase() === 'j') {
           return;
         }
       }
@@ -131,13 +137,15 @@ export function useKeyboardShortcuts(): void {
       if (matches(e, sc.deleteSelected)) {
         if (q.selectedJobIds.length > 0) {
           e.preventDefault();
-          const idsToArchive = q.selectedJobIds.filter((id) => !q.lockedJobIds.includes(id));
-          if (idsToArchive.length > 0) {
-            void invokeArchiveJobs(idsToArchive);
+          const idsToDelete = q.selectedJobIds.filter((id) => !q.lockedJobIds.includes(id));
+          if (idsToDelete.length > 0) {
+            const activePlayerJobId = ui.activePlayerJobId;
+            if (activePlayerJobId && idsToDelete.includes(activePlayerJobId)) {
+              useUIStore.setState({ activePlayerJobId: null, playerOpen: false });
+            }
+            void invokeArchiveJobs(idsToDelete);
+            q.deleteJobs(idsToDelete);
           }
-          // Locked jobs survive deletion
-          q.setJobs(q.jobs.filter((j) => !q.selectedJobIds.includes(j.id) || q.lockedJobIds.includes(j.id)));
-          q.clearSelection();
         }
         return;
       }

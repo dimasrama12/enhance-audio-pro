@@ -7,12 +7,14 @@ import { useTranslation } from 'react-i18next';
 import { open as openDialog } from '@tauri-apps/plugin-dialog';
 import {
   DndContext,
+  DragOverlay,
   closestCenter,
   PointerSensor,
   KeyboardSensor,
   useSensor,
   useSensors,
   type DragEndEvent,
+  type DragStartEvent,
 } from '@dnd-kit/core';
 import { restrictToVerticalAxis } from '@dnd-kit/modifiers';
 import {
@@ -308,6 +310,7 @@ function SortableJobRow({ job, index, isSelected, onSelect, isImporting }: {
         <button
           onClick={(e) => {
             e.stopPropagation();
+            if (isLocked) return;
             const { deleteJobs } = useQueueStore.getState();
             const activePlayerJobId = useUIStore.getState().activePlayerJobId;
             if (activePlayerJobId === job.id) {
@@ -316,8 +319,14 @@ function SortableJobRow({ job, index, isSelected, onSelect, isImporting }: {
             deleteJobs([job.id]);
             void invokeArchiveJobs([job.id]);
           }}
-          title="Delete item"
-          className="block mx-auto text-slate-300 dark:text-white/25 hover:text-red-500 dark:hover:text-red-400 opacity-0 group-hover/trash:opacity-100 transition-all duration-150"
+          disabled={isLocked}
+          title={isLocked ? "Cannot delete locked item" : "Delete item"}
+          className={clsx(
+            "block mx-auto transition-all duration-150",
+            isLocked
+              ? "text-slate-300 dark:text-white/10 cursor-not-allowed opacity-20"
+              : "text-slate-300 dark:text-white/25 hover:text-red-500 dark:hover:text-red-400 opacity-0 group-hover/trash:opacity-100"
+          )}
         >
           <Trash2 size={12} />
         </button>
@@ -488,6 +497,7 @@ export default function QueueGrid(): JSX.Element {
   const importingJobIds = useQueueStore((s) => s.importingJobIds);
   const [selectionBox, setSelectionBox] = useState<{ left: number; top: number; width: number; height: number } | null>(null);
   const [showClearConfirm, setShowClearConfirm] = useState(false);
+  const [activeDragId, setActiveDragId] = useState<string | null>(null);
 
   async function handleClearQueue(): Promise<void> {
     const { jobs, lockedJobIds, clearQueue } = useQueueStore.getState();
@@ -581,32 +591,6 @@ export default function QueueGrid(): JSX.Element {
     window.addEventListener('mouseup', onMouseUp);
   }
 
-  useEffect(() => {
-    function handleKeyDown(e: KeyboardEvent): void {
-      if (e.key === 'Delete' || e.key === 'Backspace') {
-        const tag = (e.target as HTMLElement).tagName;
-        if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
-
-        const { selectedJobIds, deleteJobs, lockedJobIds } = useQueueStore.getState();
-        if (selectedJobIds.length === 0) return;
-
-        e.preventDefault();
-        // Locked items must never be deleted via keyboard shortcuts
-        const idsToDelete = selectedJobIds.filter((id) => !lockedJobIds.includes(id));
-        if (idsToDelete.length === 0) return;
-
-        const activePlayerJobId = useUIStore.getState().activePlayerJobId;
-        if (idsToDelete.includes(activePlayerJobId || '')) {
-          useUIStore.setState({ activePlayerJobId: null, playerOpen: false });
-        }
-        deleteJobs(idsToDelete);
-        void invokeArchiveJobs(idsToDelete);
-      }
-    }
-
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, []);
   const adjustWidth = (col: keyof typeof colWidths, delta: number): void =>
     setColWidths((p) => ({ ...p, [col]: Math.max(80, p[col] + delta) }));
   const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set());
@@ -654,7 +638,12 @@ export default function QueueGrid(): JSX.Element {
     }
   }
 
+  function handleDragStart(event: DragStartEvent): void {
+    setActiveDragId(String(event.active.id));
+  }
+
   function handleDragEnd(event: DragEndEvent): void {
+    setActiveDragId(null);
     const { active, over } = event;
     if (over && active.id !== over.id) {
       reorderJobs(String(active.id), String(over.id));
@@ -688,7 +677,7 @@ export default function QueueGrid(): JSX.Element {
                     <span className="text-slate-300 dark:text-white/20 font-normal ml-0.5">({group.jobs.length})</span>
                   </button>
                   {!collapsedGroups.has(group.label) && (
-                    <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+                    <DndContext sensors={sensors} collisionDetection={closestCenter} onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
                       <SortableContext items={group.jobs.map((j) => j.id)} strategy={rectSortingStrategy}>
                         <div
                           className="grid grid-cols-3 gap-2"
@@ -705,13 +694,22 @@ export default function QueueGrid(): JSX.Element {
                           ))}
                         </div>
                       </SortableContext>
+                      <DragOverlay>
+                        {activeDragId && (
+                          <div className="px-3 py-1.5 rounded-lg bg-violet-600 text-white text-xs font-medium shadow-xl select-none opacity-90 border border-violet-400/30">
+                            {selectedJobIds.includes(activeDragId) && selectedJobIds.length > 1
+                              ? `Moving ${selectedJobIds.length} items`
+                              : 'Moving 1 item'}
+                          </div>
+                        )}
+                      </DragOverlay>
                     </DndContext>
                   )}
                 </div>
               ))}
             </div>
           ) : (
-            <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+            <DndContext sensors={sensors} collisionDetection={closestCenter} onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
               <SortableContext items={jobs.map((j) => j.id)} strategy={rectSortingStrategy}>
                 <div
                   className="grid grid-cols-3 gap-2 p-1"
@@ -728,6 +726,15 @@ export default function QueueGrid(): JSX.Element {
                   ))}
                 </div>
               </SortableContext>
+              <DragOverlay>
+                {activeDragId && (
+                  <div className="px-3 py-1.5 rounded-lg bg-violet-600 text-white text-xs font-medium shadow-xl select-none opacity-90 border border-violet-400/30">
+                    {selectedJobIds.includes(activeDragId) && selectedJobIds.length > 1
+                      ? `Moving ${selectedJobIds.length} items`
+                      : 'Moving 1 item'}
+                  </div>
+                )}
+              </DragOverlay>
             </DndContext>
           )}
         </div>
@@ -767,7 +774,21 @@ export default function QueueGrid(): JSX.Element {
         <th className="px-4 py-2.5 w-28 whitespace-nowrap">{t('queue.col.sampleHz')}</th>
         <th className="px-4 py-2.5 w-40">{t('queue.col.status')}</th>
         <th className="px-2 py-2.5 w-8 text-center">
-          <Lock size={11} className="mx-auto text-slate-400 dark:text-white/30" />
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              const { jobs, lockedJobIds, lockAllJobs, unlockAllJobs } = useQueueStore.getState();
+              if (lockedJobIds.length === jobs.length) {
+                unlockAllJobs();
+              } else {
+                lockAllJobs();
+              }
+            }}
+            title="Lock / Unlock all items"
+            className="text-slate-400 hover:text-violet-500 dark:hover:text-violet-400 transition-colors"
+          >
+            <Lock size={11} className="mx-auto" />
+          </button>
         </th>
         <th className="px-2 py-2.5 w-8 text-center">
           <button
@@ -818,7 +839,7 @@ export default function QueueGrid(): JSX.Element {
                       </td>
                     </tr>
                     {!collapsedGroups.has(group.label) && (
-                      <DndContext key={`dnd-${gi}`} sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd} modifiers={[restrictToVerticalAxis]}>
+                      <DndContext key={`dnd-${gi}`} sensors={sensors} collisionDetection={closestCenter} onDragStart={handleDragStart} onDragEnd={handleDragEnd} modifiers={[restrictToVerticalAxis]}>
                         <SortableContext items={group.jobs.map((j) => j.id)} strategy={verticalListSortingStrategy}>
                           <AnimatePresence>
                             {group.jobs.map((job, i) => (
@@ -833,13 +854,22 @@ export default function QueueGrid(): JSX.Element {
                             ))}
                           </AnimatePresence>
                         </SortableContext>
+                        <DragOverlay>
+                          {activeDragId && (
+                            <div className="px-3 py-1.5 rounded-lg bg-violet-600 text-white text-xs font-medium shadow-xl select-none opacity-90 border border-violet-400/30">
+                              {selectedJobIds.includes(activeDragId) && selectedJobIds.length > 1
+                                ? `Moving ${selectedJobIds.length} items`
+                                : 'Moving 1 item'}
+                            </div>
+                          )}
+                        </DragOverlay>
                       </DndContext>
                     )}
                   </React.Fragment>
                 ))}
               </>
             ) : (
-              <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd} modifiers={[restrictToVerticalAxis]}>
+              <DndContext sensors={sensors} collisionDetection={closestCenter} onDragStart={handleDragStart} onDragEnd={handleDragEnd} modifiers={[restrictToVerticalAxis]}>
                 <SortableContext items={jobs.map((j) => j.id)} strategy={verticalListSortingStrategy}>
                   <AnimatePresence>
                     {jobs.map((job, i) => (
@@ -854,6 +884,15 @@ export default function QueueGrid(): JSX.Element {
                     ))}
                   </AnimatePresence>
                 </SortableContext>
+                <DragOverlay>
+                  {activeDragId && (
+                    <div className="px-3 py-1.5 rounded-lg bg-violet-600 text-white text-xs font-medium shadow-xl select-none opacity-90 border border-violet-400/30">
+                      {selectedJobIds.includes(activeDragId) && selectedJobIds.length > 1
+                        ? `Moving ${selectedJobIds.length} items`
+                        : 'Moving 1 item'}
+                    </div>
+                  )}
+                </DragOverlay>
               </DndContext>
             )}
           </tbody>

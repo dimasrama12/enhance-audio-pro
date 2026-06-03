@@ -225,7 +225,7 @@ This document summarizes the update notes and functional improvements that need 
 
 
 ## 50. Playback Shortcuts Logic & Frame-by-Frame Navigation 🚀 [NEW]
-- **J & L Shortcut Enhancements:**
+- **J & L Shortcut Enhancements:** ✅
   - The `L` shortcut (fast forward) maximum speed is 4x.
   - The `J` shortcut (backward playback) maximum speed is 4x.
   - When in accelerated mode (via `L` or `J`), pressing `Space` must immediately stop/pause the playback.
@@ -235,7 +235,7 @@ This document summarizes the update notes and functional improvements that need 
   - Allow the user to move the playhead forward by exactly one frame by pressing the `Right Shift` key.
 - **Settings UI Sync:** Ensure that the shortcut information for all these new behaviors (`J`, `L`, `Left Shift`, `Right Shift`) is synchronized and updated correctly in the application's Settings UI / Keyboard Shortcuts menu.
 
-## 51. Waveform Playback, Zoom, Smooth Cursor & Clean App Shutdown 🚀 [NEW]
+## 51. Waveform Playback, Zoom, Smooth Cursor & Clean App Shutdown 🚀 [NEW] ✅
 - **J/L Speed Ladder Refinement:**
   - When the user presses **Play** then **L**, playback immediately jumps to **2x** (skipping 1x), then pressing L again jumps to **4x**.
   - Pressing **J** from 4x decreases to 2x → then to normal 1x forward playback → then directly to **backward 2x** (skipping the "paused" stop) → then backward 4x.
@@ -246,3 +246,72 @@ This document summarizes the update notes and functional improvements that need 
 - **Premiere Pro-style Maximum Zoom:** Make the maximum zoom level dynamic: compute it as `containerWidth × 30 fps`, so that at full zoom exactly **one frame** fills the entire waveform container width — matching Adobe Premiere Pro's zoom ceiling.
 - **Cache Cleanup on App Close:** When the application is closed (via the close button or `Alt+X` shortcut), automatically clean up any temporary cached data before exiting.
 - **Complete Process Shutdown:** Ensure the application and **all background processes** (Python backend sidecar) are fully terminated when the app is closed. The Rust layer must explicitly kill the sidecar `CommandChild` on the `CloseRequested` window event and then force-exit the process so no orphaned processes remain.
+
+## 52. Instant Backward Playback, Capped Zoom, Load Caching & Timeline Navigation 🚀 [NEW] ✅
+- **Instant Backward Playback:** Pre-decode and reverse the audio buffer in the background immediately when the file is loaded (in wavesurfer's `ready` event). This removes the lag/wait when pressing the `J` key on long audio files (e.g. 13-minute files).
+- **Capped Zoom Limit:** Limit the maximum horizontal zoom level to `200` pixels per second (or `minZoom` if it exceeds 200 for very short files) to avoid extreme zoom resolutions.
+- **Audio Loading Cache:** Implement a cache mechanism for loaded audio files. When switching between audio files in the queue (e.g., Audio 1 -> Audio 2 -> Audio 1), retrieve the loaded Blob URL and pre-reversed buffer from the cache instead of reading from disk and decoding again.
+- **Timeline Navigation Shortcuts:** Add shortcuts `Ctrl + Arrow Left` to jump immediately to the beginning of the audio (time 0), and `Ctrl + Arrow Right` to jump immediately to the end of the audio.
+
+## 53. Shortcut Adjustments, Fully-Loaded Caching & Loading Cancellation 🚀 [NEW] ✅
+- **Shortcut Adjustments:**
+  - `Arrow Left` and `Arrow Right` keys now skip backward and forward by exactly **1 second**.
+  - `Shift + Arrow Left` and `Shift + Arrow Right` keys now skip backward and forward by **5 seconds**.
+- **Fully-Loaded Caching Mechanism:**
+  - Cache loaded audio files only after they are fully loaded (inside the wavesurfer `ready` event).
+  - In addition to caching the `blobUrl` and `reversedBuffer`, also cache the decoded `peaks` (PCM channel data) and `duration`.
+  - When loading from cache, pass these cached peaks and duration to `ws.load(url, peaks, duration)` to bypass the browser's audio file fetch and decoding process entirely, making cached files render **instantly**.
+- **Interruption Load Cancellation:**
+  - If a file is selected and another file is clicked before the first one finishes loading, cancel/abort the first load immediately and do not add it to the cache.
+
+## 54. Waveform Opening Refactoring, Marquee Drag Selection, Delete Shortcuts, and Clear Queue Updates 🚀 [NEW]  ✅
+- **Waveform Player Opening:** Added a play icon button to the left of the filename inside the queue table and cards. Clicking this play icon opens the waveform player, while clicking elsewhere on the row/card solely handles selection/reordering.
+- **Drag-to-Select (Marquee Selection):** Enabled drag selection by clicking on the app's background and dragging a selection box across queue items.
+- **Keyboard Delete Shortcuts:** Enabled deleting selected items by pressing `Delete` or `Backspace` keys on the keyboard.
+- **Selected Deletion & Clear All Refactoring:** Changed the toolbar trash button to delete selected items instead of clearing the entire queue. Added a new "Clear" column to the table with a header button to clear the entire queue (requiring confirmation) and a trash icon in each row for single-file deletion.
+
+## 55. Marquee Selection Bounds, Lock Safeguards, Import Loading Indicators & Switching Fixes 🚀 [NEW] ✅
+- **Marquee Drag Selection Fixes:**
+  - Fix the drag selection issue where dragging the cursor solely over the table rows fails to select them, whereas dragging past the table container selects them. Ensure drag selection functions reliably across the entire grid or list view area.
+  - Constrain the selection marquee box visually so that it stays within the table/queue container bounds and does not draw outside.
+- **Locked Items Deletion Safeguard:**
+  - Verify and enforce that locked items (`lockedJobIds`) are never deleted when pressing the `Delete` or `Backspace` keys, nor when executing the "Clear" (Clear All) action in the table column.
+- **Visual Feedback for Adding Files (Import Loading Indicator):**
+  - Implement a loading state for newly imported files (via drag-and-drop or file/folder browse dialogs).
+  - Newly added files should immediately appear in the queue list but in a faded/pale gray color, and remain non-interactive (cannot be clicked, played, reordered, or modified) while background import/processing is active.
+  - Once fully loaded, transition their visual state to active (normal text color) to indicate they are ready.
+- **Waveform Switching Crash/Error Fix:**
+  - Fix the issue where rapidly switching between files in the queue (e.g. clicking the play icon from Audio 1 -> Audio 2 -> Audio 3) causes a "Failed to load audio" error inside the waveform player, breaking playback.
+
+## 56. Locked Deletion Safeguards, Right-Click Overrides, Lock Header Toggle, Rapid Track Switching Fixes, Keyboard Shortcuts, Multi-Row Drag Reordering, and Tauri Compilation 🚀 [NEW] ✅
+- **Locked Deletion Safeguards:**
+  - Prevent the "Delete Selected" toolbar button and individual trash buttons from deleting locked files.
+- **Right-Click Overrides:**
+  - Intercept the default browser context menu globally and display a custom, premium HTML context menu containing only a "Refresh (Ctrl+R)" option styled to match the dark/light themes.
+- **Lock Header Toggle:**
+  - Clicking the lock icon in the table header toggles locking or unlocking all items in the queue.
+- **Rapid Track Switching Fixes:**
+  - Prevent the "Failed to load audio" error when rapidly switching between files in the waveform player by declaring the cancellation flag at the very top of `useEffect` and enforcing early return cancellation checks inside all async functions and wavesurfer handlers.
+- **Keyboard Shortcuts:**
+  - Change the shortcut for deleting selected items strictly to the `Delete` key (remove `Backspace`) and update the Keyboard Shortcuts panel.
+- **Multi-Row Drag Reordering:**
+  - Enable dragging multiple selected items together in the queue hierarchy, moving them as a single grouped batch when dropped.
+- **Tauri Compilation:**
+  - Rebuild the Tauri application release binary at `D:\cargo_build\enhance-audio-pro\release\enhance-audio-pro.exe`.
+
+## 57. Ctrl+R Shortcut, Delete Key Fix, Waveform Rapid-Switch Error, Multi-Item Drag, Binary Rebuild 🚀 [NEW]
+- **Ctrl+R Direct App Refresh:**
+  - Pressing `Ctrl+R` (or `F5`) now directly calls `window.location.reload()` instead of silently blocking the event. Previously the key was prevented but no action was taken; the only way to refresh was via the right-click context menu.
+- **Delete Key as Primary Delete Shortcut:**
+  - Changed the default `deleteSelected` binding from `Shift+X` to `Delete` in `DEFAULT_KEYBOARD_SHORTCUTS`.
+  - Removed the redundant hardcoded `Delete` key handler from `QueueGrid.tsx` (now handled by the single configurable shortcut in `useKeyboardShortcuts.ts`).
+  - Updated the shortcut handler to also close the waveform player when the currently-playing job is deleted.
+  - Removed `Delete` from the "fixed shortcuts" info section in the Keyboard Shortcuts panel since it is now the remappable default.
+- **Waveform Rapid-Switch Error Fix:**
+  - Added a 50 ms debounce before WaveSurfer instance creation so rapid file switches (3+) never enter a create→destroy race with the audio element.
+  - Added a `loadGenRef` (generation counter) alongside the existing `cancelled` flag for belt-and-suspenders staleness detection across all async callbacks and WaveSurfer event handlers.
+- **Multi-Item Drag Reordering Fix:**
+  - Fixed a silent early-exit in `reorderJobs` (Zustand store) where `targetIdx === -1` when the drop target (`overId`) is itself one of the selected/moving items. Now computes the insertion point from the item's original position in the jobs array.
+  - Added `DragOverlay` to all four `DndContext` instances in `QueueGrid`. While dragging, a badge shows "Moving N items" (or "Moving 1 item") so users have clear visual feedback.
+- **Tauri Release Binary Rebuild:**
+  - Rebuilt the Tauri application release binary at `D:\cargo_build\enhance-audio-pro\release\enhance-audio-pro.exe`.

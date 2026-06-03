@@ -85,7 +85,6 @@ export default function KeyboardShortcutsPanel(): JSX.Element {
               Queue (fixed)
             </span>
             {([
-              ['Delete / Backspace', 'Delete selected items (locked items protected)'],
               ['Click + Drag', 'Marquee select multiple items'],
             ] as [string, string][]).map(([key, label]) => (
               <div key={key} className="flex items-center justify-between gap-2 mb-1">

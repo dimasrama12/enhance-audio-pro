@@ -29,6 +29,7 @@ export interface KeyboardShortcutMap {
   // Theme
   themeLight: string;
   themeDark: string;
+  closePlayer: string;
 }
 
 export const DEFAULT_KEYBOARD_SHORTCUTS: KeyboardShortcutMap = {
@@ -39,7 +40,7 @@ export const DEFAULT_KEYBOARD_SHORTCUTS: KeyboardShortcutMap = {
   selectAll: 'Ctrl+A',
   deselect: 'Escape',
   deselectAll: 'X',
-  deleteSelected: 'Shift+X',
+  deleteSelected: 'Delete',
   lockSelected: 'L',
   lockAll: 'Shift+L',
   audioTab: 'Ctrl+1',
@@ -55,6 +56,7 @@ export const DEFAULT_KEYBOARD_SHORTCUTS: KeyboardShortcutMap = {
   exit: 'Alt+X',
   themeLight: ']',
   themeDark: '[',
+  closePlayer: 'W',
 };
 
 export const SHORTCUT_LABELS: Record<keyof KeyboardShortcutMap, string> = {
@@ -81,6 +83,7 @@ export const SHORTCUT_LABELS: Record<keyof KeyboardShortcutMap, string> = {
   exit: 'Exit App',
   themeLight: 'Light Theme',
   themeDark: 'Dark Theme',
+  closePlayer: 'Close Waveform Player',
 };
 
 export interface AppSettings {
