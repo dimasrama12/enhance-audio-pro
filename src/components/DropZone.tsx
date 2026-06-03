@@ -11,30 +11,34 @@ import { invokeAddFiles, invokeListFolderFiles } from '@/lib/ipc';
 import { useQueueStore } from '@/stores/useQueueStore';
 import { useUIStore } from '@/stores/useUIStore';
 
+interface DuplicatePending {
+  newPaths: string[];
+  uniquePaths: string[];
+  duplicateNames: string[];
+  skippedInvalid: number;
+}
+
 export default function DropZone(): JSX.Element {
   const [isDragging, setIsDragging] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [limitWarning, setLimitWarning] = useState<string | null>(null);
+  const [duplicatePending, setDuplicatePending] = useState<DuplicatePending | null>(null);
   const { addJobs } = useQueueStore();
+  const playerOpen = useUIStore((s) => s.playerOpen);
+  const activePlayerJobId = useUIStore((s) => s.activePlayerJobId);
+  const jobs = useQueueStore((s) => s.jobs);
+  const activeJobExists = jobs.some((j) => j.id === activePlayerJobId);
+  const isHidden = playerOpen && activeJobExists;
   const { activeTab } = useUIStore();
   const dragCounterRef = useRef(0);
   const { t } = useTranslation();
 
-  const handleFiles = useCallback(async (paths: string[]): Promise<void> => {
-    const valid = paths.filter((p) => validateFile(getFilename(p)).valid);
-    const skipped = paths.length - valid.length;
-
-    if (valid.length === 0) {
-      setError('No supported audio or video files found.');
-      setTimeout(() => setError(null), 3000);
-      return;
-    }
-
-    const res = await invokeAddFiles(valid);
+  const submitAddFiles = useCallback(async (paths: string[], skippedInvalid: number = 0): Promise<void> => {
+    const res = await invokeAddFiles(paths);
     if (res.success && res.data) {
       addJobs(res.data);
-      if (skipped > 0) {
-        setError(`${skipped} unsupported file(s) skipped.`);
+      if (skippedInvalid > 0) {
+        setError(`${skippedInvalid} unsupported file(s) skipped.`);
         setTimeout(() => setError(null), 3000);
       }
     } else {
@@ -46,6 +50,29 @@ export default function DropZone(): JSX.Element {
       setTimeout(() => setLimitWarning(null), 5000);
     }
   }, [addJobs]);
+
+  const handleFiles = useCallback(async (paths: string[]): Promise<void> => {
+    const valid = paths.filter((p) => validateFile(getFilename(p)).valid);
+    const skipped = paths.length - valid.length;
+
+    if (valid.length === 0) {
+      setError('No supported audio or video files found.');
+      setTimeout(() => setError(null), 3000);
+      return;
+    }
+
+    // Duplicate detection: compare against current queue by filepath
+    const existingPaths = new Set(useQueueStore.getState().jobs.map((j) => j.filepath));
+    const uniquePaths = valid.filter((p) => !existingPaths.has(p));
+    const duplicateNames = valid.filter((p) => existingPaths.has(p)).map((p) => getFilename(p));
+
+    if (duplicateNames.length > 0) {
+      setDuplicatePending({ newPaths: valid, uniquePaths, duplicateNames, skippedInvalid: skipped });
+      return;
+    }
+
+    await submitAddFiles(valid, skipped);
+  }, [submitAddFiles]);
 
   const resolveDroppedPaths = useCallback(async (paths: string[]): Promise<string[]> => {
     const resolved: string[] = [];
@@ -128,9 +155,71 @@ export default function DropZone(): JSX.Element {
   const TabIcon = isAudio ? Music : Video;
 
   return (
-    <div
+    <>
+    {duplicatePending && (
+      <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/50 backdrop-blur-sm">
+        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-white/10 p-6 rounded-2xl max-w-sm w-full shadow-2xl flex flex-col gap-4">
+          <div className="flex items-center gap-2">
+            <span className="text-amber-500 text-base leading-none">⚠</span>
+            <h3 className="text-sm font-semibold text-slate-800 dark:text-white">
+              {duplicatePending.duplicateNames.length === 1 ? 'Duplicate File Detected' : 'Duplicate Files Detected'}
+            </h3>
+          </div>
+          <p className="text-xs text-slate-500 dark:text-white/60 leading-relaxed">
+            {duplicatePending.duplicateNames.length === 1
+              ? 'This file already exists in the queue:'
+              : `These ${duplicatePending.duplicateNames.length} files already exist in the queue:`}
+          </p>
+          <ul className="flex flex-col gap-1 max-h-28 overflow-y-auto scrollbar-thin">
+            {duplicatePending.duplicateNames.map((name) => (
+              <li key={name} className="text-xs text-amber-600 dark:text-amber-400 truncate font-mono bg-amber-50 dark:bg-amber-500/10 px-2 py-1 rounded">
+                {name}
+              </li>
+            ))}
+          </ul>
+          <div className="flex flex-col gap-2 mt-1">
+            <button
+              onClick={async () => {
+                const pending = duplicatePending;
+                setDuplicatePending(null);
+                await submitAddFiles(pending.newPaths, pending.skippedInvalid);
+              }}
+              className="px-3 py-1.5 rounded-lg text-xs font-medium bg-violet-600 hover:bg-violet-500 text-white transition-colors"
+            >
+              Add All (re-add {duplicatePending.duplicateNames.length === 1 ? 'duplicate' : 'duplicates'})
+            </button>
+            {duplicatePending.uniquePaths.length > 0 && (
+              <button
+                onClick={async () => {
+                  const pending = duplicatePending;
+                  setDuplicatePending(null);
+                  await submitAddFiles(pending.uniquePaths, pending.skippedInvalid);
+                }}
+                className="px-3 py-1.5 rounded-lg text-xs font-medium bg-slate-200 dark:bg-white/10 hover:bg-slate-300 dark:hover:bg-white/20 text-slate-700 dark:text-white transition-colors"
+              >
+                Add New Only ({duplicatePending.uniquePaths.length} file{duplicatePending.uniquePaths.length !== 1 ? 's' : ''})
+              </button>
+            )}
+            <button
+              onClick={() => setDuplicatePending(null)}
+              className="px-3 py-1.5 rounded-lg text-xs font-medium bg-slate-100 dark:bg-white/5 hover:bg-slate-200 dark:hover:bg-white/10 text-slate-500 dark:text-white/50 transition-colors"
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      </div>
+    )}
+    <motion.div
+      animate={{
+        height: isHidden ? 0 : 100,
+        opacity: isHidden ? 0 : 1,
+        marginBottom: isHidden ? -12 : 0,
+        scaleY: isHidden ? 0 : 1,
+      }}
+      transition={{ duration: 0.1, ease: 'easeInOut' }}
       className={clsx(
-        'relative flex flex-col items-center justify-center h-[100px] rounded-xl border-2 border-dashed transition-all duration-200 shrink-0 cursor-pointer overflow-hidden group',
+        'relative flex flex-col items-center justify-center rounded-xl border-2 border-dashed transition-all duration-200 shrink-0 cursor-pointer overflow-hidden group w-full',
         isDragging
           ? 'border-violet-400 bg-violet-500/10 dark:bg-violet-500/[0.08]'
           : [
@@ -139,12 +228,13 @@ export default function DropZone(): JSX.Element {
               'hover:border-violet-300 dark:hover:border-violet-500/40',
               'hover:bg-violet-50/40 dark:hover:bg-violet-900/[0.06]',
             ],
+        isHidden && 'pointer-events-none border-none'
       )}
       onDragEnter={onDragEnter}
       onDragOver={onDragOver}
       onDragLeave={onDragLeave}
       onDrop={onDrop}
-      onClick={handleClick}
+      onClick={isHidden ? undefined : handleClick}
     >
       {/* Subtle background glow on hover */}
       <div className="absolute inset-0 bg-gradient-to-b from-violet-500/[0.02] to-transparent pointer-events-none" />
@@ -200,6 +290,7 @@ export default function DropZone(): JSX.Element {
           {limitWarning}
         </p>
       )}
-    </div>
+    </motion.div>
+    </>
   );
 }

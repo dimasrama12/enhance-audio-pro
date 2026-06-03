@@ -170,14 +170,17 @@ function SampleRateSelect({ job }: { job: QueueJob }): JSX.Element {
 
 // ─── Sortable row ─────────────────────────────────────────────────────────────
 
-function SortableJobRow({ job, index, isSelected, onSelect, isImporting }: {
+function SortableJobRow({ job, index, isSelected, onSelect, isImporting, activeDragId }: {
   job: QueueJob;
   index: number;
   isSelected: boolean;
   onSelect: (e: React.MouseEvent) => void;
   isImporting?: boolean;
+  activeDragId: string | null;
 }): JSX.Element {
-  const { attributes, listeners, setNodeRef, transform, transition } = useSortable({ id: job.id });
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: job.id });
+  const selectedJobIds = useQueueStore((s) => s.selectedJobIds);
+  const isDraggingAnySelected = !!(activeDragId && selectedJobIds.includes(job.id));
   const setAbMode = useQueueStore((s) => s.setAbMode);
   const isLocked = useQueueStore((s) => s.lockedJobIds.includes(job.id));
   const unlockJobs = useQueueStore((s) => s.unlockJobs);
@@ -185,10 +188,16 @@ function SortableJobRow({ job, index, isSelected, onSelect, isImporting }: {
 
   const isEnhanced = job.ab_mode === 'enhanced';
 
+  const rowStyle = {
+    transform: isDraggingAnySelected ? undefined : CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging || isDraggingAnySelected ? 0 : undefined,
+  };
+
   return (
     <tr
       ref={setNodeRef}
-      style={{ transform: CSS.Transform.toString(transform), transition }}
+      style={rowStyle}
       onClick={isImporting ? undefined : onSelect}
       data-job-id={job.id}
       className={clsx(
@@ -337,13 +346,16 @@ function SortableJobRow({ job, index, isSelected, onSelect, isImporting }: {
 
 // ─── Sortable card (grid view) ────────────────────────────────────────────────
 
-function SortableJobCard({ job, isSelected, onSelect, isImporting }: {
+function SortableJobCard({ job, isSelected, onSelect, isImporting, activeDragId }: {
   job: QueueJob;
   isSelected: boolean;
   onSelect: (e: React.MouseEvent) => void;
   isImporting?: boolean;
+  activeDragId: string | null;
 }): JSX.Element {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: job.id });
+  const selectedJobIds = useQueueStore((s) => s.selectedJobIds);
+  const isDraggingAnySelected = !!(activeDragId && selectedJobIds.includes(job.id));
   const { playingJobId, isPlaying, toggle } = useAudioPlayer();
   const setAbMode = useQueueStore((s) => s.setAbMode);
   const isLocked = useQueueStore((s) => s.lockedJobIds.includes(job.id));
@@ -358,10 +370,16 @@ function SortableJobCard({ job, isSelected, onSelect, isImporting }: {
     toggle(job.id, src);
   }
 
+  const cardStyle = {
+    transform: isDraggingAnySelected ? undefined : CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging || isDraggingAnySelected ? 0 : undefined,
+  };
+
   return (
     <div
       ref={setNodeRef}
-      style={{ transform: CSS.Transform.toString(transform), transition }}
+      style={cardStyle}
       onClick={isImporting ? undefined : onSelect}
       data-job-id={job.id}
       className={clsx(
@@ -370,7 +388,7 @@ function SortableJobCard({ job, isSelected, onSelect, isImporting }: {
           ? 'opacity-40 pointer-events-none cursor-default bg-slate-50 dark:bg-white/[0.02] border-slate-100 dark:border-white/[0.04]'
           : clsx(
               'cursor-pointer',
-              isDragging ? 'opacity-40 scale-[0.98]' : '',
+              isDragging ? 'scale-[0.98]' : '',
               isSelected
                 ? 'bg-violet-50 dark:bg-violet-500/[0.08] border-violet-300 dark:border-violet-500/40'
                 : isEnhanced
@@ -696,6 +714,7 @@ export default function QueueGrid(): JSX.Element {
                               isSelected={selectedJobIds.includes(job.id)}
                               onSelect={(e) => handleRowClick(e, job.id)}
                               isImporting={importingJobIds.includes(job.id)}
+                              activeDragId={activeDragId}
                             />
                           ))}
                         </div>
@@ -737,6 +756,7 @@ export default function QueueGrid(): JSX.Element {
                       isSelected={selectedJobIds.includes(job.id)}
                       onSelect={(e) => handleRowClick(e, job.id)}
                       isImporting={importingJobIds.includes(job.id)}
+                      activeDragId={activeDragId}
                     />
                   ))}
                 </div>
@@ -874,6 +894,7 @@ export default function QueueGrid(): JSX.Element {
                                 isSelected={selectedJobIds.includes(job.id)}
                                 onSelect={(e) => handleRowClick(e, job.id)}
                                 isImporting={importingJobIds.includes(job.id)}
+                                activeDragId={activeDragId}
                               />
                             ))}
                           </AnimatePresence>
@@ -911,6 +932,7 @@ export default function QueueGrid(): JSX.Element {
                         isSelected={selectedJobIds.includes(job.id)}
                         onSelect={(e) => handleRowClick(e, job.id)}
                         isImporting={importingJobIds.includes(job.id)}
+                        activeDragId={activeDragId}
                       />
                     ))}
                   </AnimatePresence>

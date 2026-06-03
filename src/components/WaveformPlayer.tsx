@@ -45,6 +45,19 @@ const audioCache = new Map<string, AudioCacheItem>();
 
 const FRAME_SIZE = 1 / 30;
 
+function cleanupWaveSurfer(ws: WaveSurfer | null): void {
+  if (!ws) return;
+  // Capture media element before destroy removes it from the instance
+  let mediaEl: HTMLMediaElement | null = null;
+  try { mediaEl = ws.getMediaElement(); } catch { /* not yet initialised */ }
+  // Destroy first — removes all WaveSurfer event listeners so no error events propagate
+  try { ws.destroy(); } catch (err) { console.warn('WaveSurfer destroy error:', err); }
+  // Clear src after listeners are gone to abort any in-flight fetch
+  if (mediaEl) {
+    try { mediaEl.src = ''; mediaEl.load(); } catch { /* already detached */ }
+  }
+}
+
 export default function WaveformPlayer({ filepath, outputFilepath, filename }: Props): JSX.Element {
   const waveformRef = useRef<HTMLDivElement>(null);
   const wsRef = useRef<WaveSurfer | null>(null);
@@ -300,7 +313,7 @@ export default function WaveformPlayer({ filepath, outputFilepath, filename }: P
 
     // Immediate cleanup of any existing instance and state reset
     if (wsRef.current) {
-      wsRef.current.destroy();
+      cleanupWaveSurfer(wsRef.current);
       wsRef.current = null;
     }
     blobUrlRef.current = null;
@@ -527,8 +540,20 @@ export default function WaveformPlayer({ filepath, outputFilepath, filename }: P
         stopPlaybackRaf();
       });
       ws.on('error', (err) => {
-        if (isStale()) return;
-        setLoadError(String(err));
+        // Stale check: catches rapid file-switch where the old instance fires after cleanup
+        if (isStale() || wsRef.current !== ws) return;
+        const errMsg = String(err);
+        // Suppress abort-family errors that occur when src is cleared during file switching
+        if (
+          errMsg.includes('AbortError') ||
+          errMsg.includes('interrupted') ||
+          errMsg.includes('aborted') ||
+          errMsg.includes('MEDIA_ERR_ABORTED') ||
+          errMsg === '[object MediaError]' ||
+          errMsg.trim() === '' ||
+          errMsg === 'null'
+        ) return;
+        setLoadError(errMsg);
         setIsLoading(false);
       });
 
@@ -629,8 +654,7 @@ export default function WaveformPlayer({ filepath, outputFilepath, filename }: P
         gainNodeRef.current = null;
       }
       if (wsRef.current) {
-        wsRef.current.unAll();
-        wsRef.current.destroy();
+        cleanupWaveSurfer(wsRef.current);
         wsRef.current = null;
       }
       blobUrlRef.current = null;
@@ -769,16 +793,39 @@ export default function WaveformPlayer({ filepath, outputFilepath, filename }: P
     try { wsRef.current.setOptions({}); } catch (err) { console.error('Error redrawing on reset:', err); }
   };
 
-  const handleFocus = (): void => setIsFocused(true);
-  const handleBlur = (e: React.FocusEvent): void => {
-    if (e.currentTarget.contains(e.relatedTarget as Node)) return;
-    // Defer so onClick → focus() on non-focusable inner elements (waveform canvas)
-    // fires first, preventing a visible border-disappear flicker.
-    const container = e.currentTarget;
-    setTimeout(() => {
-      if (!container.contains(document.activeElement)) setIsFocused(false);
-    }, 0);
-  };
+  // Automatic focus and outline border activation on track change
+  useEffect(() => {
+    if (containerRef.current) {
+      containerRef.current.focus();
+      setIsFocused(true);
+    }
+  }, [filepath, outputFilepath]);
+
+  // Global mouse click and keyboard focus listeners to preserve active outline border (stroke)
+  useEffect(() => {
+    const handleGlobalClick = (e: MouseEvent) => {
+      const target = e.target as HTMLElement;
+      if (containerRef.current?.contains(target)) {
+        setIsFocused(true);
+      } else {
+        setIsFocused(false);
+      }
+    };
+    const handleGlobalFocusIn = (e: FocusEvent) => {
+      const target = e.target as HTMLElement;
+      if (containerRef.current?.contains(target)) {
+        setIsFocused(true);
+      } else {
+        setIsFocused(false);
+      }
+    };
+    window.addEventListener('mousedown', handleGlobalClick);
+    window.addEventListener('focusin', handleGlobalFocusIn);
+    return () => {
+      window.removeEventListener('mousedown', handleGlobalClick);
+      window.removeEventListener('focusin', handleGlobalFocusIn);
+    };
+  }, []);
 
   // Human-readable speed badge
   const speedLabel = jlSpeed !== 0
@@ -789,8 +836,6 @@ export default function WaveformPlayer({ filepath, outputFilepath, filename }: P
     <div
       ref={containerRef}
       tabIndex={0}
-      onFocus={handleFocus}
-      onBlur={handleBlur}
       onClick={() => containerRef.current?.focus()}
       className={`waveform-player-container flex flex-col gap-3 focus:outline-none p-3 rounded-xl border transition-all duration-200 ${
         isFocused
