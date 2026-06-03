@@ -299,7 +299,7 @@ This document summarizes the update notes and functional improvements that need 
 - **Tauri Compilation:**
   - Rebuild the Tauri application release binary at `D:\cargo_build\enhance-audio-pro\release\enhance-audio-pro.exe`.
 
-## 57. Ctrl+R Shortcut, Delete Key Fix, Waveform Rapid-Switch Error, Multi-Item Drag, Binary Rebuild 🚀 [NEW]
+## 57. Ctrl+R Shortcut, Delete Key Fix, Waveform Rapid-Switch Error, Multi-Item Drag, Binary Rebuild 🚀 [NEW] ✅
 - **Ctrl+R Direct App Refresh:**
   - Pressing `Ctrl+R` (or `F5`) now directly calls `window.location.reload()` instead of silently blocking the event. Previously the key was prevented but no action was taken; the only way to refresh was via the right-click context menu.
 - **Delete Key as Primary Delete Shortcut:**
@@ -315,3 +315,16 @@ This document summarizes the update notes and functional improvements that need 
   - Added `DragOverlay` to all four `DndContext` instances in `QueueGrid`. While dragging, a badge shows "Moving N items" (or "Moving 1 item") so users have clear visual feedback.
 - **Tauri Release Binary Rebuild:**
   - Rebuilt the Tauri application release binary at `D:\cargo_build\enhance-audio-pro\release\enhance-audio-pro.exe`.
+
+## 58. Multi-Item Drag Visual Union, Waveform Player Automatic Focus & Focus Preservation, Playback Switch Error Fixes, and Binary Recompilation 🚀 [NEW] ✅
+- **Multi-Item Drag Visual Union:**
+  - Enhance the visual feedback when dragging two or more queue items. Instead of rendering a separate overlay text/badge (like "Moving N items"), style the dragged items so they appear visually connected/merged and move in unison tracking the cursor's coordinates during the drag operation.
+- **Waveform Player Focus Activation & Preservation:**
+  - When the waveform player window first appears (triggered by clicking the Play icon of a queue item), it must immediately become active and focused, displaying the active outline border (stroke) automatically without requiring an initial click from the user.
+  - Clicking inside the waveform player window or on its inner controls must preserve its active state (the outline border must not disappear).
+  - The waveform player's active state (and visual stroke) must only be deactivated when the user explicitly clicks outside of the waveform player container.
+- **Waveform Player Switching Error Fixes:**
+  - Perform a deep cleanup of any remaining errors/crashes when rapidly clicking different queue files' play buttons or swapping waveform players. Fix any lingering asynchronous race conditions, obsolete audio context bindings, or event listener pollution to guarantee seamless playback transitions under load.
+- **Tauri Release Binary Recompile:**
+  - Recompile the Tauri application release executable at `D:\cargo_build\enhance-audio-pro\release\enhance-audio-pro.exe`.
+
