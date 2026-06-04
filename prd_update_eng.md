@@ -328,3 +328,24 @@ This document summarizes the update notes and functional improvements that need 
 - **Tauri Release Binary Recompile:**
   - Recompile the Tauri application release executable at `D:\cargo_build\enhance-audio-pro\release\enhance-audio-pro.exe`.
 
+## 59. Multi-Drag Placeholder Preservation, Continuous Waveform Autofocus, Playback Interruption Error Fixes, and Binary Compilation 🚀 [NEW] ✅
+- **Multi-Drag Placeholder Preservation:**
+  - Prevent selected items from disappearing/vanishing from the table when they are dragged in a multi-item selection. They should remain in their original positions in the table, styled with `opacity-40` and not moved by `transform`, while the cursor moves the `DragOverlay` visual union badge.
+- **Continuous Waveform Autofocus:**
+  - Ensure that when the waveform player is already open and a user clicks the play icon of a different queue item, the waveform player window immediately autofocuses and displays the active outline border (stroke) automatically without requiring any clicks.
+- **Playback Interruption Error Fixes:**
+  - Fix any remaining "Failed to load audio" errors (media object errors) during rapid switching of queue tracks. Clear the source (`src = ''`) and trigger `load()` on the old audio element before destroying WaveSurfer, and ignore benign `AbortError` exceptions inside the error callback.
+- **Tauri Release Binary Rebuild:**
+  - Rebuild the Tauri application release binary at `D:\cargo_build\enhance-audio-pro\release\enhance-audio-pro.exe`.
+
+
+## 60. Multi-Drag Gap, Reopen Audio Playback, and Rebuild Release 🚀 [NEW] ✅
+- **Multi-Drag Table Row Gap Fix:**
+  - Prevent visual gaps between non-dragged items when performing a multi-item drag to reorder. The remaining items in the queue list/table must collapse together with no gaps.
+- **Waveform Reopen Audio Playback Fix:**
+  - Fix the bug where closing the waveform player using the `W` shortcut and reopening it causes audio playback to completely fail (silent/unplayable) until the application is restarted. Implement a robust solution for wavesurfer/audio cleanup and reinitialization.
+- **Tauri Release Binary Rebuild:**
+  - Rebuild the Tauri application release binary at `D:\cargo_build\enhance-audio-pro\release\enhance-audio-pro.exe`.
+
+
+

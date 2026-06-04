@@ -187,11 +187,15 @@ function SortableJobRow({ job, index, isSelected, onSelect, isImporting, activeD
   const defaultOutputFolder = useSettingsStore((s) => s.outputFolder);
 
   const isEnhanced = job.ab_mode === 'enhanced';
+  // Primary drag item stays in DOM (opacity 0) so DnD kit can measure it for
+  // correct sibling transforms. Only secondary selected items are display:none.
+  const isSecondaryDrag = isDraggingAnySelected && !isDragging;
 
   const rowStyle = {
     transform: isDraggingAnySelected ? undefined : CSS.Transform.toString(transform),
     transition,
     opacity: isDragging || isDraggingAnySelected ? 0 : undefined,
+    display: isSecondaryDrag ? 'none' : undefined,
   };
 
   return (
@@ -370,10 +374,13 @@ function SortableJobCard({ job, isSelected, onSelect, isImporting, activeDragId 
     toggle(job.id, src);
   }
 
+  const isSecondaryDrag = isDraggingAnySelected && !isDragging;
+
   const cardStyle = {
     transform: isDraggingAnySelected ? undefined : CSS.Transform.toString(transform),
     transition,
     opacity: isDragging || isDraggingAnySelected ? 0 : undefined,
+    display: isSecondaryDrag ? 'none' : undefined,
   };
 
   return (
@@ -516,6 +523,24 @@ export default function QueueGrid(): JSX.Element {
   const [selectionBox, setSelectionBox] = useState<{ left: number; top: number; width: number; height: number } | null>(null);
   const [showClearConfirm, setShowClearConfirm] = useState(false);
   const [activeDragId, setActiveDragId] = useState<string | null>(null);
+
+  const dragSelectedIds = useMemo((): string[] => {
+    if (!activeDragId) return [];
+    return selectedJobIds.includes(activeDragId) ? selectedJobIds : [];
+  }, [activeDragId, selectedJobIds]);
+
+  const visibleJobs = useMemo((): QueueJob[] => {
+    if (!activeDragId || dragSelectedIds.length <= 1) return jobs;
+    return jobs.filter((j) => j.id === activeDragId || !dragSelectedIds.includes(j.id));
+  }, [jobs, activeDragId, dragSelectedIds]);
+
+  const visibleGroups = useMemo(() => {
+    if (!activeDragId || dragSelectedIds.length <= 1) return groups;
+    return groups.map((g) => ({
+      ...g,
+      jobs: g.jobs.filter((j) => j.id === activeDragId || !dragSelectedIds.includes(j.id)),
+    })).filter((g) => g.jobs.length > 0);
+  }, [groups, activeDragId, dragSelectedIds]);
 
   const draggingJobs = useMemo((): QueueJob[] => {
     if (!activeDragId) return [];
@@ -690,7 +715,7 @@ export default function QueueGrid(): JSX.Element {
         >
           {jobs.length === 0 ? emptyState : groupByFormat ? (
             <div className="flex flex-col gap-4 p-1">
-              {groups.map((group) => (
+              {visibleGroups.map((group) => (
                 <div key={group.label}>
                   <button
                     onClick={() => toggleGroup(group.label)}
@@ -744,12 +769,12 @@ export default function QueueGrid(): JSX.Element {
             </div>
           ) : (
             <DndContext sensors={sensors} collisionDetection={closestCenter} onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
-              <SortableContext items={jobs.map((j) => j.id)} strategy={rectSortingStrategy}>
+              <SortableContext items={visibleJobs.map((j) => j.id)} strategy={rectSortingStrategy}>
                 <div
                   className="grid grid-cols-3 gap-2 p-1"
                   onClick={(e) => { if (e.target === e.currentTarget) clearSelection(); }}
                 >
-                  {jobs.map((job) => (
+                  {visibleJobs.map((job) => (
                     <SortableJobCard
                       key={job.id}
                       job={job}
@@ -868,7 +893,7 @@ export default function QueueGrid(): JSX.Element {
               </tr>
             ) : groupByFormat ? (
               <>
-                {groups.map((group, gi) => (
+                {visibleGroups.map((group, gi) => (
                   <React.Fragment key={`group-${gi}`}>
                     <tr>
                       <td colSpan={12} className="px-4 pt-3 pb-1">
@@ -890,7 +915,7 @@ export default function QueueGrid(): JSX.Element {
                               <SortableJobRow
                                 key={job.id}
                                 job={job}
-                                index={i}
+                                index={groups.find((g) => g.label === group.label)?.jobs.findIndex((j) => j.id === job.id) ?? i}
                                 isSelected={selectedJobIds.includes(job.id)}
                                 onSelect={(e) => handleRowClick(e, job.id)}
                                 isImporting={importingJobIds.includes(job.id)}
@@ -922,13 +947,13 @@ export default function QueueGrid(): JSX.Element {
               </>
             ) : (
               <DndContext sensors={sensors} collisionDetection={closestCenter} onDragStart={handleDragStart} onDragEnd={handleDragEnd} modifiers={[restrictToVerticalAxis]}>
-                <SortableContext items={jobs.map((j) => j.id)} strategy={verticalListSortingStrategy}>
+                <SortableContext items={visibleJobs.map((j) => j.id)} strategy={verticalListSortingStrategy}>
                   <AnimatePresence>
-                    {jobs.map((job, i) => (
+                    {visibleJobs.map((job) => (
                       <SortableJobRow
                         key={job.id}
                         job={job}
-                        index={i}
+                        index={jobs.findIndex((j) => j.id === job.id)}
                         isSelected={selectedJobIds.includes(job.id)}
                         onSelect={(e) => handleRowClick(e, job.id)}
                         isImporting={importingJobIds.includes(job.id)}
