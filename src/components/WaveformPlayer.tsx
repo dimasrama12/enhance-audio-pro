@@ -125,6 +125,7 @@ export default function WaveformPlayer({ filepath, outputFilepath, filename }: P
 
   const [isFocused, setIsFocused] = useState(false);
   const [volumeDb, setVolumeDb] = useState(0);
+  const volumeDbCache = useRef<Record<string, number>>({});
   // jlSpeed: -4 | -2 | -1 | 0 | 1 | 2 | 4  (sign = direction, magnitude = multiplier)
   const [jlSpeed, setJlSpeed] = useState(0);
 
@@ -208,8 +209,18 @@ export default function WaveformPlayer({ filepath, outputFilepath, filename }: P
       const ctx = audioContextRef.current;
       const doForward = async (): Promise<void> => {
         if (ctx?.state === 'suspended') await ctx.resume();
-        wsRef.current?.setPlaybackRate(speed);
-        wsRef.current?.play();
+        if (!wsRef.current) return;
+        const fileAtCall = activeFileRef.current;
+        try {
+          wsRef.current.setPlaybackRate(speed);
+          await wsRef.current.play();
+        } catch (err) {
+          if (fileAtCall !== activeFileRef.current) return;
+          const errMsg = String(err);
+          if (errMsg.includes('NotSupportedError') || errMsg.includes('no supported sources')) return;
+          console.error('Speed play error:', err);
+          setLoadError('Speed play error: ' + errMsg);
+        }
       };
       void doForward();
     } else {
@@ -499,9 +510,21 @@ export default function WaveformPlayer({ filepath, outputFilepath, filename }: P
     setJlSpeed(0);
     reversedBufferRef.current = null;
 
-    // Pause any active playback without destroying the WaveSurfer instance
+    const cachedVol = volumeDbCache.current[activeFileRef.current] ?? 0;
+    volumeDbRef.current = cachedVol;
+    setVolumeDb(cachedVol);
+
+    // Pause active playback. Do NOT clear mediaEl.src here — removing src while
+    // WaveSurfer holds a reference to the shared pipeline element puts it into an
+    // error state, causing NotSupportedError on any in-flight play() call (same
+    // reason documented in cleanupWaveSurfer above). ws.load() sets the correct src.
     if (wsRef.current) {
-      try { wsRef.current.pause(); wsRef.current.setPlaybackRate(1.0); } catch {}
+      try {
+        wsRef.current.pause();
+        wsRef.current.setPlaybackRate(1.0);
+      } catch (e) {
+        console.warn('Error pausing on file switch:', e);
+      }
     }
 
     // 50ms debounce to coalesce rapid file switches
@@ -603,7 +626,8 @@ export default function WaveformPlayer({ filepath, outputFilepath, filename }: P
           errMsg.includes('AbortError') || errMsg.includes('interrupted') || errMsg.includes('aborted') ||
           errMsg.includes('MEDIA_ERR_ABORTED') || errMsg.includes('MEDIA_ERR_NETWORK') ||
           errMsg.includes('Failed to fetch') || errMsg.includes('NetworkError') ||
-          errMsg.includes('The operation was aborted') ||
+          errMsg.includes('The operation was aborted') || errMsg.includes('NotSupportedError') ||
+          errMsg.includes('no supported sources') ||
           errMsg === '[object MediaError]' || errMsg.trim() === '' || errMsg === 'null';
         console.group('[WaveformPlayer] audio error event');
         console.log('file:', activeFileRef.current);
@@ -698,7 +722,18 @@ export default function WaveformPlayer({ filepath, outputFilepath, filename }: P
           if (ctx?.state === 'suspended') await ctx.resume();
           if (!wsRef.current) return;
           if (jlSpeedRef.current !== 0) applySpeed(0);
-          else wsRef.current.playPause();
+          else {
+            const fileAtCall = activeFileRef.current;
+            try {
+              await wsRef.current.playPause();
+            } catch (err) {
+              if (fileAtCall !== activeFileRef.current) return;
+              const errMsg = String(err);
+              if (errMsg.includes('NotSupportedError') || errMsg.includes('no supported sources')) return;
+              console.error('playPause error:', err);
+              setLoadError('Playback error: ' + errMsg);
+            }
+          }
         };
         void doPlay();
       } else if (e.key === 'ArrowLeft') {
@@ -756,6 +791,7 @@ export default function WaveformPlayer({ filepath, outputFilepath, filename }: P
         const next = Math.min(10, volumeDbRef.current + 1);
         volumeDbRef.current = next;
         setVolumeDb(next);
+        volumeDbCache.current[activeFileRef.current] = next;
         try {
           if (gainNodeRef.current) gainNodeRef.current.gain.value = dbToLinear(next);
           wsRef.current.setOptions({});
@@ -765,6 +801,7 @@ export default function WaveformPlayer({ filepath, outputFilepath, filename }: P
         const next = Math.max(-40, volumeDbRef.current - 1);
         volumeDbRef.current = next;
         setVolumeDb(next);
+        volumeDbCache.current[activeFileRef.current] = next;
         try {
           if (gainNodeRef.current) gainNodeRef.current.gain.value = dbToLinear(next);
           wsRef.current.setOptions({});
@@ -783,7 +820,18 @@ export default function WaveformPlayer({ filepath, outputFilepath, filename }: P
       if (ctx?.state === 'suspended') await ctx.resume();
       if (!wsRef.current) return;
       if (jlSpeedRef.current !== 0) applySpeed(0);
-      else wsRef.current.playPause();
+      else {
+        const fileAtCall = activeFileRef.current;
+        try {
+          await wsRef.current.playPause();
+        } catch (err) {
+          if (fileAtCall !== activeFileRef.current) return;
+          const errMsg = String(err);
+          if (errMsg.includes('NotSupportedError') || errMsg.includes('no supported sources')) return;
+          console.error('playPause error:', err);
+          setLoadError('Playback error: ' + errMsg);
+        }
+      }
     };
     void doPlay();
   }
@@ -893,7 +941,18 @@ export default function WaveformPlayer({ filepath, outputFilepath, filename }: P
         <p className="text-[10px] text-slate-400 dark:text-white/30 text-center -mt-2">Loading waveform…</p>
       )}
       {loadError && (
-        <p className="text-[10px] text-red-400 text-center -mt-2 truncate" title={loadError}>Failed to load audio</p>
+        <div className="absolute inset-0 flex flex-col items-center justify-center bg-slate-100/90 dark:bg-slate-900/90 z-20 rounded-lg">
+          <span className="text-red-500 font-semibold text-xs mb-1">Playback Error</span>
+          <span className="text-[10px] text-slate-600 dark:text-slate-300 max-w-[80%] text-center truncate mb-3" title={loadError}>
+            {loadError}
+          </span>
+          <button
+            onClick={() => window.location.reload()}
+            className="px-3 py-1.5 bg-red-500 hover:bg-red-600 text-white rounded text-[10px] font-medium transition-colors shadow-sm"
+          >
+            Reload Application
+          </button>
+        </div>
       )}
 
       {/* Combined Playback & Zoom Controls Row */}
