@@ -43,6 +43,20 @@ interface AudioCacheItem {
 }
 const audioCache = new Map<string, AudioCacheItem>();
 
+// Singleton AudioContext — created once, never closed.
+// Closing and recreating on each WaveformPlayer mount leaves the new context in
+// "suspended" state, which silences playback when resume() is not awaited.
+let sharedAudioContext: AudioContext | null = null;
+function getAudioContext(): AudioContext {
+  if (!sharedAudioContext || sharedAudioContext.state === 'closed') {
+    sharedAudioContext = new (
+      window.AudioContext ||
+      (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext
+    )();
+  }
+  return sharedAudioContext;
+}
+
 const FRAME_SIZE = 1 / 30;
 
 function cleanupWaveSurfer(ws: WaveSurfer | null): void {
@@ -109,12 +123,8 @@ export default function WaveformPlayer({ filepath, outputFilepath, filename }: P
   const isProgrammaticSeekRef = useRef(false);
   const loadGenRef = useRef(0);
 
-  useEffect(() => {
-    return () => {
-      audioContextRef.current?.close().catch(() => {});
-      audioContextRef.current = null;
-    };
-  }, []);
+  // AudioContext is a shared singleton — do NOT close it on unmount.
+  // Closing causes the next mount to start with a suspended context and silent audio.
 
   // Auto-focus on mount so keyboard shortcuts work immediately after opening
   useEffect(() => {
@@ -163,9 +173,13 @@ export default function WaveformPlayer({ filepath, outputFilepath, filename }: P
       wsRef.current?.pause();
       wsRef.current?.setPlaybackRate(1.0);
     } else if (speed > 0) {
-      if (audioContextRef.current?.state === 'suspended') audioContextRef.current.resume();
-      wsRef.current?.setPlaybackRate(speed);
-      wsRef.current?.play();
+      const ctx = audioContextRef.current;
+      const doForward = async (): Promise<void> => {
+        if (ctx?.state === 'suspended') await ctx.resume();
+        wsRef.current?.setPlaybackRate(speed);
+        wsRef.current?.play();
+      };
+      void doForward();
     } else {
       // Backward playback with actual audio via reversed AudioBuffer
       wsRef.current?.pause();
@@ -178,6 +192,9 @@ export default function WaveformPlayer({ filepath, outputFilepath, filename }: P
         const audioCtx = audioContextRef.current;
         const ws = wsRef.current;
         if (!audioCtx || !ws) return;
+
+        // Ensure context is running before starting the buffer source
+        if (audioCtx.state === 'suspended') await audioCtx.resume();
 
         // If the speed changed since we were scheduled, abort
         if (jlSpeedRef.current !== capturedSpeed) return;
@@ -416,11 +433,10 @@ export default function WaveformPlayer({ filepath, outputFilepath, filename }: P
         maxZoomRef.current = calculatedMaxZoom;
         setMaxZoom(calculatedMaxZoom);
 
-        let audioCtx = audioContextRef.current;
-        if (!audioCtx) {
-          audioCtx = new (window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext)();
-          audioContextRef.current = audioCtx;
-        }
+        const audioCtx = getAudioContext();
+        audioContextRef.current = audioCtx;
+        // Proactively resume — context may be suspended on first creation or after inactivity.
+        if (audioCtx.state === 'suspended') audioCtx.resume().catch(() => {});
         gainNodeRef.current = null;
         const mediaEl = ws.getMediaElement();
         if (mediaEl) {
@@ -679,13 +695,14 @@ export default function WaveformPlayer({ filepath, outputFilepath, filename }: P
 
       if (e.key === ' ') {
         e.preventDefault();
-        // In accelerated mode, Space stops; otherwise toggle
-        if (jlSpeedRef.current !== 0) {
-          applySpeed(0);
-        } else {
-          if (audioContextRef.current?.state === 'suspended') audioContextRef.current.resume();
-          wsRef.current.playPause();
-        }
+        const ctx = audioContextRef.current;
+        const doPlay = async (): Promise<void> => {
+          if (ctx?.state === 'suspended') await ctx.resume();
+          if (!wsRef.current) return;
+          if (jlSpeedRef.current !== 0) applySpeed(0);
+          else wsRef.current.playPause();
+        };
+        void doPlay();
       } else if (e.key === 'ArrowLeft') {
         e.preventDefault();
         if (jlSpeedRef.current < 0) {
@@ -763,12 +780,14 @@ export default function WaveformPlayer({ filepath, outputFilepath, filename }: P
 
   function togglePlay(): void {
     if (!wsRef.current) return;
-    if (audioContextRef.current?.state === 'suspended') audioContextRef.current.resume();
-    if (jlSpeedRef.current !== 0) {
-      applySpeed(0);
-    } else {
-      wsRef.current.playPause();
-    }
+    const ctx = audioContextRef.current;
+    const doPlay = async (): Promise<void> => {
+      if (ctx?.state === 'suspended') await ctx.resume();
+      if (!wsRef.current) return;
+      if (jlSpeedRef.current !== 0) applySpeed(0);
+      else wsRef.current.playPause();
+    };
+    void doPlay();
   }
 
   function handleZoomChange(level: number): void {
