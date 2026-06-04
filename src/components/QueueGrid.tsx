@@ -234,8 +234,8 @@ function SortableJobRow({ job, index, isSelected, onSelect, isImporting, activeD
         </button>
       </td>
       <td className="px-4 py-2 text-slate-400 dark:text-white/25 text-xs w-10 tabular-nums">{index + 1}</td>
-      <td className="px-4 py-2 text-sm text-slate-800 dark:text-slate-100 font-medium truncate max-w-[180px]">
-        <div className="flex items-center gap-2">
+      <td className="px-4 py-2 text-sm text-slate-800 dark:text-slate-100 font-medium overflow-hidden">
+        <div className="flex items-center gap-2 min-w-0">
           <button
             onClick={(e) => {
               e.stopPropagation();
@@ -274,7 +274,7 @@ function SortableJobRow({ job, index, isSelected, onSelect, isImporting, activeD
       <td className="px-4 py-2 w-24"><FormatSelect job={job} /></td>
       <td className="px-4 py-2 w-24"><BitrateSelect job={job} /></td>
       <td className="px-4 py-2 w-24"><SampleRateSelect job={job} /></td>
-      <td className="px-4 py-2 text-xs font-medium w-40">
+      <td className="px-4 py-2 text-xs font-medium whitespace-nowrap">
         {job.status === 'done' && job.output_filepath ? (
           <div className="flex gap-1">
             <button
@@ -521,7 +521,7 @@ export default function QueueGrid(): JSX.Element {
   const groupByFormat = useQueueStore((s) => s.groupByFormat);
   const clearSelection = useQueueStore((s) => s.clearSelection);
   const { t } = useTranslation();
-  const [colWidths, setColWidths] = useState({ filename: 180, destination: 140 });
+  const [colWidths, setColWidths] = useState({ filename: 240, destination: 140 });
 
   const importingJobIds = useQueueStore((s) => s.importingJobIds);
   const [selectionBox, setSelectionBox] = useState<{ left: number; top: number; width: number; height: number } | null>(null);
@@ -845,7 +845,7 @@ export default function QueueGrid(): JSX.Element {
         <th className="px-4 py-2.5 w-24">{t('queue.col.output')}</th>
         <th className="px-4 py-2.5 w-24">{t('queue.col.bitrate')}</th>
         <th className="px-4 py-2.5 w-28 whitespace-nowrap">{t('queue.col.sampleHz')}</th>
-        <th className="px-4 py-2.5 w-40">{t('queue.col.status')}</th>
+        <th className="px-4 py-2.5 whitespace-nowrap">{t('queue.col.status')}</th>
         <th className="px-2 py-2.5 w-8 text-center">
           <button
             onClick={(e) => {

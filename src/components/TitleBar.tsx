@@ -16,15 +16,15 @@ function WaveformIcon(): JSX.Element {
 
 export default function TitleBar(): JSX.Element {
   const win = getCurrentWindow();
-  const [isMaximized, setIsMaximized] = useState(false);
+  const [isFullscreen, setIsFullscreen] = useState(false);
 
   useEffect(() => {
     let unlistenResize: (() => void) | undefined;
 
     const setup = async (): Promise<void> => {
-      setIsMaximized(await win.isMaximized());
+      setIsFullscreen(await win.isFullscreen());
       unlistenResize = await win.onResized(async () => {
-        setIsMaximized(await win.isMaximized());
+        setIsFullscreen(await win.isFullscreen());
       });
     };
 
@@ -57,11 +57,11 @@ export default function TitleBar(): JSX.Element {
           <Minus size={12} />
         </button>
         <button
-          onClick={() => win.toggleMaximize()}
-          title={isMaximized ? 'Restore' : 'Maximize'}
+          onClick={async () => { const full = await win.isFullscreen(); await win.setFullscreen(!full); }}
+          title={isFullscreen ? 'Exit Fullscreen' : 'Enter Fullscreen'}
           className={`${winBtn} text-slate-400 dark:text-white/40 hover:text-slate-700 dark:hover:text-white hover:bg-slate-200 dark:hover:bg-white/10`}
         >
-          {isMaximized ? <Minimize2 size={12} /> : <Maximize2 size={12} />}
+          {isFullscreen ? <Minimize2 size={12} /> : <Maximize2 size={12} />}
         </button>
         <button
           onClick={() => win.close()}

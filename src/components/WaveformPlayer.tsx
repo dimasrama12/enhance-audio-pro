@@ -42,11 +42,25 @@ interface AudioCacheItem {
   duration: number;
 }
 const audioCache = new Map<string, AudioCacheItem>();
+const MAX_AUDIO_CACHE = 20;
 
-// Singleton AudioContext — created once, never closed.
-// Closing and recreating on each WaveformPlayer mount leaves the new context in
-// "suspended" state, which silences playback when resume() is not awaited.
+function evictOldestCache(): void {
+  if (audioCache.size <= MAX_AUDIO_CACHE) return;
+  const oldest = audioCache.keys().next().value;
+  if (oldest) {
+    const item = audioCache.get(oldest);
+    if (item) URL.revokeObjectURL(item.blobUrl);
+    audioCache.delete(oldest);
+    console.debug('[WaveformPlayer] cache evicted:', oldest);
+  }
+}
+
+// Shared audio pipeline singletons to prevent media source recreation failures in Chromium.
 let sharedAudioContext: AudioContext | null = null;
+let sharedAudioElement: HTMLAudioElement | null = null;
+let sharedMediaSourceNode: MediaElementAudioSourceNode | null = null;
+let sharedGainNode: GainNode | null = null;
+
 function getAudioContext(): AudioContext {
   if (!sharedAudioContext || sharedAudioContext.state === 'closed') {
     sharedAudioContext = new (
@@ -57,19 +71,32 @@ function getAudioContext(): AudioContext {
   return sharedAudioContext;
 }
 
+function getSharedAudioPipeline() {
+  const audioCtx = getAudioContext();
+  if (!sharedAudioElement) {
+    sharedAudioElement = document.createElement('audio');
+    sharedAudioElement.crossOrigin = 'anonymous';
+    sharedMediaSourceNode = audioCtx.createMediaElementSource(sharedAudioElement);
+    sharedGainNode = audioCtx.createGain();
+    sharedMediaSourceNode.connect(sharedGainNode);
+    sharedGainNode.connect(audioCtx.destination);
+  }
+  return {
+    audioContext: audioCtx,
+    audioElement: sharedAudioElement!,
+    gainNode: sharedGainNode!,
+  };
+}
+
 const FRAME_SIZE = 1 / 30;
 
 function cleanupWaveSurfer(ws: WaveSurfer | null): void {
   if (!ws) return;
-  // Capture media element before destroy removes it from the instance
-  let mediaEl: HTMLMediaElement | null = null;
-  try { mediaEl = ws.getMediaElement(); } catch { /* not yet initialised */ }
-  // Destroy first — removes all WaveSurfer event listeners so no error events propagate
+  // Destroy removes all WaveSurfer event listeners before any async events fire.
+  // Do NOT reset sharedAudioElement.src here — doing so triggers MediaError on the
+  // shared element which the next WaveSurfer instance catches before it can suppress it.
+  // The next ws.load() call naturally sets the new src and aborts any prior load.
   try { ws.destroy(); } catch (err) { console.warn('WaveSurfer destroy error:', err); }
-  // Clear src after listeners are gone to abort any in-flight fetch
-  if (mediaEl) {
-    try { mediaEl.src = ''; mediaEl.load(); } catch { /* already detached */ }
-  }
 }
 
 export default function WaveformPlayer({ filepath, outputFilepath, filename }: Props): JSX.Element {
@@ -362,8 +389,13 @@ export default function WaveformPlayer({ filepath, outputFilepath, filename }: P
     const initTimer = setTimeout(() => {
       if (isStale() || !waveformRef.current) return;
 
+      const { audioElement, gainNode, audioContext } = getSharedAudioPipeline();
+      audioContextRef.current = audioContext;
+      gainNodeRef.current = gainNode;
+
       const ws = WaveSurfer.create({
         container: waveformRef.current,
+        media: audioElement, // Pass persistent shared audio element
         waveColor,
         progressColor,
         cursorColor,
@@ -433,23 +465,20 @@ export default function WaveformPlayer({ filepath, outputFilepath, filename }: P
         maxZoomRef.current = calculatedMaxZoom;
         setMaxZoom(calculatedMaxZoom);
 
-        const audioCtx = getAudioContext();
+        // Shared pipeline is already connected. We just update the gain value.
+        const pipeline = getSharedAudioPipeline();
+        const audioCtx = pipeline.audioContext;
         audioContextRef.current = audioCtx;
-        // Proactively resume — context may be suspended on first creation or after inactivity.
-        if (audioCtx.state === 'suspended') audioCtx.resume().catch(() => {});
-        gainNodeRef.current = null;
-        const mediaEl = ws.getMediaElement();
-        if (mediaEl) {
-          try {
-            const source = audioCtx.createMediaElementSource(mediaEl);
-            const gainNode = audioCtx.createGain();
-            source.connect(gainNode);
-            gainNode.connect(audioCtx.destination);
-            gainNode.gain.value = dbToLinear(volumeDbRef.current);
-            gainNodeRef.current = gainNode;
-          } catch (err) {
-            console.error('Error creating Web Audio source:', err);
-          }
+        gainNodeRef.current = pipeline.gainNode;
+        
+        try {
+          pipeline.gainNode.gain.value = dbToLinear(volumeDbRef.current);
+        } catch (err) {
+          console.error('Error updating volume gain on ready:', err);
+        }
+
+        if (pipeline.audioContext.state === 'suspended') {
+          pipeline.audioContext.resume().catch(() => {});
         }
         ws.setVolume(1.0);
 
@@ -474,6 +503,8 @@ export default function WaveformPlayer({ filepath, outputFilepath, filename }: P
             peaks,
             duration: dur,
           });
+          evictOldestCache();
+          console.debug('[WaveformPlayer] cached:', activeFile, '| cache size:', audioCache.size);
         }
 
         // Pre-decode and reverse the buffer in the background for instant backward playback
@@ -556,19 +587,42 @@ export default function WaveformPlayer({ filepath, outputFilepath, filename }: P
         stopPlaybackRaf();
       });
       ws.on('error', (err) => {
-        // Stale check: catches rapid file-switch where the old instance fires after cleanup
-        if (isStale() || wsRef.current !== ws) return;
         const errMsg = String(err);
-        // Suppress abort-family errors that occur when src is cleared during file switching
-        if (
+        // Abort-like patterns: fired when src changes during rapid file switching.
+        // These are expected and harmless — suppress them entirely.
+        const isAbortLike =
           errMsg.includes('AbortError') ||
           errMsg.includes('interrupted') ||
           errMsg.includes('aborted') ||
           errMsg.includes('MEDIA_ERR_ABORTED') ||
+          errMsg.includes('MEDIA_ERR_NETWORK') ||
+          errMsg.includes('Failed to fetch') ||
+          errMsg.includes('NetworkError') ||
+          errMsg.includes('The operation was aborted') ||
           errMsg === '[object MediaError]' ||
           errMsg.trim() === '' ||
-          errMsg === 'null'
-        ) return;
+          errMsg === 'null';
+
+        // Comprehensive debug logger — always runs, even for suppressed errors.
+        // Open DevTools Console to copy these logs when reporting issues.
+        console.group('[WaveformPlayer] audio error event');
+        console.log('file:', activeFile);
+        console.log('error value:', err);
+        console.log('error string:', errMsg);
+        console.log('error type:', Object.prototype.toString.call(err));
+        if (err && typeof err === 'object' && 'code' in err) {
+          const me = err as unknown as MediaError;
+          console.log('MediaError code:', me.code, '| message:', me.message);
+        }
+        console.log('suppressed (abort-like):', isAbortLike);
+        console.log('isStale:', isStale(), '| wsRef===ws:', wsRef.current === ws);
+        console.log('loadGen:', loadGenRef.current, '| gen (this effect):', gen);
+        console.groupEnd();
+
+        // Stale / replaced-instance guard
+        if (isStale() || wsRef.current !== ws) return;
+        if (isAbortLike) return;
+
         setLoadError(errMsg);
         setIsLoading(false);
       });
@@ -625,14 +679,21 @@ export default function WaveformPlayer({ filepath, outputFilepath, filename }: P
         try {
           const cached = audioCache.get(activeFile);
           if (cached) {
+            console.debug('[WaveformPlayer] cache hit:', activeFile);
             blobUrlRef.current = cached.blobUrl;
             reversedBufferRef.current = cached.reversedBuffer;
             if (!isStale()) {
-              ws.load(cached.blobUrl, cached.peaks ?? undefined, cached.duration);
+              try {
+                ws.load(cached.blobUrl, cached.peaks ?? undefined, cached.duration);
+              } catch (loadErr) {
+                console.warn('[WaveformPlayer] ws.load (cached) threw:', loadErr);
+                if (!isStale()) { setLoadError(String(loadErr)); setIsLoading(false); }
+              }
             }
             return;
           }
 
+          console.debug('[WaveformPlayer] loading fresh from IPC:', activeFile);
           const rawData = await invoke<unknown>('read_audio_file', { path: activeFile });
           if (isStale()) return;
           let bufferSource = rawData;
@@ -649,7 +710,12 @@ export default function WaveformPlayer({ filepath, outputFilepath, filename }: P
           const blobUrl = URL.createObjectURL(blob);
           blobUrlRef.current = blobUrl;
           if (!isStale()) {
-            ws.load(blobUrl);
+            try {
+              ws.load(blobUrl);
+            } catch (loadErr) {
+              console.warn('[WaveformPlayer] ws.load threw:', loadErr);
+              if (!isStale()) { setLoadError(String(loadErr)); setIsLoading(false); }
+            }
           }
         } catch (err) {
           if (!isStale()) { setLoadError(String(err)); setIsLoading(false); }
@@ -666,8 +732,7 @@ export default function WaveformPlayer({ filepath, outputFilepath, filename }: P
       if (container && handleWheel) container.removeEventListener('wheel', handleWheel);
       if (resizeObserver) resizeObserver.disconnect();
       if (gainNodeRef.current) {
-        try { gainNodeRef.current.disconnect(); } catch { /* already disconnected */ }
-        gainNodeRef.current = null;
+        gainNodeRef.current = null; // Do not disconnect shared gain node
       }
       if (wsRef.current) {
         cleanupWaveSurfer(wsRef.current);
