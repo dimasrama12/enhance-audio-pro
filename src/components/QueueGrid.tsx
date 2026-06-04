@@ -730,7 +730,7 @@ export default function QueueGrid(): JSX.Element {
                     <span className="text-slate-300 dark:text-white/20 font-normal ml-0.5">({group.jobs.length})</span>
                   </button>
                   {!collapsedGroups.has(group.label) && (
-                    <DndContext sensors={sensors} collisionDetection={closestCenter} onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
+                    <DndContext sensors={sensors} collisionDetection={closestCenter} onDragStart={handleDragStart} onDragEnd={handleDragEnd} modifiers={[restrictToFirstScrollableAncestor]}>
                       <SortableContext items={group.jobs.map((j) => j.id)} strategy={rectSortingStrategy}>
                         <div
                           className="grid grid-cols-3 gap-2"
@@ -772,7 +772,7 @@ export default function QueueGrid(): JSX.Element {
               ))}
             </div>
           ) : (
-            <DndContext sensors={sensors} collisionDetection={closestCenter} onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
+            <DndContext sensors={sensors} collisionDetection={closestCenter} onDragStart={handleDragStart} onDragEnd={handleDragEnd} modifiers={[restrictToFirstScrollableAncestor]}>
               <SortableContext items={visibleJobs.map((j) => j.id)} strategy={rectSortingStrategy}>
                 <div
                   className="grid grid-cols-3 gap-2 p-1"
