@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { listen } from '@tauri-apps/api/event';
 import { motion, AnimatePresence } from 'framer-motion';
 import { clsx } from 'clsx';
@@ -522,6 +522,7 @@ export default function QueueGrid(): JSX.Element {
   const clearSelection = useQueueStore((s) => s.clearSelection);
   const { t } = useTranslation();
   const [colWidths, setColWidths] = useState({ filename: 240, destination: 140 });
+  const tableContainerRef = useRef<HTMLDivElement>(null);
 
   const importingJobIds = useQueueStore((s) => s.importingJobIds);
   const [selectionBox, setSelectionBox] = useState<{ left: number; top: number; width: number; height: number } | null>(null);
@@ -658,6 +659,28 @@ export default function QueueGrid(): JSX.Element {
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
   );
+
+  // Set FILENAME + DESTINATION widths to fill available space on first mount.
+  // Fixed columns total ≈ 680px (drag+#+ size+type+format+bitrate+sampleHz+status+lock+clear).
+  // FILENAME gets 60% of remaining space, DESTINATION gets 40%.
+  useEffect(() => {
+    const container = tableContainerRef.current;
+    if (!container) return;
+    let done = false;
+    const obs = new ResizeObserver(() => {
+      if (done || container.clientWidth === 0) return;
+      const FIXED_COLS = 680;
+      const remaining = Math.max(160, container.clientWidth - FIXED_COLS);
+      setColWidths({
+        filename: Math.max(120, Math.round(remaining * 0.6)),
+        destination: Math.max(80, Math.round(remaining * 0.4)),
+      });
+      done = true;
+      obs.disconnect();
+    });
+    obs.observe(container);
+    return () => obs.disconnect();
+  }, []);
 
   useEffect(() => {
     const unlistenProgress = listen<{ jobId: string; percent: number }>(
@@ -882,6 +905,7 @@ export default function QueueGrid(): JSX.Element {
   return (
     <>
       <div
+        ref={tableContainerRef}
         className="flex-1 overflow-auto rounded-xl bg-white dark:bg-[#0C1120] shadow-sm border border-slate-200 dark:border-white/[0.06] scrollbar-thin"
         onMouseDown={handleContainerMouseDown}
         onClick={(e) => { if ((e.target as HTMLElement).closest('tr') === null) clearSelection(); }}

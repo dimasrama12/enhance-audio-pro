@@ -149,6 +149,10 @@ export default function WaveformPlayer({ filepath, outputFilepath, filename }: P
   const gainNodeRef = useRef<GainNode | null>(null);
   const isProgrammaticSeekRef = useRef(false);
   const loadGenRef = useRef(0);
+  // activeFileRef: always holds the current activeFile value for mount-effect closures
+  const activeFileRef = useRef('');
+  // wsEventUnsubsRef: per-load WaveSurfer event unsubscribe functions
+  const wsEventUnsubsRef = useRef<Array<() => void>>([]);
 
   // AudioContext is a shared singleton — do NOT close it on unmount.
   // Closing causes the next mount to start with a suspended context and silent audio.
@@ -160,6 +164,7 @@ export default function WaveformPlayer({ filepath, outputFilepath, filename }: P
   }, []);
 
   const activeFile = showOutput && outputFilepath ? outputFilepath : filepath;
+  activeFileRef.current = activeFile;
 
   const waveColor = theme === 'dark' ? '#6d28d9' : '#7c3aed';
   const progressColor = theme === 'dark' ? '#a78bfa' : '#4c1d95';
@@ -245,7 +250,7 @@ export default function WaveformPlayer({ filepath, outputFilepath, filename }: P
             }
             reversedBufferRef.current = rev;
             reversed = rev;
-            const item = audioCache.get(activeFile);
+            const item = audioCache.get(activeFileRef.current);
             if (item) item.reversedBuffer = rev;
           } catch (e) {
             console.warn('Failed to decode audio for backward playback:', e);
@@ -349,17 +354,135 @@ export default function WaveformPlayer({ filepath, outputFilepath, filename }: P
 
 
 
-  // (Re-)create WaveSurfer whenever active file changes
+  // ── Mount effect: create WaveSurfer ONCE; infrastructure persists across file switches ──
+  // Destroying and recreating WaveSurfer on every file switch removes and re-adds the canvas
+  // element, which causes WebView2 to lose its GPU compositing layer and flash a black screen.
+  // By keeping the instance alive and calling ws.load() for new files we avoid that entirely.
+  useEffect(() => {
+    if (!waveformRef.current) return;
+
+    const { audioElement, gainNode, audioContext } = getSharedAudioPipeline();
+    audioContextRef.current = audioContext;
+    gainNodeRef.current = gainNode;
+
+    const ws = WaveSurfer.create({
+      container: waveformRef.current,
+      media: audioElement,
+      waveColor,
+      progressColor,
+      cursorColor,
+      cursorWidth: 2,
+      height: 72,
+      normalize: true,
+      interact: true,
+      dragToSeek: true,
+      hideScrollbar: true,
+      renderFunction: (channels, ctx) => {
+        const { width, height } = ctx.canvas;
+        const channel = channels[0];
+        if (!channel) return;
+        const len = channel.length;
+        const step = len / width;
+        ctx.beginPath();
+        ctx.moveTo(0, height);
+        const gain = dbToLinear(volumeDbRef.current);
+        for (let x = 0; x < width; x++) {
+          const start = Math.floor(x * step);
+          const end = Math.max(start + 1, Math.floor((x + 1) * step));
+          let maxVal = 0;
+          for (let i = start; i < end; i++) {
+            const val = Math.abs(channel[i] || 0);
+            if (val > maxVal) maxVal = val;
+          }
+          const amp = Math.min(0.98, maxVal * gain);
+          ctx.lineTo(x, height - amp * height);
+        }
+        ctx.lineTo(width, height);
+        ctx.closePath();
+        ctx.fill();
+      },
+      plugins: [
+        TimelinePlugin.create({
+          height: 18,
+          insertPosition: 'beforebegin',
+          style: {
+            color: theme === 'dark' ? 'rgba(255,255,255,0.5)' : 'rgba(0,0,0,0.5)',
+            fontSize: '9px',
+            fontFamily: 'monospace',
+          },
+          formatTimeCallback: (sec) => {
+            const h = Math.floor(sec / 3600), m = Math.floor((sec % 3600) / 60), s = Math.floor(sec % 60);
+            const f = Math.floor((sec % 1) * 30);
+            return `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}:${String(f).padStart(2,'0')}`;
+          },
+        }),
+      ],
+    });
+
+    wsRef.current = ws;
+
+    const resizeObserver = new ResizeObserver(() => {
+      if (!wsRef.current || !waveformRef.current) return;
+      const dur = wsRef.current.getDuration();
+      const containerWidth = waveformRef.current.clientWidth ?? 0;
+      if (dur > 0 && containerWidth > 0) {
+        const fitPxPerSec = containerWidth / dur;
+        minZoomRef.current = fitPxPerSec;
+        setMinZoom(fitPxPerSec);
+        const calculatedMaxZoom = Math.max(200, fitPxPerSec);
+        maxZoomRef.current = calculatedMaxZoom;
+        setMaxZoom(calculatedMaxZoom);
+        setZoom((prev) => {
+          if (prev <= minZoomRef.current + 0.1) { wsRef.current?.zoom(fitPxPerSec); return fitPxPerSec; }
+          return prev;
+        });
+      }
+      try { ws.setOptions({}); } catch (err) { console.error('Resize setOptions error:', err); }
+    });
+    resizeObserver.observe(waveformRef.current);
+
+    const handleWheel = (e: WheelEvent) => {
+      const currentMinZoom = minZoomRef.current;
+      const currentMaxZoom = maxZoomRef.current;
+      if (e.altKey) {
+        e.preventDefault();
+        const zoomFactor = e.deltaY > 0 ? -3 : 3;
+        const currentZoom = ws.options.minPxPerSec ?? currentMinZoom;
+        const newZoom = Math.max(currentMinZoom, Math.min(currentMaxZoom, currentZoom + zoomFactor));
+        ws.zoom(newZoom);
+        setZoom(newZoom);
+      } else {
+        e.preventDefault();
+        const currentZoom = ws.options.minPxPerSec ?? currentMinZoom;
+        if (currentZoom > currentMinZoom + 0.1) {
+          const scrollDelta = Math.abs(e.deltaX) > Math.abs(e.deltaY) ? e.deltaX : e.deltaY;
+          ws.setScroll(ws.getScroll() + scrollDelta);
+        }
+      }
+    };
+    waveformRef.current.addEventListener('wheel', handleWheel, { passive: false });
+
+    return () => {
+      wsEventUnsubsRef.current.forEach(fn => { try { fn(); } catch {} });
+      wsEventUnsubsRef.current = [];
+      resizeObserver.disconnect();
+      waveformRef.current?.removeEventListener('wheel', handleWheel);
+      cleanupWaveSurfer(ws);
+      wsRef.current = null;
+    };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // Mount only
+
+  // ── File-load effect: resets state and loads new file into the existing WaveSurfer ──
   useEffect(() => {
     let cancelled = false;
     const gen = ++loadGenRef.current;
     const isStale = (): boolean => cancelled || loadGenRef.current !== gen;
 
-    // Immediate cleanup of any existing instance and state reset
-    if (wsRef.current) {
-      cleanupWaveSurfer(wsRef.current);
-      wsRef.current = null;
-    }
+    // Unsubscribe old per-load event handlers before registering new ones
+    wsEventUnsubsRef.current.forEach(fn => { try { fn(); } catch {} });
+    wsEventUnsubsRef.current = [];
+
     blobUrlRef.current = null;
 
     setIsReady(false);
@@ -376,78 +499,19 @@ export default function WaveformPlayer({ filepath, outputFilepath, filename }: P
     setJlSpeed(0);
     reversedBufferRef.current = null;
 
-    if (!waveformRef.current) return;
+    // Pause any active playback without destroying the WaveSurfer instance
+    if (wsRef.current) {
+      try { wsRef.current.pause(); wsRef.current.setPlaybackRate(1.0); } catch {}
+    }
 
-    // Outer-scope refs for cleanup (populated inside the setTimeout callback)
-    let resizeObserver: ResizeObserver | null = null;
-    let container: HTMLDivElement | null = null;
-    let handleWheel: ((e: WheelEvent) => void) | null = null;
-
-    // 50 ms debounce: if the user switches files rapidly, only the last
-    // switch actually creates a WaveSurfer instance, preventing the
-    // rapid create→destroy cycle that causes audio element error races.
+    // 50ms debounce to coalesce rapid file switches
     const initTimer = setTimeout(() => {
-      if (isStale() || !waveformRef.current) return;
+      if (isStale()) return;
+      const ws = wsRef.current;
+      if (!ws) return; // mount effect hasn't fired yet (shouldn't happen in practice)
 
-      const { audioElement, gainNode, audioContext } = getSharedAudioPipeline();
-      audioContextRef.current = audioContext;
-      gainNodeRef.current = gainNode;
-
-      const ws = WaveSurfer.create({
-        container: waveformRef.current,
-        media: audioElement, // Pass persistent shared audio element
-        waveColor,
-        progressColor,
-        cursorColor,
-        cursorWidth: 2,
-        height: 72,
-        normalize: true,
-        interact: true,
-        dragToSeek: true,
-        hideScrollbar: true,
-        renderFunction: (channels, ctx) => {
-          const { width, height } = ctx.canvas;
-          const channel = channels[0];
-          if (!channel) return;
-          const len = channel.length;
-          const step = len / width;
-          ctx.beginPath();
-          ctx.moveTo(0, height);
-          const gain = dbToLinear(volumeDbRef.current);
-          for (let x = 0; x < width; x++) {
-            const start = Math.floor(x * step);
-            const end = Math.max(start + 1, Math.floor((x + 1) * step));
-            let maxVal = 0;
-            for (let i = start; i < end; i++) {
-              const val = Math.abs(channel[i] || 0);
-              if (val > maxVal) maxVal = val;
-            }
-            const amp = Math.min(0.98, maxVal * gain);
-            ctx.lineTo(x, height - amp * height);
-          }
-          ctx.lineTo(width, height);
-          ctx.closePath();
-          ctx.fill();
-        },
-        plugins: [
-          TimelinePlugin.create({
-            height: 18,
-            insertPosition: 'beforebegin',
-            style: {
-              color: theme === 'dark' ? 'rgba(255,255,255,0.5)' : 'rgba(0,0,0,0.5)',
-              fontSize: '9px',
-              fontFamily: 'monospace',
-            },
-            formatTimeCallback: (sec) => {
-              const h = Math.floor(sec / 3600), m = Math.floor((sec % 3600) / 60), s = Math.floor(sec % 60);
-              const f = Math.floor((sec % 1) * 30);
-              return `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}:${String(f).padStart(2,'0')}`;
-            },
-          }),
-        ],
-      });
-
-      ws.on('ready', () => {
+      // Subscribe per-load event handlers (previous ones were unsubscribed above)
+      const unsubReady = ws.on('ready', () => {
         if (isStale()) return;
         setIsReady(true);
         setIsLoading(false);
@@ -459,111 +523,66 @@ export default function WaveformPlayer({ filepath, outputFilepath, filename }: P
         setMinZoom(fitPxPerSec);
         setZoom(fitPxPerSec);
         ws.zoom(fitPxPerSec);
-
-        // Compute max zoom: capped at 200, but at least fitPxPerSec for short files
         const calculatedMaxZoom = Math.max(200, fitPxPerSec);
         maxZoomRef.current = calculatedMaxZoom;
         setMaxZoom(calculatedMaxZoom);
 
-        // Shared pipeline is already connected. We just update the gain value.
         const pipeline = getSharedAudioPipeline();
-        const audioCtx = pipeline.audioContext;
-        audioContextRef.current = audioCtx;
+        audioContextRef.current = pipeline.audioContext;
         gainNodeRef.current = pipeline.gainNode;
-        
-        try {
-          pipeline.gainNode.gain.value = dbToLinear(volumeDbRef.current);
-        } catch (err) {
-          console.error('Error updating volume gain on ready:', err);
-        }
-
-        if (pipeline.audioContext.state === 'suspended') {
-          pipeline.audioContext.resume().catch(() => {});
-        }
+        try { pipeline.gainNode.gain.value = dbToLinear(volumeDbRef.current); }
+        catch (err) { console.error('Error updating volume gain on ready:', err); }
+        if (pipeline.audioContext.state === 'suspended') pipeline.audioContext.resume().catch(() => {});
         ws.setVolume(1.0);
 
-        // Cache the loaded audio details when it is fully loaded
-        if (!audioCache.has(activeFile) && blobUrlRef.current) {
+        const currentFile = activeFileRef.current;
+        if (!audioCache.has(currentFile) && blobUrlRef.current) {
           let peaks: Float32Array[] | null = null;
           try {
             const decoded = ws.getDecodedData();
             if (decoded) {
-              const channels: Float32Array[] = [];
-              for (let i = 0; i < decoded.numberOfChannels; i++) {
-                channels.push(decoded.getChannelData(i));
-              }
-              peaks = channels;
+              const chs: Float32Array[] = [];
+              for (let i = 0; i < decoded.numberOfChannels; i++) chs.push(decoded.getChannelData(i));
+              peaks = chs;
             }
-          } catch (e) {
-            console.warn('Failed to get decoded peaks for caching:', e);
-          }
-          audioCache.set(activeFile, {
-            blobUrl: blobUrlRef.current,
-            reversedBuffer: reversedBufferRef.current,
-            peaks,
-            duration: dur,
-          });
+          } catch (e) { console.warn('Failed to get decoded peaks for caching:', e); }
+          audioCache.set(currentFile, { blobUrl: blobUrlRef.current, reversedBuffer: reversedBufferRef.current, peaks, duration: dur });
           evictOldestCache();
-          console.debug('[WaveformPlayer] cached:', activeFile, '| cache size:', audioCache.size);
+          console.debug('[WaveformPlayer] cached:', currentFile, '| cache size:', audioCache.size);
         }
 
-        // Pre-decode and reverse the buffer in the background for instant backward playback
-        const prepareReverseBuffer = async () => {
-          const currentFile = activeFile;
-          const cached = audioCache.get(currentFile);
-          if (cached && cached.reversedBuffer) {
-            if (isStale()) return;
-            reversedBufferRef.current = cached.reversedBuffer;
-            return;
-          }
-
-          if (blobUrlRef.current && audioCtx) {
-            try {
-              const resp = await fetch(blobUrlRef.current);
-              if (isStale()) return;
-              const ab = await resp.arrayBuffer();
-              if (isStale()) return;
-              const buf = await audioCtx.decodeAudioData(ab);
-              if (isStale()) return;
-              const rev = audioCtx.createBuffer(buf.numberOfChannels, buf.length, buf.sampleRate);
-              for (let ch = 0; ch < buf.numberOfChannels; ch++) {
-                const srcData = buf.getChannelData(ch);
-                const dstData = rev.getChannelData(ch);
-                for (let i = 0; i < srcData.length; i++) {
-                  dstData[i] = srcData[srcData.length - 1 - i];
-                }
-              }
-              if (isStale()) return;
-              reversedBufferRef.current = rev;
-              const item = audioCache.get(currentFile);
-              if (item) {
-                item.reversedBuffer = rev;
-              }
-            } catch (e) {
-              console.warn('Failed to pre-decode reverse buffer:', e);
+        const prepareReverseBuffer = async (): Promise<void> => {
+          const cf = activeFileRef.current;
+          const audioCtx = audioContextRef.current;
+          const cached2 = audioCache.get(cf);
+          if (cached2?.reversedBuffer) { if (!isStale()) reversedBufferRef.current = cached2.reversedBuffer; return; }
+          if (!blobUrlRef.current || !audioCtx) return;
+          try {
+            const resp = await fetch(blobUrlRef.current); if (isStale()) return;
+            const ab = await resp.arrayBuffer(); if (isStale()) return;
+            const buf = await audioCtx.decodeAudioData(ab); if (isStale()) return;
+            const rev = audioCtx.createBuffer(buf.numberOfChannels, buf.length, buf.sampleRate);
+            for (let ch = 0; ch < buf.numberOfChannels; ch++) {
+              const s = buf.getChannelData(ch); const d = rev.getChannelData(ch);
+              for (let i = 0; i < s.length; i++) d[i] = s[s.length - 1 - i];
             }
-          }
+            if (isStale()) return;
+            reversedBufferRef.current = rev;
+            const item = audioCache.get(cf); if (item) item.reversedBuffer = rev;
+          } catch (e) { console.warn('Failed to pre-decode reverse buffer:', e); }
         };
         void prepareReverseBuffer();
       });
 
-      ws.on('audioprocess', () => { if (!isStale()) setCurrentTime(ws.getCurrentTime()); });
-      ws.on('seeking', () => {
-        if (isStale()) return;
-        setCurrentTime(ws.getCurrentTime());
-      });
-      ws.on('interaction', () => {
+      const unsubAudioprocess = ws.on('audioprocess', () => { if (!isStale()) setCurrentTime(ws.getCurrentTime()); });
+      const unsubSeeking = ws.on('seeking', () => { if (!isStale()) setCurrentTime(ws.getCurrentTime()); });
+      const unsubInteraction = ws.on('interaction', () => {
         containerRef.current?.focus();
-        if (jlSpeedRef.current < 0) {
-          clearReverseTimer();
-          jlSpeedRef.current = 0;
-          setJlSpeed(0);
-        }
+        if (jlSpeedRef.current < 0) { clearReverseTimer(); jlSpeedRef.current = 0; setJlSpeed(0); }
       });
-      ws.on('play', () => {
+      const unsubPlay = ws.on('play', () => {
         if (isStale()) return;
         setIsPlaying(true);
-        // Supplement audioprocess with RAF for smooth time display during forward playback
         const rafTick = (): void => {
           if (wsRef.current) setCurrentTime(wsRef.current.getCurrentTime());
           playbackRafRef.current = requestAnimationFrame(rafTick);
@@ -571,130 +590,54 @@ export default function WaveformPlayer({ filepath, outputFilepath, filename }: P
         stopPlaybackRaf();
         playbackRafRef.current = requestAnimationFrame(rafTick);
       });
-      ws.on('pause', () => {
+      const unsubPause = ws.on('pause', () => {
         if (isStale()) return;
         setIsPlaying(false);
         stopPlaybackRaf();
-        if (jlSpeedRef.current > 0) {
-          jlSpeedRef.current = 0;
-          setJlSpeed(0);
-          ws.setPlaybackRate(1.0);
-        }
+        if (jlSpeedRef.current > 0) { jlSpeedRef.current = 0; setJlSpeed(0); ws.setPlaybackRate(1.0); }
       });
-      ws.on('finish', () => {
-        if (isStale()) return;
-        setIsPlaying(false);
-        stopPlaybackRaf();
-      });
-      ws.on('error', (err) => {
+      const unsubFinish = ws.on('finish', () => { if (!isStale()) { setIsPlaying(false); stopPlaybackRaf(); } });
+      const unsubError = ws.on('error', (err) => {
         const errMsg = String(err);
-        // Abort-like patterns: fired when src changes during rapid file switching.
-        // These are expected and harmless — suppress them entirely.
         const isAbortLike =
-          errMsg.includes('AbortError') ||
-          errMsg.includes('interrupted') ||
-          errMsg.includes('aborted') ||
-          errMsg.includes('MEDIA_ERR_ABORTED') ||
-          errMsg.includes('MEDIA_ERR_NETWORK') ||
-          errMsg.includes('Failed to fetch') ||
-          errMsg.includes('NetworkError') ||
+          errMsg.includes('AbortError') || errMsg.includes('interrupted') || errMsg.includes('aborted') ||
+          errMsg.includes('MEDIA_ERR_ABORTED') || errMsg.includes('MEDIA_ERR_NETWORK') ||
+          errMsg.includes('Failed to fetch') || errMsg.includes('NetworkError') ||
           errMsg.includes('The operation was aborted') ||
-          errMsg === '[object MediaError]' ||
-          errMsg.trim() === '' ||
-          errMsg === 'null';
-
-        // Comprehensive debug logger — always runs, even for suppressed errors.
-        // Open DevTools Console to copy these logs when reporting issues.
+          errMsg === '[object MediaError]' || errMsg.trim() === '' || errMsg === 'null';
         console.group('[WaveformPlayer] audio error event');
-        console.log('file:', activeFile);
-        console.log('error value:', err);
-        console.log('error string:', errMsg);
-        console.log('error type:', Object.prototype.toString.call(err));
+        console.log('file:', activeFileRef.current);
+        console.log('error value:', err, '| string:', errMsg, '| type:', Object.prototype.toString.call(err));
         if (err && typeof err === 'object' && 'code' in err) {
           const me = err as unknown as MediaError;
           console.log('MediaError code:', me.code, '| message:', me.message);
         }
-        console.log('suppressed (abort-like):', isAbortLike);
-        console.log('isStale:', isStale(), '| wsRef===ws:', wsRef.current === ws);
-        console.log('loadGen:', loadGenRef.current, '| gen (this effect):', gen);
+        console.log('suppressed:', isAbortLike, '| isStale:', isStale(), '| gen:', gen, '| loadGen:', loadGenRef.current);
         console.groupEnd();
-
-        // Stale / replaced-instance guard
         if (isStale() || wsRef.current !== ws) return;
         if (isAbortLike) return;
-
         setLoadError(errMsg);
         setIsLoading(false);
       });
 
-      wsRef.current = ws;
+      wsEventUnsubsRef.current = [unsubReady, unsubAudioprocess, unsubSeeking, unsubInteraction, unsubPlay, unsubPause, unsubFinish, unsubError];
 
-      resizeObserver = new ResizeObserver(() => {
-        if (wsRef.current && waveformRef.current) {
-          const dur = wsRef.current.getDuration();
-          const containerWidth = waveformRef.current.clientWidth ?? 0;
-          if (dur > 0 && containerWidth > 0) {
-            const fitPxPerSec = containerWidth / dur;
-            minZoomRef.current = fitPxPerSec;
-            setMinZoom(fitPxPerSec);
-
-            // Update maxZoom when container resizes, capped at 200 (or fitPxPerSec)
-            const calculatedMaxZoom = Math.max(200, fitPxPerSec);
-            maxZoomRef.current = calculatedMaxZoom;
-            setMaxZoom(calculatedMaxZoom);
-
-            setZoom((prev) => {
-              if (prev <= minZoomRef.current + 0.1) { wsRef.current?.zoom(fitPxPerSec); return fitPxPerSec; }
-              return prev;
-            });
-          }
-        }
-        try { ws.setOptions({}); } catch (err) { console.error('Resize setOptions error:', err); }
-      });
-      if (waveformRef.current) resizeObserver.observe(waveformRef.current);
-
-      container = waveformRef.current;
-      handleWheel = (e: WheelEvent) => {
-        const currentMinZoom = minZoomRef.current;
-        const currentMaxZoom = maxZoomRef.current;
-        if (e.altKey) {
-          e.preventDefault();
-          const zoomFactor = e.deltaY > 0 ? -3 : 3;
-          const currentZoom = ws.options.minPxPerSec ?? currentMinZoom;
-          const newZoom = Math.max(currentMinZoom, Math.min(currentMaxZoom, currentZoom + zoomFactor));
-          ws.zoom(newZoom);
-          setZoom(newZoom);
-        } else {
-          e.preventDefault();
-          const currentZoom = ws.options.minPxPerSec ?? currentMinZoom;
-          if (currentZoom > currentMinZoom + 0.1) {
-            const scrollDelta = Math.abs(e.deltaX) > Math.abs(e.deltaY) ? e.deltaX : e.deltaY;
-            ws.setScroll(ws.getScroll() + scrollDelta);
-          }
-        }
-      };
-      if (container) container.addEventListener('wheel', handleWheel, { passive: false });
-
+      // Load the file
       (async () => {
         try {
-          const cached = audioCache.get(activeFile);
+          const cached = audioCache.get(activeFileRef.current);
           if (cached) {
-            console.debug('[WaveformPlayer] cache hit:', activeFile);
+            console.debug('[WaveformPlayer] cache hit:', activeFileRef.current);
             blobUrlRef.current = cached.blobUrl;
             reversedBufferRef.current = cached.reversedBuffer;
             if (!isStale()) {
-              try {
-                ws.load(cached.blobUrl, cached.peaks ?? undefined, cached.duration);
-              } catch (loadErr) {
-                console.warn('[WaveformPlayer] ws.load (cached) threw:', loadErr);
-                if (!isStale()) { setLoadError(String(loadErr)); setIsLoading(false); }
-              }
+              try { ws.load(cached.blobUrl, cached.peaks ?? undefined, cached.duration); }
+              catch (loadErr) { console.warn('[WaveformPlayer] ws.load (cached) threw:', loadErr); if (!isStale()) { setLoadError(String(loadErr)); setIsLoading(false); } }
             }
             return;
           }
-
-          console.debug('[WaveformPlayer] loading fresh from IPC:', activeFile);
-          const rawData = await invoke<unknown>('read_audio_file', { path: activeFile });
+          console.debug('[WaveformPlayer] loading fresh from IPC:', activeFileRef.current);
+          const rawData = await invoke<unknown>('read_audio_file', { path: activeFileRef.current });
           if (isStale()) return;
           let bufferSource = rawData;
           if (rawData && typeof rawData === 'object' && 'body' in rawData) bufferSource = (rawData as Record<string, unknown>).body;
@@ -706,22 +649,18 @@ export default function WaveformPlayer({ filepath, outputFilepath, filename }: P
           } else {
             throw new Error('Unsupported binary response format from backend');
           }
-          const blob = new Blob([binaryData as BlobPart], { type: getMimeType(activeFile) });
+          const blob = new Blob([binaryData as BlobPart], { type: getMimeType(activeFileRef.current) });
           const blobUrl = URL.createObjectURL(blob);
           blobUrlRef.current = blobUrl;
           if (!isStale()) {
-            try {
-              ws.load(blobUrl);
-            } catch (loadErr) {
-              console.warn('[WaveformPlayer] ws.load threw:', loadErr);
-              if (!isStale()) { setLoadError(String(loadErr)); setIsLoading(false); }
-            }
+            try { ws.load(blobUrl); }
+            catch (loadErr) { console.warn('[WaveformPlayer] ws.load threw:', loadErr); if (!isStale()) { setLoadError(String(loadErr)); setIsLoading(false); } }
           }
         } catch (err) {
           if (!isStale()) { setLoadError(String(err)); setIsLoading(false); }
         }
       })();
-    }, 50); // end initTimer
+    }, 50);
 
     return () => {
       cancelled = true;
@@ -729,16 +668,10 @@ export default function WaveformPlayer({ filepath, outputFilepath, filename }: P
       clearReverseTimer();
       stopPlaybackRaf();
       reversedBufferRef.current = null;
-      if (container && handleWheel) container.removeEventListener('wheel', handleWheel);
-      if (resizeObserver) resizeObserver.disconnect();
-      if (gainNodeRef.current) {
-        gainNodeRef.current = null; // Do not disconnect shared gain node
-      }
-      if (wsRef.current) {
-        cleanupWaveSurfer(wsRef.current);
-        wsRef.current = null;
-      }
+      gainNodeRef.current = null;
       blobUrlRef.current = null;
+      // WaveSurfer NOT destroyed here — instance is reused for the next file switch.
+      // It is destroyed only in the mount effect's cleanup on component unmount.
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeFile]);
