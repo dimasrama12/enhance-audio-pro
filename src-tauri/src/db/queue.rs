@@ -1,6 +1,7 @@
 use chrono::Utc;
 use rusqlite::{params, Connection, Result};
 use serde::{Deserialize, Serialize};
+use std::path::Path;
 use uuid::Uuid;
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -32,11 +33,17 @@ pub fn insert_job(
     let id = Uuid::new_v4().to_string();
     let now = Utc::now().to_rfc3339();
 
+    let ext = Path::new(filename)
+        .extension()
+        .and_then(|s| s.to_str())
+        .map(|s| s.to_lowercase())
+        .unwrap_or_else(|| "wav".to_string());
+
     conn.execute(
         "INSERT INTO queue_jobs
             (id, filename, filepath, destination, size_bytes, media_type, status, output_format, created_at, updated_at)
-         VALUES (?1, ?2, ?3, '', ?4, ?5, 'pending', 'wav', ?6, ?7)",
-        params![id, filename, filepath, size_bytes, media_type, now, now],
+         VALUES (?1, ?2, ?3, '', ?4, ?5, 'pending', ?6, ?7, ?8)",
+        params![id, filename, filepath, size_bytes, media_type, ext, now, now],
     )?;
 
     Ok(QueueJob {
@@ -49,7 +56,7 @@ pub fn insert_job(
         status: "pending".to_string(),
         progress: 0,
         error_message: None,
-        output_format: "wav".to_string(),
+        output_format: ext,
         bitrate: String::new(),
         output_filepath: None,
         sample_rate: "44100".to_string(),
@@ -264,8 +271,8 @@ mod tests {
         let found = get_job_by_id(&conn, &job.id).unwrap().unwrap();
         assert_eq!(found.id, job.id);
         assert_eq!(found.progress, 0);
-        assert!(found.error_message.is_none());
-        assert_eq!(found.output_format, "wav");
+        assert_eq!(found.error_message.is_none(), true);
+        assert_eq!(found.output_format, "mp3");
     }
 
     #[test]

@@ -348,4 +348,16 @@ This document summarizes the update notes and functional improvements that need 
   - Rebuild the Tauri application release binary at `D:\cargo_build\enhance-audio-pro\release\enhance-audio-pro.exe`.
 
 
+## 61. Total WaveSurfer Re-instantiation, GPU Layer Crash Fix, and Binary Rebuild 🚀 [NEW] ✅
+- **Total WaveSurfer Re-instantiation:**
+  - Resolved the persistent "silent audio" issue encountered after ~6 rapid file switches by completely destroying and recreating the `WaveSurfer` instance and the underlying `HTMLAudioElement` pipeline on every track change. This bypasses the Chromium media decoder resource leak and WaveSurfer v7's inability to hot-swap media elements effectively.
+- **WebView2 GPU Layer Crash Fix:**
+  - Solved the application black screen flash (WebView2 GPU compositing crash) that previously occurred when destroying and recreating the WaveSurfer canvas. Injected a `will-change: transform, opacity` and `transform: translateZ(0)` hardware acceleration hint to the waveform container, locking the GPU render layer in place during transitions.
+- **Tauri Release Binary Rebuild:**
+  - Rebuilt the Tauri application release binary at `D:\cargo_build\enhance-audio-pro\release\enhance-audio-pro.exe`.
 
+## 62. Dynamic Default Output Format 🚀 [NEW] ✅
+- **Match Original Format:**
+  - Modified the file import logic in the Rust backend (`db::queue::insert_job`) to dynamically extract the original audio file's extension (e.g., `mp3`, `wav`, `flac`) and set it as the default output format for that queue item. Previously, this was hardcoded to `wav`. If a user wishes to convert it to a different format, they can still manually change it via the format dropdown in the table.
+- **Tauri Release Binary Rebuild:**
+  - Rebuilt the Tauri application release binary at `D:\cargo_build\enhance-audio-pro\release\enhance-audio-pro.exe`.

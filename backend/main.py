@@ -1,7 +1,17 @@
 import os
+import sys
+
+# Apply torchaudio compatibility shims before any other imports
+try:
+    sys.path.insert(0, os.path.dirname(__file__))
+    import rthooks.pyi_rth_torchaudio_compat
+except Exception as e:
+    print("Failed to load torchaudio compatibility shim:", e)
+
 import uvicorn
 from fastapi import FastAPI
 from routers import convert, enhance, health, manipulate, queue, separate, wizard
+
 
 app = FastAPI(title="Enhance Audio Pro Backend", version="0.1.0")
 app.include_router(health.router)

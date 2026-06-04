@@ -6,7 +6,6 @@ import { useSettingsStore } from '@/stores/useSettingsStore';
 import { useUIStore } from '@/stores/useUIStore';
 import { useAudioPlayer } from '@/stores/useAudioPlayer';
 import {
-  invokeAddFiles,
   invokeListFolderFiles,
   invokeConvertFiles,
   invokeProcessQueue,
@@ -16,6 +15,8 @@ import {
 } from '@/lib/ipc';
 import { DEFAULT_KEYBOARD_SHORTCUTS } from '@/types/settings';
 import type { AppSettings } from '@/types/settings';
+import { handleImportFiles } from '@/lib/importHelper';
+
 
 function matches(e: KeyboardEvent, binding: string): boolean {
   const parts = binding.toLowerCase().split('+');
@@ -125,8 +126,7 @@ export function useKeyboardShortcuts(): void {
         });
         const paths = Array.isArray(selected) ? selected : selected ? [selected] : [];
         if (paths.length) {
-          const res = await invokeAddFiles(paths);
-          if (res.success && res.data) q.addJobs(res.data);
+          await handleImportFiles(paths);
         }
         return;
       }
@@ -176,8 +176,7 @@ export function useKeyboardShortcuts(): void {
         if (typeof folder === 'string' && folder) {
           const listRes = await invokeListFolderFiles(folder);
           if (listRes.success && listRes.data && listRes.data.length > 0) {
-            const addRes = await invokeAddFiles(listRes.data);
-            if (addRes.success && addRes.data) q.addJobs(addRes.data);
+            await handleImportFiles(listRes.data);
           }
         }
         return;

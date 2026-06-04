@@ -6,24 +6,17 @@ import { Music, Video, Upload } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { clsx } from 'clsx';
 import { useTranslation } from 'react-i18next';
-import { validateFile, getFilename } from '@/lib/fileValidation';
-import { invokeAddFiles, invokeListFolderFiles } from '@/lib/ipc';
+import { invokeListFolderFiles } from '@/lib/ipc';
 import { useQueueStore } from '@/stores/useQueueStore';
 import { useUIStore } from '@/stores/useUIStore';
-
-interface DuplicatePending {
-  newPaths: string[];
-  uniquePaths: string[];
-  duplicateNames: string[];
-  skippedInvalid: number;
-}
+import { handleImportFiles, submitAddFilesDirect } from '@/lib/importHelper';
 
 export default function DropZone(): JSX.Element {
   const [isDragging, setIsDragging] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [limitWarning, setLimitWarning] = useState<string | null>(null);
-  const [duplicatePending, setDuplicatePending] = useState<DuplicatePending | null>(null);
-  const { addJobs } = useQueueStore();
+  const error = useUIStore((s) => s.importError);
+  const limitWarning = useUIStore((s) => s.importLimitWarning);
+  const duplicatePending = useUIStore((s) => s.duplicatePending);
+  const setDuplicatePending = useUIStore((s) => s.setDuplicatePending);
   const playerOpen = useUIStore((s) => s.playerOpen);
   const activePlayerJobId = useUIStore((s) => s.activePlayerJobId);
   const jobs = useQueueStore((s) => s.jobs);
@@ -33,46 +26,9 @@ export default function DropZone(): JSX.Element {
   const dragCounterRef = useRef(0);
   const { t } = useTranslation();
 
-  const submitAddFiles = useCallback(async (paths: string[], skippedInvalid: number = 0): Promise<void> => {
-    const res = await invokeAddFiles(paths);
-    if (res.success && res.data) {
-      addJobs(res.data);
-      if (skippedInvalid > 0) {
-        setError(`${skippedInvalid} unsupported file(s) skipped.`);
-        setTimeout(() => setError(null), 3000);
-      }
-    } else {
-      setError(res.error ?? 'Failed to add files.');
-      setTimeout(() => setError(null), 3000);
-    }
-    if (res.success && res.error) {
-      setLimitWarning(res.error);
-      setTimeout(() => setLimitWarning(null), 5000);
-    }
-  }, [addJobs]);
-
   const handleFiles = useCallback(async (paths: string[]): Promise<void> => {
-    const valid = paths.filter((p) => validateFile(getFilename(p)).valid);
-    const skipped = paths.length - valid.length;
-
-    if (valid.length === 0) {
-      setError('No supported audio or video files found.');
-      setTimeout(() => setError(null), 3000);
-      return;
-    }
-
-    // Duplicate detection: compare against current queue by filepath
-    const existingPaths = new Set(useQueueStore.getState().jobs.map((j) => j.filepath));
-    const uniquePaths = valid.filter((p) => !existingPaths.has(p));
-    const duplicateNames = valid.filter((p) => existingPaths.has(p)).map((p) => getFilename(p));
-
-    if (duplicateNames.length > 0) {
-      setDuplicatePending({ newPaths: valid, uniquePaths, duplicateNames, skippedInvalid: skipped });
-      return;
-    }
-
-    await submitAddFiles(valid, skipped);
-  }, [submitAddFiles]);
+    await handleImportFiles(paths);
+  }, []);
 
   const resolveDroppedPaths = useCallback(async (paths: string[]): Promise<string[]> => {
     const resolved: string[] = [];
@@ -150,6 +106,7 @@ export default function DropZone(): JSX.Element {
     if (paths.length) await handleFiles(paths);
   };
 
+
   const isAudio = activeTab === 'audio';
   const dropText = isAudio ? t('dropzone.audio') : t('dropzone.video');
   const TabIcon = isAudio ? Music : Video;
@@ -182,7 +139,7 @@ export default function DropZone(): JSX.Element {
               onClick={async () => {
                 const pending = duplicatePending;
                 setDuplicatePending(null);
-                await submitAddFiles(pending.newPaths, pending.skippedInvalid);
+                await submitAddFilesDirect(pending.newPaths, pending.skippedInvalid);
               }}
               className="px-3 py-1.5 rounded-lg text-xs font-medium bg-violet-600 hover:bg-violet-500 text-white transition-colors"
             >
@@ -193,7 +150,7 @@ export default function DropZone(): JSX.Element {
                 onClick={async () => {
                   const pending = duplicatePending;
                   setDuplicatePending(null);
-                  await submitAddFiles(pending.uniquePaths, pending.skippedInvalid);
+                  await submitAddFilesDirect(pending.uniquePaths, pending.skippedInvalid);
                 }}
                 className="px-3 py-1.5 rounded-lg text-xs font-medium bg-slate-200 dark:bg-white/10 hover:bg-slate-300 dark:hover:bg-white/20 text-slate-700 dark:text-white transition-colors"
               >

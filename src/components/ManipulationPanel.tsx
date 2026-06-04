@@ -1,18 +1,21 @@
 import { motion, AnimatePresence } from 'framer-motion';
 import { X } from 'lucide-react';
 import { useQueueStore } from '@/stores/useQueueStore';
+import { useUIStore } from '@/stores/useUIStore';
 import WaveformPlayer from '@/components/WaveformPlayer';
 
 export default function ManipulationPanel(): JSX.Element {
   const jobs = useQueueStore((s) => s.jobs);
-  const selectedJobId = useQueueStore((s) => s.primarySelectedId());
-  const setSelectedJob = useQueueStore((s) => s.setSelectedJob);
+  const playerOpen = useUIStore((s) => s.playerOpen);
+  const activePlayerJobId = useUIStore((s) => s.activePlayerJobId);
+  const setPlayerOpen = useUIStore((s) => s.setPlayerOpen);
 
-  const selectedJob = jobs.find((j) => j.id === selectedJobId) ?? null;
+  const activeJob = jobs.find((j) => j.id === activePlayerJobId) ?? null;
+  const showPlayer = playerOpen && activeJob;
 
   return (
     <AnimatePresence>
-      {selectedJob && (
+      {showPlayer && (
         <motion.div
           key="manipulation-panel"
           initial={{ height: 0, opacity: 0 }}
@@ -25,12 +28,12 @@ export default function ManipulationPanel(): JSX.Element {
             {/* Header */}
             <div className="flex items-center justify-between">
               <span className="text-xs text-slate-500 dark:text-white/40 truncate max-w-[80%]">
-                <span className="text-violet-600 dark:text-violet-400 font-medium">{selectedJob.filename}</span>
+                <span className="text-violet-600 dark:text-violet-400 font-medium">{activeJob.filename}</span>
                 <span className="text-slate-400 dark:text-white/30"> — waveform player</span>
               </span>
               <button
-                onClick={() => setSelectedJob(null)}
-                className="p-1 rounded-md text-slate-400 dark:text-white/30 hover:text-slate-800 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-white/[0.08] transition-colors shrink-0"
+                onClick={() => setPlayerOpen(false)}
+                className="p-1 rounded-md text-red-600 dark:text-red-500 hover:text-red-700 dark:hover:text-red-400 hover:bg-red-500/10 transition-colors shrink-0"
                 title="Close"
               >
                 <X size={12} />
@@ -38,9 +41,9 @@ export default function ManipulationPanel(): JSX.Element {
             </div>
 
             <WaveformPlayer
-              filepath={selectedJob.filepath}
-              outputFilepath={selectedJob.output_filepath ?? null}
-              filename={selectedJob.filename}
+              filepath={activeJob.filepath}
+              outputFilepath={activeJob.output_filepath ?? null}
+              filename={activeJob.filename}
             />
           </div>
         </motion.div>

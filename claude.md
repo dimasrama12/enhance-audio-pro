@@ -238,6 +238,18 @@ chore    : [configuration changes, tooling, etc.]
 - [x] Task 6: Spec docs created for phases 4, 6, 7, 8, 9 in docs/superpowers/specs/
       → Phase 9 COMPLETE ✓ — PROJECT FEATURE-COMPLETE
 
+# Waveform Interaction, Zoom, and Style Upgrades (2026-06-01)
+- [x] Task 44 — Waveform Zoom & Controls: Removed bar width configuration from wavesurfer to render a solid, continuous wave shape (Premiere Pro style). Enabled `dragToSeek` to support real-time playhead dragging. Added a manual zoom slider below the canvas and integrated `Alt + Scroll Wheel` for horizontal zooming. Implemented mouse hover scrolling to pan the zoomed waveform left and right.
+- [x] Rebuilt App Installer: Successfully compiled and bundled the Windows production `.exe` installer setup at `D:\cargo_build\enhance-audio-pro\release\bundle\nsis\Enhance Audio Pro_0.1.0_x64-setup.exe` (46.6 MB).
+
+# PRD Task 51 — Waveform Playback & Clean Shutdown (2026-06-03)
+- [x] J/L speed ladder: 5-step bidirectional (−4x↔−2x↔1x↔2x↔4x) with no pause stop in middle; L from Play jumps directly to 2x then 4x; J from 4x descends 4→2→1→−2→−4
+- [x] Real backward audio: AudioBufferSourceNode plays reversed AudioBuffer; reversed buffer decoded on-demand from blob URL and cached per file
+- [x] Smooth reverse playhead: replaced setInterval with requestAnimationFrame loop synced to AudioContext.currentTime for ~60fps position tracking
+- [x] Forward playback smoothness: supplementary RAF loop updates time display at display rate (not throttled browser timeupdate)
+- [x] Premiere Pro-style max zoom: computed dynamically as containerWidth × 30fps so 1 frame = full waveform width at maximum zoom
+- [x] Clean app shutdown: sidecar/manager.rs spawn() returns CommandChild; lib.rs on_window_event(CloseRequested) kills sidecar then calls std::process::exit(0) — no orphaned backend processes
+
 # PRD Update Implementations (2026-05-31)
 - [x] Task 1 — Light Mode Improvements: All major components (SettingsPanel, QueueGrid, QueueToolbar, DropZone, QueueStatusBar, TitleBar) now use `dark:` Tailwind prefixes; light mode renders with proper contrast using `zinc-*` palette for backgrounds and text
 - [x] Task 2 — Settings Persistence & Global Language: Settings already persisted via Zustand + Tauri backend; added `useTranslation()` to QueueGrid (column headers) and QueueToolbar (action buttons) for i18n coverage; removed AI Models download section from Settings — model assumed pre-bundled
