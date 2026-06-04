@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { listen } from '@tauri-apps/api/event';
 import { motion, AnimatePresence } from 'framer-motion';
 import { clsx } from 'clsx';
-import { GripVertical, Play, Pause, FolderOpen, Lock, ChevronRight, Trash2 } from 'lucide-react';
+import { GripVertical, Play, Pause, FolderOpen, Lock, ChevronRight, Trash2, Wand2 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { open as openDialog } from '@tauri-apps/plugin-dialog';
 import {
@@ -29,7 +29,8 @@ import { useQueueStore } from '@/stores/useQueueStore';
 import { useUIStore } from '@/stores/useUIStore';
 import { useSettingsStore } from '@/stores/useSettingsStore';
 import { useAudioPlayer } from '@/stores/useAudioPlayer';
-import { invokeSetOutputFormat, invokeSetBitrate, invokeSetSampleRate, invokeArchiveJobs } from '@/lib/ipc';
+import { invokeSetOutputFormat, invokeSetBitrate, invokeSetSampleRate, invokeArchiveJobs, invokeProcessQueue } from '@/lib/ipc';
+import { useToastStore } from '@/stores/useToastStore';
 import type { QueueJob, JobStatus } from '@/types/queue';
 
 // ─── Resize handle ────────────────────────────────────────────────────────────
@@ -168,6 +169,36 @@ function SampleRateSelect({ job }: { job: QueueJob }): JSX.Element {
   );
 }
 
+// ─── Per-row enhance button ────────────────────────────────────────────────────
+
+function EnhanceRowButton({ job }: { job: QueueJob }): JSX.Element {
+  const enhancementStrength = useSettingsStore((s) => s.enhancementStrength);
+  const isDisabled = job.status === 'processing' || job.status === 'done';
+
+  async function handleEnhance(e: React.MouseEvent): Promise<void> {
+    e.stopPropagation();
+    if (isDisabled) return;
+    await invokeProcessQueue([job.id], enhancementStrength);
+  }
+
+  return (
+    <button
+      onClick={handleEnhance}
+      disabled={isDisabled}
+      title={job.status === 'done' ? 'Already enhanced' : 'Enhance this file'}
+      className={clsx(
+        'flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-medium transition-all duration-150',
+        isDisabled
+          ? 'opacity-30 cursor-not-allowed text-slate-400 dark:text-white/30'
+          : 'bg-violet-500/10 text-violet-600 dark:text-violet-400 hover:bg-violet-500/20',
+      )}
+    >
+      <Wand2 size={10} />
+      Enhance
+    </button>
+  );
+}
+
 // ─── Sortable row ─────────────────────────────────────────────────────────────
 
 function SortableJobRow({ job, index, isSelected, onSelect, isImporting, activeDragId }: {
@@ -270,7 +301,6 @@ function SortableJobRow({ job, index, isSelected, onSelect, isImporting, activeD
         </button>
       </td>
       <td className="px-4 py-2 text-xs text-slate-400 dark:text-white/40 w-20 tabular-nums">{formatBytes(job.size_bytes)}</td>
-      <td className="px-4 py-2 text-xs uppercase text-slate-400 dark:text-white/35 w-16">{job.media_type}</td>
       <td className="px-4 py-2 w-24"><FormatSelect job={job} /></td>
       <td className="px-4 py-2 w-24"><BitrateSelect job={job} /></td>
       <td className="px-4 py-2 w-24"><SampleRateSelect job={job} /></td>
@@ -303,6 +333,9 @@ function SortableJobRow({ job, index, isSelected, onSelect, isImporting, activeD
         ) : (
           <StatusBadge status={job.status} progress={job.progress} errorMessage={job.error_message} />
         )}
+      </td>
+      <td className="px-3 py-2 w-28">
+        <EnhanceRowButton job={job} />
       </td>
       <td className="px-2 py-2 w-8 group/lock">
         <button
@@ -696,6 +729,15 @@ export default function QueueGrid(): JSX.Element {
           setOutputFilepath(jobId, outputFilepath);
           if (status === 'done') setAbMode(jobId, 'enhanced');
         }
+
+        // Toast notification
+        const filename = useQueueStore.getState().jobs.find((j) => j.id === jobId)?.filename ?? jobId;
+        const { addToast } = useToastStore.getState();
+        if (status === 'done') {
+          addToast(`"${filename}" enhanced successfully`, 'success');
+        } else if (status === 'error') {
+          addToast(`Error enhancing "${filename}"`, 'error');
+        }
       }
     );
     return () => {
@@ -864,11 +906,11 @@ export default function QueueGrid(): JSX.Element {
           <ResizeHandle onDelta={(d) => adjustWidth('destination', d)} />
         </th>
         <th className="px-4 py-2.5 w-20">{t('queue.col.size')}</th>
-        <th className="px-4 py-2.5 w-16">{t('queue.col.type')}</th>
         <th className="px-4 py-2.5 w-24">{t('queue.col.output')}</th>
         <th className="px-4 py-2.5 w-24">{t('queue.col.bitrate')}</th>
         <th className="px-4 py-2.5 w-28 whitespace-nowrap">{t('queue.col.sampleHz')}</th>
         <th className="px-4 py-2.5 whitespace-nowrap">{t('queue.col.status')}</th>
+        <th className="px-3 py-2.5 w-28">TOOLS</th>
         <th className="px-2 py-2.5 w-8 text-center">
           <button
             onClick={(e) => {

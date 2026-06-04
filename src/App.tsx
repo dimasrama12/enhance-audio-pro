@@ -12,6 +12,8 @@ import QueueGrid from '@/components/QueueGrid';
 import ManipulationPanel from '@/components/ManipulationPanel';
 import QueueStatusBar from '@/components/QueueStatusBar';
 import SettingsPanel from '@/components/SettingsPanel';
+import ContextMenu from '@/components/ContextMenu';
+import ToastContainer from '@/components/ToastContainer';
 import { useKeyboardShortcuts } from '@/hooks/useKeyboardShortcuts';
 
 export default function App(): JSX.Element {
@@ -65,6 +67,8 @@ export default function App(): JSX.Element {
         </main>
       </div>
       <SettingsPanel open={settingsOpen} onClose={closeSettings} />
+      <ContextMenu />
+      <ToastContainer />
     </div>
   );
 }

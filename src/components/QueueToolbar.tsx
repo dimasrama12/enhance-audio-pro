@@ -24,7 +24,7 @@ const FILTERS = [
 const FORMAT_OPTIONS = ['wav', 'mp3', 'flac', 'aac', 'ogg', 'opus', 'm4a'];
 
 export default function QueueToolbar(): JSX.Element {
-  const { filter, searchQuery, setFilter, setSearchQuery, jobs, setOutputFormat, viewMode, setViewMode, groupByFormat, setGroupByFormat } =
+  const { filter, searchQuery, setFilter, setSearchQuery, jobs, setOutputFormat, viewMode, setViewMode, groupByFormat, setGroupByFormat, selectedJobIds } =
     useQueueStore();
   const enhancementStrength = useSettingsStore((s) => s.enhancementStrength);
   const filenameTemplate = useSettingsStore((s) => s.filenameTemplate);
@@ -55,28 +55,43 @@ export default function QueueToolbar(): JSX.Element {
       await new Promise<void>((resolve) => {
         let settled = false;
         let unlisten: (() => void) | undefined;
+        // 5-minute per-job timeout — prevents infinite hang if the sidecar
+        // crashes or the callback POST silently fails.
+        const timeoutId = setTimeout(() => {
+          if (!settled) { settled = true; unlisten?.(); resolve(); }
+        }, 300_000);
+
+        const settle = (): void => {
+          if (!settled) { settled = true; clearTimeout(timeoutId); unlisten?.(); resolve(); }
+        };
+
         listen<{ jobId: string; status: string }>('queue://status-change', (evt) => {
           if (!settled && evt.payload.jobId === id &&
             (evt.payload.status === 'done' || evt.payload.status === 'error')) {
-            settled = true;
-            unlisten?.();
-            resolve();
+            settle();
           }
         }).then((fn) => {
           unlisten = fn;
-          if (!settled) invoke(id).catch(() => { settled = true; resolve(); });
+          if (!settled) invoke(id).catch(() => settle());
         });
       });
     }
   }
 
-  async function handleClearQueue(): Promise<void> {
-    const { jobs, lockedJobIds, clearQueue } = useQueueStore.getState();
-    const idsToArchive = jobs.filter((j) => !lockedJobIds.includes(j.id)).map((j) => j.id);
-    clearQueue();
-    if (idsToArchive.length > 0) {
-      void invokeArchiveJobs(idsToArchive);
+  async function handleDeleteSelected(): Promise<void> {
+    const { selectedJobIds, deleteJobs, lockedJobIds } = useQueueStore.getState();
+    if (selectedJobIds.length === 0) return;
+
+    const idsToDelete = selectedJobIds.filter((id) => !lockedJobIds.includes(id));
+    if (idsToDelete.length === 0) return;
+
+    const activePlayerJobId = useUIStore.getState().activePlayerJobId;
+    if (idsToDelete.includes(activePlayerJobId || '')) {
+      useUIStore.setState({ activePlayerJobId: null, playerOpen: false });
     }
+
+    deleteJobs(idsToDelete);
+    void invokeArchiveJobs(idsToDelete);
   }
 
   async function handleProcess(): Promise<void> {
@@ -140,7 +155,7 @@ export default function QueueToolbar(): JSX.Element {
           title="Enhance speech [E]"
           className="flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium h-[28px] shrink-0 transition-all duration-150 bg-violet-600 hover:bg-violet-500 text-white shadow-glow-violet-sm disabled:opacity-40 disabled:cursor-not-allowed disabled:shadow-none"
         >
-          {isProcessing ? t('toolbar.enhancing') : t('toolbar.enhance')}
+          {isProcessing ? 'Enhancing…' : 'Enhance All'}
         </button>
         <button
           onClick={handleSeparate}
@@ -148,7 +163,7 @@ export default function QueueToolbar(): JSX.Element {
           title="Separate stems [S]"
           className={`${ghostBtn} h-[28px]`}
         >
-          {isSeparating ? t('toolbar.separating') : t('toolbar.separate')}
+          {isSeparating ? 'Separating…' : 'Separate'}
         </button>
         <button
           onClick={handleConvert}
@@ -156,7 +171,7 @@ export default function QueueToolbar(): JSX.Element {
           title="Convert format [C]"
           className={`${ghostBtn} h-[28px]`}
         >
-          {isConverting ? t('toolbar.converting') : t('toolbar.convert')}
+          {isConverting ? 'Converting…' : 'Convert All'}
         </button>
         {activeTab === 'audio' && <RecordButton />}
       </div>
@@ -222,9 +237,10 @@ export default function QueueToolbar(): JSX.Element {
         <Layers size={16} />
       </button>
       <button
-        onClick={handleClearQueue}
-        title={t('toolbar.clearQueue')}
-        className="p-2 rounded-lg text-slate-400 dark:text-white/40 hover:text-red-500 dark:hover:text-red-400 hover:bg-red-500/10 transition-colors duration-150"
+        onClick={handleDeleteSelected}
+        disabled={selectedJobIds.length === 0}
+        title={t('toolbar.deleteSelected', 'Delete selected')}
+        className="p-2 rounded-lg text-slate-400 dark:text-white/40 hover:text-red-500 dark:hover:text-red-400 hover:bg-red-500/10 disabled:opacity-30 disabled:pointer-events-none transition-colors duration-150"
       >
         <Trash2 size={16} />
       </button>
