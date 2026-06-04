@@ -16,7 +16,7 @@ import {
   type DragEndEvent,
   type DragStartEvent,
 } from '@dnd-kit/core';
-import { restrictToVerticalAxis } from '@dnd-kit/modifiers';
+import { restrictToVerticalAxis, restrictToFirstScrollableAncestor } from '@dnd-kit/modifiers';
 import {
   SortableContext,
   sortableKeyboardCoordinates,
@@ -180,7 +180,10 @@ function SortableJobRow({ job, index, isSelected, onSelect, isImporting, activeD
 }): JSX.Element {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: job.id });
   const selectedJobIds = useQueueStore((s) => s.selectedJobIds);
-  const isDraggingAnySelected = !!(activeDragId && selectedJobIds.includes(job.id));
+  // Only treat as a group drag when the DRAGGED item is itself selected.
+  // Without this guard, dragging an unselected row hides all selected rows.
+  const isDragOfSelectedItem = !!(activeDragId && selectedJobIds.includes(activeDragId));
+  const isDraggingAnySelected = isDragOfSelectedItem && selectedJobIds.includes(job.id);
   const setAbMode = useQueueStore((s) => s.setAbMode);
   const isLocked = useQueueStore((s) => s.lockedJobIds.includes(job.id));
   const unlockJobs = useQueueStore((s) => s.unlockJobs);
@@ -359,7 +362,8 @@ function SortableJobCard({ job, isSelected, onSelect, isImporting, activeDragId 
 }): JSX.Element {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: job.id });
   const selectedJobIds = useQueueStore((s) => s.selectedJobIds);
-  const isDraggingAnySelected = !!(activeDragId && selectedJobIds.includes(job.id));
+  const isDragOfSelectedItem = !!(activeDragId && selectedJobIds.includes(activeDragId));
+  const isDraggingAnySelected = isDragOfSelectedItem && selectedJobIds.includes(job.id);
   const { playingJobId, isPlaying, toggle } = useAudioPlayer();
   const setAbMode = useQueueStore((s) => s.setAbMode);
   const isLocked = useQueueStore((s) => s.lockedJobIds.includes(job.id));
@@ -908,7 +912,7 @@ export default function QueueGrid(): JSX.Element {
                       </td>
                     </tr>
                     {!collapsedGroups.has(group.label) && (
-                      <DndContext key={`dnd-${gi}`} sensors={sensors} collisionDetection={closestCenter} onDragStart={handleDragStart} onDragEnd={handleDragEnd} modifiers={[restrictToVerticalAxis]}>
+                      <DndContext key={`dnd-${gi}`} sensors={sensors} collisionDetection={closestCenter} onDragStart={handleDragStart} onDragEnd={handleDragEnd} modifiers={[restrictToVerticalAxis, restrictToFirstScrollableAncestor]}>
                         <SortableContext items={group.jobs.map((j) => j.id)} strategy={verticalListSortingStrategy}>
                           <AnimatePresence>
                             {group.jobs.map((job, i) => (
@@ -946,7 +950,7 @@ export default function QueueGrid(): JSX.Element {
                 ))}
               </>
             ) : (
-              <DndContext sensors={sensors} collisionDetection={closestCenter} onDragStart={handleDragStart} onDragEnd={handleDragEnd} modifiers={[restrictToVerticalAxis]}>
+              <DndContext sensors={sensors} collisionDetection={closestCenter} onDragStart={handleDragStart} onDragEnd={handleDragEnd} modifiers={[restrictToVerticalAxis, restrictToFirstScrollableAncestor]}>
                 <SortableContext items={visibleJobs.map((j) => j.id)} strategy={verticalListSortingStrategy}>
                   <AnimatePresence>
                     {visibleJobs.map((job) => (
