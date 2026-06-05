@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { listen } from '@tauri-apps/api/event';
 import { motion, AnimatePresence } from 'framer-motion';
 import { clsx } from 'clsx';
-import { GripVertical, Play, Pause, FolderOpen, Lock, ChevronRight, Trash2, Wand2 } from 'lucide-react';
+import { GripVertical, Play, FolderOpen, Lock, ChevronRight, Trash2, Wand2 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { open as openDialog } from '@tauri-apps/plugin-dialog';
 import ProcessingTimer from '@/components/ProcessingTimer';
@@ -29,8 +29,8 @@ import { CSS } from '@dnd-kit/utilities';
 import { useQueueStore } from '@/stores/useQueueStore';
 import { useUIStore } from '@/stores/useUIStore';
 import { useSettingsStore } from '@/stores/useSettingsStore';
-import { useAudioPlayer } from '@/stores/useAudioPlayer';
-import { invokeSetOutputFormat, invokeSetBitrate, invokeSetSampleRate, invokeArchiveJobs, invokeProcessQueue, invokeCancelJobs } from '@/lib/ipc';
+
+import { invokeSetOutputFormat, invokeSetBitrate, invokeSetSampleRate, invokeArchiveJobs, invokeProcessQueue, invokeCancelJobs, invokeSetDestination } from '@/lib/ipc';
 import { useToastStore } from '@/stores/useToastStore';
 import type { QueueJob, JobStatus } from '@/types/queue';
 
@@ -64,17 +64,20 @@ const STATUS_BADGE_CLS: Record<JobStatus, string> = {
   error: 'bg-red-500/10 text-red-500 dark:text-red-400',
 };
 
-function StatusBadge({ status, progress, errorMessage }: {
+function StatusBadge({ status, progress, errorMessage, onErrorClick }: {
   status: JobStatus;
   progress: number;
   errorMessage?: string | null;
+  onErrorClick?: () => void;
 }): JSX.Element {
   return (
     <div>
       <span
+        onClick={status === 'error' ? onErrorClick : undefined}
         className={clsx(
           'inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium capitalize',
           STATUS_BADGE_CLS[status],
+          status === 'error' && 'cursor-pointer hover:bg-red-500/20 active:scale-95 transition-all'
         )}
         title={status === 'error' ? (errorMessage ?? undefined) : undefined}
       >
@@ -173,15 +176,18 @@ function SampleRateSelect({ job }: { job: QueueJob }): JSX.Element {
 
 // ─── Per-row enhance button ────────────────────────────────────────────────────
 
-function EnhanceRowButton({ job }: { job: QueueJob }): JSX.Element {
+function EnhanceRowButton({ job }: { job: QueueJob }): JSX.Element | null {
   const enhancementStrength = useSettingsStore((s) => s.enhancementStrength);
   const { addToast } = useToastStore();
-  const isDisabled = job.status === 'done' || job.status === 'queued';
   const isProcessing = job.status === 'processing';
+  const isQueued = job.status === 'queued';
+
+  // Hide entirely when done — status badge is enough feedback
+  if (job.status === 'done') return null;
 
   async function handleEnhance(e: React.MouseEvent): Promise<void> {
     e.stopPropagation();
-    if (isDisabled) return;
+    if (isQueued) return;
     if (isProcessing) {
       try {
         await invokeCancelJobs([job.id]);
@@ -198,32 +204,36 @@ function EnhanceRowButton({ job }: { job: QueueJob }): JSX.Element {
   return (
     <button
       onClick={handleEnhance}
-      disabled={isDisabled && !isProcessing}
-      title={job.status === 'done' ? 'Already enhanced' : isProcessing ? 'Cancel processing' : 'Enhance this file'}
+      disabled={isQueued}
+      title={isProcessing ? 'Cancel processing' : job.status === 'error' ? 'Retry enhancement' : 'Enhance this file'}
       className={clsx(
         'flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-medium transition-all duration-150',
-        isDisabled && !isProcessing
+        isQueued
           ? 'opacity-30 cursor-not-allowed text-slate-400 dark:text-white/30'
-          : isProcessing 
+          : isProcessing
           ? 'bg-red-500/10 text-red-600 dark:text-red-400 hover:bg-red-500/20'
+          : job.status === 'error'
+          ? 'bg-amber-500/10 text-amber-600 dark:text-amber-400 hover:bg-amber-500/20'
           : 'bg-violet-500/10 text-violet-600 dark:text-violet-400 hover:bg-violet-500/20',
       )}
     >
       {isProcessing ? <Trash2 size={10} /> : <Wand2 size={10} />}
-      {isProcessing ? 'Cancel' : 'Enhance'}
+      {isProcessing ? 'Cancel' : job.status === 'error' ? 'Retry' : 'Enhance'}
     </button>
   );
 }
 
 // ─── Sortable row ─────────────────────────────────────────────────────────────
 
-function SortableJobRow({ job, index, isSelected, onSelect, isImporting, activeDragId }: {
+function SortableJobRow({ job, index, isSelected, onSelect, isImporting, activeDragId, onErrorClick, colWidths }: {
   job: QueueJob;
   index: number;
   isSelected: boolean;
   onSelect: (e: React.MouseEvent) => void;
   isImporting?: boolean;
   activeDragId: string | null;
+  onErrorClick?: (filename: string, errorMessage: string) => void;
+  colWidths: { filename: number; destination: number };
 }): JSX.Element {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: job.id });
   const selectedJobIds = useQueueStore((s) => s.selectedJobIds);
@@ -231,7 +241,6 @@ function SortableJobRow({ job, index, isSelected, onSelect, isImporting, activeD
   // Without this guard, dragging an unselected row hides all selected rows.
   const isDragOfSelectedItem = !!(activeDragId && selectedJobIds.includes(activeDragId));
   const isDraggingAnySelected = isDragOfSelectedItem && selectedJobIds.includes(job.id);
-  const setAbMode = useQueueStore((s) => s.setAbMode);
   const isLocked = useQueueStore((s) => s.lockedJobIds.includes(job.id));
   const unlockJobs = useQueueStore((s) => s.unlockJobs);
   const defaultOutputFolder = useSettingsStore((s) => s.outputFolder);
@@ -281,7 +290,7 @@ function SortableJobRow({ job, index, isSelected, onSelect, isImporting, activeD
         </button>
       </td>
       <td className="px-4 py-2 text-slate-400 dark:text-white/25 text-xs w-10 tabular-nums">{index + 1}</td>
-      <td className="px-4 py-2 text-sm text-slate-800 dark:text-slate-100 font-medium overflow-hidden">
+      <td className="px-4 py-2 text-sm text-slate-800 dark:text-slate-100 font-medium overflow-hidden" style={{ width: '100%', minWidth: colWidths.filename }}>
         <div className="flex items-center gap-2 min-w-0">
           <button
             onClick={(e) => {
@@ -299,7 +308,8 @@ function SortableJobRow({ job, index, isSelected, onSelect, isImporting, activeD
         </div>
       </td>
       <td
-        className="px-2 py-2 text-xs text-slate-400 dark:text-white/40 truncate max-w-[130px] group/dest"
+        className="px-2 py-2 text-xs text-slate-400 dark:text-white/40 truncate group/dest"
+        style={{ width: colWidths.destination, minWidth: 80, maxWidth: colWidths.destination }}
         title={job.destination || 'Click to set destination'}
       >
         <button
@@ -308,8 +318,15 @@ function SortableJobRow({ job, index, isSelected, onSelect, isImporting, activeD
             const sel = await openDialog({ directory: true, multiple: false, title: 'Select Output Folder' });
             if (typeof sel !== 'string' || !sel) return;
             const { selectedJobIds, setDestination, setDestinationBatch } = useQueueStore.getState();
-            if (selectedJobIds.includes(job.id)) setDestinationBatch(selectedJobIds, sel);
-            else setDestination(job.id, sel);
+            if (selectedJobIds.includes(job.id)) {
+              setDestinationBatch(selectedJobIds, sel);
+              for (const id of selectedJobIds) {
+                await invokeSetDestination(id, sel);
+              }
+            } else {
+              setDestination(job.id, sel);
+              await invokeSetDestination(job.id, sel);
+            }
           }}
           className="flex items-center gap-1 w-full truncate hover:text-violet-500 dark:hover:text-violet-400 transition-colors"
         >
@@ -321,35 +338,17 @@ function SortableJobRow({ job, index, isSelected, onSelect, isImporting, activeD
       <td className="px-4 py-2 w-24"><FormatSelect job={job} /></td>
       <td className="px-4 py-2 w-24"><BitrateSelect job={job} /></td>
       <td className="px-4 py-2 w-24"><SampleRateSelect job={job} /></td>
-      <td className="px-4 py-2 text-xs font-medium whitespace-nowrap">
-        {job.status === 'done' && job.output_filepath ? (
-          <div className="flex gap-1">
-            <button
-              onClick={(e) => { e.stopPropagation(); setAbMode(job.id, 'enhanced'); }}
-              className={clsx(
-                'px-1.5 py-0.5 rounded-md text-[10px] font-medium transition-all duration-150',
-                isEnhanced
-                  ? 'bg-violet-500/20 text-violet-600 dark:text-violet-400'
-                  : 'text-slate-400 dark:text-white/35 hover:bg-slate-100 dark:hover:bg-white/[0.07]',
-              )}
-            >
-              Enhanced
-            </button>
-            <button
-              onClick={(e) => { e.stopPropagation(); setAbMode(job.id, 'original'); }}
-              className={clsx(
-                'px-1.5 py-0.5 rounded-md text-[10px] font-medium transition-all duration-150',
-                !isEnhanced
-                  ? 'bg-slate-200 dark:bg-white/[0.12] text-slate-700 dark:text-white/80'
-                  : 'text-slate-400 dark:text-white/35 hover:bg-slate-100 dark:hover:bg-white/[0.07]',
-              )}
-            >
-              Original
-            </button>
-          </div>
-        ) : (
-          <StatusBadge status={job.status} progress={job.progress} errorMessage={job.error_message} />
-        )}
+      <td className="px-4 py-2 text-xs font-medium whitespace-nowrap w-32">
+        <StatusBadge
+          status={job.status}
+          progress={job.progress}
+          errorMessage={job.error_message}
+          onErrorClick={() => {
+            if (job.error_message && onErrorClick) {
+              onErrorClick(job.filename, job.error_message);
+            }
+          }}
+        />
       </td>
       <td className="px-3 py-2 w-28">
         <EnhanceRowButton job={job} />
@@ -363,10 +362,10 @@ function SortableJobRow({ job, index, isSelected, onSelect, isImporting, activeD
           }}
           title={isLocked ? 'Locked — click to unlock' : 'Click to lock'}
           className={clsx(
-            'block mx-auto transition-all duration-150',
+            'block mx-auto transition-all duration-150 opacity-100',
             isLocked
-              ? 'text-slate-500 dark:text-white/70 opacity-100'
-              : 'text-slate-300 dark:text-white/25 opacity-0 group-hover/lock:opacity-100',
+              ? 'text-blue-500 dark:text-blue-400'
+              : 'text-slate-400 dark:text-white/25 hover:text-slate-600 dark:hover:text-white/50',
           )}
         >
           <Lock size={12} />
@@ -377,6 +376,13 @@ function SortableJobRow({ job, index, isSelected, onSelect, isImporting, activeD
           onClick={(e) => {
             e.stopPropagation();
             if (isLocked) return;
+            if (job.status === 'processing' || job.status === 'queued') {
+              const isIndonesian = useSettingsStore.getState().language === 'id';
+              const msg = isIndonesian
+                ? `Apakah Anda yakin ingin menghapus "${job.filename}"? File sedang diproses.`
+                : `Are you sure you want to delete "${job.filename}"? The file is currently being processed.`;
+              if (!window.confirm(msg)) return;
+            }
             const { deleteJobs } = useQueueStore.getState();
             const activePlayerJobId = useUIStore.getState().activePlayerJobId;
             if (activePlayerJobId === job.id) {
@@ -391,7 +397,7 @@ function SortableJobRow({ job, index, isSelected, onSelect, isImporting, activeD
             "block mx-auto transition-all duration-150",
             isLocked
               ? "text-slate-300 dark:text-white/10 cursor-not-allowed opacity-20"
-              : "text-slate-300 dark:text-white/25 hover:text-red-500 dark:hover:text-red-400 opacity-0 group-hover/trash:opacity-100"
+              : "text-red-500 hover:text-red-400 dark:text-red-500 dark:hover:text-red-400 opacity-100"
           )}
         >
           <Trash2 size={12} />
@@ -403,30 +409,22 @@ function SortableJobRow({ job, index, isSelected, onSelect, isImporting, activeD
 
 // ─── Sortable card (grid view) ────────────────────────────────────────────────
 
-function SortableJobCard({ job, isSelected, onSelect, isImporting, activeDragId }: {
+function SortableJobCard({ job, isSelected, onSelect, isImporting, activeDragId, onErrorClick }: {
   job: QueueJob;
   isSelected: boolean;
   onSelect: (e: React.MouseEvent) => void;
   isImporting?: boolean;
   activeDragId: string | null;
+  onErrorClick?: (filename: string, errorMessage: string) => void;
 }): JSX.Element {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: job.id });
   const selectedJobIds = useQueueStore((s) => s.selectedJobIds);
   const isDragOfSelectedItem = !!(activeDragId && selectedJobIds.includes(activeDragId));
   const isDraggingAnySelected = isDragOfSelectedItem && selectedJobIds.includes(job.id);
-  const { playingJobId, isPlaying, toggle } = useAudioPlayer();
-  const setAbMode = useQueueStore((s) => s.setAbMode);
   const isLocked = useQueueStore((s) => s.lockedJobIds.includes(job.id));
   const unlockJobs = useQueueStore((s) => s.unlockJobs);
 
-  const isThisPlaying = playingJobId === job.id && isPlaying;
   const isEnhanced = job.ab_mode === 'enhanced';
-
-  function handlePlay(e: React.MouseEvent): void {
-    e.stopPropagation();
-    const src = isEnhanced && job.output_filepath ? job.output_filepath : job.filepath;
-    toggle(job.id, src);
-  }
 
   const isSecondaryDrag = isDraggingAnySelected && !isDragging;
 
@@ -493,45 +491,31 @@ function SortableJobCard({ job, isSelected, onSelect, isImporting, activeDragId 
               }}
               title={isLocked ? 'Locked — click to unlock' : 'Click to lock'}
               className={clsx(
-                'transition-all duration-150',
-                isLocked ? 'text-slate-400 dark:text-white/60 opacity-100' : 'text-slate-300 dark:text-white/20 opacity-0 group-hover/lock:opacity-100',
+                'transition-all duration-150 opacity-100',
+                isLocked
+                  ? 'text-blue-500 dark:text-blue-400'
+                  : 'text-slate-400 dark:text-white/25 hover:text-slate-600 dark:hover:text-white/50',
               )}
             >
               <Lock size={12} />
             </button>
           </div>
-          <button
-            onClick={handlePlay}
+          <span
+            onClick={() => {
+              if (job.status === 'error' && job.error_message && onErrorClick) {
+                onErrorClick(job.filename, job.error_message);
+              }
+            }}
             className={clsx(
-              'flex items-center justify-center w-5 h-5 rounded-full transition-all duration-150',
-              isThisPlaying
-                ? 'text-violet-500 bg-violet-100 dark:bg-violet-500/20'
-                : 'text-slate-300 dark:text-white/25 hover:text-slate-600 dark:hover:text-white/60 hover:bg-slate-100 dark:hover:bg-white/[0.06]',
-            )}
-            aria-label={isThisPlaying ? 'Pause' : 'Play'}
-          >
-            {isThisPlaying ? <Pause size={10} /> : <Play size={10} />}
-          </button>
-          {job.status === 'done' && job.output_filepath ? (
-            <div className="flex gap-0.5">
-              <button
-                onClick={(e) => { e.stopPropagation(); setAbMode(job.id, 'enhanced'); toggle(job.id, job.output_filepath!); }}
-                className={clsx('px-1.5 py-0.5 rounded-md text-[10px] font-medium transition-all duration-150', isEnhanced ? 'bg-violet-500/20 text-violet-600 dark:text-violet-400' : 'text-slate-400 dark:text-white/35 hover:bg-slate-100 dark:hover:bg-white/[0.07]')}
-              >Enh</button>
-              <button
-                onClick={(e) => { e.stopPropagation(); setAbMode(job.id, 'original'); toggle(job.id, job.filepath); }}
-                className={clsx('px-1.5 py-0.5 rounded-md text-[10px] font-medium transition-all duration-150', !isEnhanced ? 'bg-slate-200 dark:bg-white/[0.12] text-slate-700 dark:text-white/80' : 'text-slate-400 dark:text-white/35 hover:bg-slate-100 dark:hover:bg-white/[0.07]')}
-              >Orig</button>
-            </div>
-          ) : (
-            <span className={clsx(
               'inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[10px] font-medium capitalize',
               STATUS_BADGE_CLS[job.status],
-            )}>
-              {job.status === 'processing' && <span className="w-1 h-1 rounded-full bg-amber-400 status-processing-dot" />}
-              {job.status}
-            </span>
-          )}
+              job.status === 'error' && 'cursor-pointer hover:bg-red-500/20 active:scale-95 transition-all'
+            )}
+            title={job.status === 'error' ? (job.error_message ?? undefined) : undefined}
+          >
+            {job.status === 'processing' && <span className="w-1 h-1 rounded-full bg-amber-400 status-processing-dot" />}
+            {job.status}
+          </span>
         </div>
       </div>
       <div className="flex items-center gap-2 text-[10px] text-slate-400 dark:text-white/35 flex-wrap">
@@ -578,6 +562,11 @@ export default function QueueGrid(): JSX.Element {
   const [selectionBox, setSelectionBox] = useState<{ left: number; top: number; width: number; height: number } | null>(null);
   const [showClearConfirm, setShowClearConfirm] = useState(false);
   const [activeDragId, setActiveDragId] = useState<string | null>(null);
+  const [errorDetailModal, setErrorDetailModal] = useState<{ filename: string; errorMessage: string } | null>(null);
+
+  const handleErrorClick = (filename: string, errorMessage: string) => {
+    setErrorDetailModal({ filename, errorMessage });
+  };
 
   const dragSelectedIds = useMemo((): string[] => {
     if (!activeDragId) return [];
@@ -827,6 +816,7 @@ export default function QueueGrid(): JSX.Element {
                               onSelect={(e) => handleRowClick(e, job.id)}
                               isImporting={importingJobIds.includes(job.id)}
                               activeDragId={activeDragId}
+                              onErrorClick={handleErrorClick}
                             />
                           ))}
                         </div>
@@ -869,6 +859,7 @@ export default function QueueGrid(): JSX.Element {
                       onSelect={(e) => handleRowClick(e, job.id)}
                       isImporting={importingJobIds.includes(job.id)}
                       activeDragId={activeDragId}
+                      onErrorClick={handleErrorClick}
                     />
                   ))}
                 </div>
@@ -915,11 +906,11 @@ export default function QueueGrid(): JSX.Element {
       <tr className="text-slate-500 dark:text-white/35 font-semibold text-[10px] uppercase tracking-wider sticky top-0 bg-slate-50 dark:bg-[#090E1B] border-b-2 border-slate-200 dark:border-white/[0.08]">
         <th className="px-2 py-2.5 w-8" />
         <th className="px-4 py-2.5 w-10">#</th>
-        <th className="resizable-th px-2 py-2.5 text-left" style={{ width: colWidths.filename, minWidth: 80 }}>
+        <th className="resizable-th px-2 py-2.5 text-left" style={{ width: '100%', minWidth: colWidths.filename }}>
           <span className="px-2">{t('queue.col.filename')}</span>
           <ResizeHandle onDelta={(d) => adjustWidth('filename', d)} />
         </th>
-        <th className="resizable-th px-2 py-2.5 text-left" style={{ width: colWidths.destination, minWidth: 80 }}>
+        <th className="resizable-th px-2 py-2.5 text-left" style={{ width: colWidths.destination, minWidth: 80, maxWidth: colWidths.destination }}>
           <span className="px-2">{t('queue.col.destination')}</span>
           <ResizeHandle onDelta={(d) => adjustWidth('destination', d)} />
         </th>
@@ -927,7 +918,7 @@ export default function QueueGrid(): JSX.Element {
         <th className="px-4 py-2.5 w-24">{t('queue.col.output')}</th>
         <th className="px-4 py-2.5 w-24">{t('queue.col.bitrate')}</th>
         <th className="px-4 py-2.5 w-28 whitespace-nowrap">{t('queue.col.sampleHz')}</th>
-        <th className="px-4 py-2.5 whitespace-nowrap">{t('queue.col.status')}</th>
+        <th className="px-4 py-2.5 w-32 whitespace-nowrap">{t('queue.col.status')}</th>
         <th className="px-3 py-2.5 w-28">TOOLS</th>
         <th className="px-2 py-2.5 w-8 text-center">
           <button
@@ -1008,6 +999,8 @@ export default function QueueGrid(): JSX.Element {
                                 onSelect={(e) => handleRowClick(e, job.id)}
                                 isImporting={importingJobIds.includes(job.id)}
                                 activeDragId={activeDragId}
+                                onErrorClick={handleErrorClick}
+                                colWidths={colWidths}
                               />
                             ))}
                           </AnimatePresence>
@@ -1046,6 +1039,8 @@ export default function QueueGrid(): JSX.Element {
                         onSelect={(e) => handleRowClick(e, job.id)}
                         isImporting={importingJobIds.includes(job.id)}
                         activeDragId={activeDragId}
+                        onErrorClick={handleErrorClick}
+                        colWidths={colWidths}
                       />
                     ))}
                   </AnimatePresence>
@@ -1084,28 +1079,69 @@ export default function QueueGrid(): JSX.Element {
         />
       )}
 
-      {showClearConfirm && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
-          <div className="bg-slate-900 border border-white/10 p-6 rounded-2xl max-w-sm w-full shadow-2xl flex flex-col gap-4">
-            <h3 className="text-sm font-semibold text-white uppercase tracking-wider">Confirm Clear Queue</h3>
-            <p className="text-xs text-white/60 leading-relaxed">
-              Are you sure you want to clear the entire queue? Locked files will not be deleted. This action cannot be undone.
-            </p>
+      {showClearConfirm && (() => {
+        const { jobs: allJobs, lockedJobIds } = useQueueStore.getState();
+        const nonLocked = allJobs.filter((j) => !lockedJobIds.includes(j.id));
+        const hasProcessing = nonLocked.some((j) => j.status === 'processing' || j.status === 'queued');
+        const isIndonesian = useSettingsStore.getState().language === 'id';
+        return (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
+            <div className="bg-slate-900 border border-white/10 p-6 rounded-2xl max-w-sm w-full shadow-2xl flex flex-col gap-4">
+              <h3 className="text-sm font-semibold text-white uppercase tracking-wider">Confirm Clear Queue</h3>
+              <p className="text-xs text-white/60 leading-relaxed">
+                {isIndonesian
+                  ? "Apakah Anda yakin ingin menghapus seluruh antrean? File yang terkunci tidak akan dihapus. Tindakan ini tidak dapat dibatalkan."
+                  : "Are you sure you want to clear the entire queue? Locked files will not be deleted. This action cannot be undone."}
+              </p>
+              {hasProcessing && (
+                <p className="text-xs text-red-400 font-semibold leading-relaxed">
+                  {isIndonesian
+                    ? "Peringatan: Beberapa file dalam antrean sedang diproses!"
+                    : "Warning: Some files in the queue are currently being processed!"}
+                </p>
+              )}
+              <div className="flex justify-end gap-2 mt-2">
+                <button
+                  onClick={() => setShowClearConfirm(false)}
+                  className="px-3 py-1.5 rounded-lg text-xs font-medium bg-white/5 hover:bg-white/10 text-white transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={async () => {
+                    setShowClearConfirm(false);
+                    await handleClearQueue();
+                  }}
+                  className="px-3 py-1.5 rounded-lg text-xs font-medium bg-red-600 hover:bg-red-500 text-white transition-colors"
+                >
+                  Yes, Clear All
+                </button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
+
+      {errorDetailModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm" onClick={() => setErrorDetailModal(null)}>
+          <div className="bg-slate-900 border border-white/10 p-6 rounded-2xl max-w-md w-full shadow-2xl flex flex-col gap-4" onClick={(e) => e.stopPropagation()}>
+            <h3 className="text-sm font-semibold text-red-500 uppercase tracking-wider">Enhancement Error Details</h3>
+            <div className="flex flex-col gap-1">
+              <span className="text-[10px] text-white/45 uppercase font-medium">File</span>
+              <span className="text-xs text-white font-medium truncate">{errorDetailModal.filename}</span>
+            </div>
+            <div className="flex flex-col gap-1">
+              <span className="text-[10px] text-white/45 uppercase font-medium">Error Message</span>
+              <div className="bg-black/40 border border-white/5 p-3 rounded-lg max-h-48 overflow-y-auto scrollbar-thin">
+                <code className="text-xs text-red-400 font-mono break-all leading-relaxed whitespace-pre-wrap">{errorDetailModal.errorMessage}</code>
+              </div>
+            </div>
             <div className="flex justify-end gap-2 mt-2">
               <button
-                onClick={() => setShowClearConfirm(false)}
-                className="px-3 py-1.5 rounded-lg text-xs font-medium bg-white/5 hover:bg-white/10 text-white transition-colors"
+                onClick={() => setErrorDetailModal(null)}
+                className="px-4 py-1.5 rounded-lg text-xs font-medium bg-white/5 hover:bg-white/10 text-white transition-colors"
               >
-                Cancel
-              </button>
-              <button
-                onClick={async () => {
-                  setShowClearConfirm(false);
-                  await handleClearQueue();
-                }}
-                className="px-3 py-1.5 rounded-lg text-xs font-medium bg-red-600 hover:bg-red-500 text-white transition-colors"
-              >
-                Yes, Clear All
+                Close
               </button>
             </div>
           </div>

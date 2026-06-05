@@ -1,6 +1,7 @@
 import { validateFile, getFilename } from '@/lib/fileValidation';
-import { invokeAddFiles } from '@/lib/ipc';
+import { invokeAddFiles, invokeSetDestination } from '@/lib/ipc';
 import { useQueueStore } from '@/stores/useQueueStore';
+import { useSettingsStore } from '@/stores/useSettingsStore';
 import { useUIStore } from '@/stores/useUIStore';
 
 export const MAX_QUEUE_JOBS = 150;
@@ -80,6 +81,17 @@ export async function submitAddFilesDirect(
   const res = await invokeAddFiles(capped);
   if (res.success && res.data) {
     useQueueStore.getState().addJobs(res.data);
+    // Auto-apply settings default output folder to new jobs that have no destination
+    const outputFolder = useSettingsStore.getState().outputFolder;
+    if (outputFolder) {
+      const emptyDestIds = res.data.filter((j) => !j.destination).map((j) => j.id);
+      if (emptyDestIds.length > 0) {
+        useQueueStore.getState().setDestinationBatch(emptyDestIds, outputFolder);
+        for (const id of emptyDestIds) {
+          void invokeSetDestination(id, outputFolder);
+        }
+      }
+    }
     if (skippedInvalid > 0) {
       useUIStore.getState().setImportError(`${skippedInvalid} unsupported file(s) skipped.`);
       setTimeout(() => useUIStore.getState().setImportError(null), 3000);
