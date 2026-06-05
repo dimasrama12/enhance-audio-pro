@@ -266,6 +266,19 @@ chore    : [configuration changes, tooling, etc.]
 - [x] QueueJob type extended with ab_mode?: 'enhanced' | 'original'; setAbMode action added to useQueueStore
 - [x] Backend sidecar rebuilt via PyInstaller with all fixes
 
+# PRD Tasks 63 & 64 — Bug Fixes, Destination Persistence, Done Badge, Column Alignment (2026-06-05)
+- [x] Task 63.1 — Destination path bug fixed: importHelper.ts now auto-calls invokeSetDestination for all new jobs using settings.outputFolder as default, so Python enhance.py always reads a real path and never falls back to filepath.parent
+- [x] Task 63.2 — Done status badge: A/B "Enhanced / Original" toggle buttons removed from queue table rows and grid cards; StatusBadge shows green "Done" once enhancement finishes (A/B toggle remains in Waveform Player)
+- [x] Task 63.3 — Cache cleanup on close: cleanup_temp_files() in lib.rs runs on CloseRequested, scans DB for temp-dir paths and deletes any files in the system temp directory; partial output cleanup on cancellation added to enhance.py
+- [x] Task 63.4 — Column alignment fixed: FILENAME th AND td both carry style={{ width:'100%', minWidth:colWidths.filename }} so STATUS/SIZE/FORMAT/BITRATE/SAMPLE HZ columns remain right-anchored during resize
+- [x] Task 63.5 — Delete confirmation popup: row trash icon, toolbar "Delete Selected" button, and Delete keyboard shortcut all show window.confirm() if any targeted job is processing or queued; Clear All modal shows an extra red warning line when processing jobs are present
+- [x] Task 63.6 — Seamless waveform A/B toggle: loading waveform overlay paragraph removed from WaveformPlayer; toggle switches source in the background with no flash
+- [x] Task 63.7 — History panel: RefreshCw icon removed; clicking a history row calls invokeShowItemInFolder(job.output_filepath) to open/highlight the file in Explorer
+- [x] Task 64.1 — EnhanceRowButton hidden when done; amber "Retry" button on error; dimmed 30% opacity when queued
+- [x] Task 64.2 — enhance.py reads output_format from DB and saves enhanced file with the user-selected extension
+- [x] Task 64.3 — enhance_speech.py handles non-native formats (MP3/AAC/M4A/OPUS/WMA) via temp WAV + ffmpeg conversion; intermediate WAV always cleaned up
+- [x] Release binary rebuilt: D:\cargo_build\enhance-audio-pro\release\enhance-audio-pro.exe (7.7 MB, 2026-06-05 21:26)
+
 # Test Coverage (final)
 - 38/38 Vitest (frontend)
 - 65/65 Pytest (backend)
@@ -416,3 +429,18 @@ Full list of fixes applied (commit 4991a04):
 
 ---
 _This CLAUDE.md is customized specifically for the Enhance Audio Pro project. Update this file's contents whenever there are architectural changes or completed feature progress._
+
+### 18.14 CRITICAL BUILD RULE — Path With Spaces (2026-06-05)
+- **Problem:** The workspace is at `D:\vibe coding\app enhance audio pro` — a path with spaces. The GNU linker (`rust-lld`) treats spaces as argument delimiters, so any rlib path embedded in Cargo's linker args that contains spaces fails with `could not open 'coding\\app\\'`.
+- **Historical cause:** Running `cargo check` or `cargo build` WITHOUT `CARGO_TARGET_DIR` writes artifacts to `src-tauri/target/` (inside the spaces path). These artifacts embed their own path. When Cargo later picks them up as cached proc-macro outputs, the linker fails.
+- **Fix applied (June 5, 2026):** Deleted `src-tauri/target/` entirely to remove old artifacts compiled against the spaces path.
+- **MANDATORY RULE:** **ALWAYS** set `CARGO_TARGET_DIR=D:\cargo_build\enhance-audio-pro` before ANY `cargo` command. Never run `cargo check`, `cargo build`, or `cargo clean` without this env var. The junction `D:\app_enhance_audio_pro` → workspace path avoids the issue in some contexts, but CARGO_TARGET_DIR is the definitive fix.
+- **Recommended commands:**
+  ```powershell
+  # Correct way to run cargo check:
+  $env:CARGO_TARGET_DIR='D:\cargo_build\enhance-audio-pro'; cargo check
+  # Correct way to build:
+  $env:CARGO_TARGET_DIR='D:\cargo_build\enhance-audio-pro'; npm run tauri build
+  # Or use the build scripts (they set it automatically):
+  npm run build:full   # calls build-app.ps1 which sets CARGO_TARGET_DIR
+  ```
