@@ -43,8 +43,8 @@ export async function invokeSaveSettings(settings: AppSettings): Promise<IpcResp
   return invoke<IpcResponse<null>>('save_settings', { settings });
 }
 
-export async function invokeProcessQueue(jobIds: string[], enhancementStrength = 50): Promise<IpcResponse<null>> {
-  return invoke<IpcResponse<null>>('process_queue', { jobIds, enhancementStrength });
+export async function invokeProcessQueue(jobIds: string[], enhancementStrength = 50, aiModel = 'deepfilternet'): Promise<IpcResponse<null>> {
+  return invoke<IpcResponse<null>>('process_queue', { jobIds, enhancementStrength, aiModel });
 }
 
 export async function invokeSetBitrate(jobId: string, bitrate: string): Promise<IpcResponse<null>> {
@@ -97,4 +97,8 @@ export async function invokeSetSampleRate(jobId: string, sampleRate: string): Pr
 
 export async function invokeSaveRecording(bytes: number[], filename: string): Promise<IpcResponse<string>> {
   return invoke<IpcResponse<string>>('save_recording', { bytes, filename });
+}
+
+export async function invokeCancelJobs(jobIds: string[]): Promise<IpcResponse<null>> {
+  return invoke<IpcResponse<null>>('cancel_jobs', { jobIds });
 }

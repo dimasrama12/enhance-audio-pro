@@ -5,6 +5,7 @@ import { clsx } from 'clsx';
 import { GripVertical, Play, Pause, FolderOpen, Lock, ChevronRight, Trash2, Wand2 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { open as openDialog } from '@tauri-apps/plugin-dialog';
+import ProcessingTimer from '@/components/ProcessingTimer';
 import {
   DndContext,
   DragOverlay,
@@ -29,7 +30,7 @@ import { useQueueStore } from '@/stores/useQueueStore';
 import { useUIStore } from '@/stores/useUIStore';
 import { useSettingsStore } from '@/stores/useSettingsStore';
 import { useAudioPlayer } from '@/stores/useAudioPlayer';
-import { invokeSetOutputFormat, invokeSetBitrate, invokeSetSampleRate, invokeArchiveJobs, invokeProcessQueue } from '@/lib/ipc';
+import { invokeSetOutputFormat, invokeSetBitrate, invokeSetSampleRate, invokeArchiveJobs, invokeProcessQueue, invokeCancelJobs } from '@/lib/ipc';
 import { useToastStore } from '@/stores/useToastStore';
 import type { QueueJob, JobStatus } from '@/types/queue';
 
@@ -57,6 +58,7 @@ function ResizeHandle({ onDelta }: ResizeHandleProps): JSX.Element {
 
 const STATUS_BADGE_CLS: Record<JobStatus, string> = {
   pending: 'bg-slate-400/10 text-slate-500 dark:text-slate-400',
+  queued: 'bg-blue-400/10 text-blue-500 dark:text-blue-400',
   processing: 'bg-amber-400/10 text-amber-600 dark:text-amber-400',
   done: 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400',
   error: 'bg-red-500/10 text-red-500 dark:text-red-400',
@@ -173,28 +175,42 @@ function SampleRateSelect({ job }: { job: QueueJob }): JSX.Element {
 
 function EnhanceRowButton({ job }: { job: QueueJob }): JSX.Element {
   const enhancementStrength = useSettingsStore((s) => s.enhancementStrength);
-  const isDisabled = job.status === 'processing' || job.status === 'done';
+  const { addToast } = useToastStore();
+  const isDisabled = job.status === 'done' || job.status === 'queued';
+  const isProcessing = job.status === 'processing';
 
   async function handleEnhance(e: React.MouseEvent): Promise<void> {
     e.stopPropagation();
     if (isDisabled) return;
-    await invokeProcessQueue([job.id], enhancementStrength);
+    if (isProcessing) {
+      try {
+        await invokeCancelJobs([job.id]);
+        addToast(`Cancelled "${job.filename}"`, 'info');
+      } catch (err) {
+        console.error('Failed to cancel', err);
+      }
+      return;
+    }
+    const { aiModel } = useSettingsStore.getState();
+    await invokeProcessQueue([job.id], enhancementStrength, aiModel);
   }
 
   return (
     <button
       onClick={handleEnhance}
-      disabled={isDisabled}
-      title={job.status === 'done' ? 'Already enhanced' : 'Enhance this file'}
+      disabled={isDisabled && !isProcessing}
+      title={job.status === 'done' ? 'Already enhanced' : isProcessing ? 'Cancel processing' : 'Enhance this file'}
       className={clsx(
         'flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-medium transition-all duration-150',
-        isDisabled
+        isDisabled && !isProcessing
           ? 'opacity-30 cursor-not-allowed text-slate-400 dark:text-white/30'
+          : isProcessing 
+          ? 'bg-red-500/10 text-red-600 dark:text-red-400 hover:bg-red-500/20'
           : 'bg-violet-500/10 text-violet-600 dark:text-violet-400 hover:bg-violet-500/20',
       )}
     >
-      <Wand2 size={10} />
-      Enhance
+      {isProcessing ? <Trash2 size={10} /> : <Wand2 size={10} />}
+      {isProcessing ? 'Cancel' : 'Enhance'}
     </button>
   );
 }
@@ -279,6 +295,7 @@ function SortableJobRow({ job, index, isSelected, onSelect, isImporting, activeD
             <Play size={10} fill="currentColor" />
           </button>
           <span className="truncate">{job.filename}</span>
+          {job.status === 'processing' && <ProcessingTimer startedAt={job.startedAt} />}
         </div>
       </td>
       <td
@@ -736,7 +753,8 @@ export default function QueueGrid(): JSX.Element {
         if (status === 'done') {
           addToast(`"${filename}" enhanced successfully`, 'success');
         } else if (status === 'error') {
-          addToast(`Error enhancing "${filename}"`, 'error');
+          console.error(`Error enhancing "${filename}":`, error_message);
+          addToast(`Error: ${error_message || "Failed to enhance " + filename}`, 'error');
         }
       }
     );

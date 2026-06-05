@@ -1,14 +1,16 @@
 import { create } from 'zustand';
 
+export type ToastType = 'success' | 'error' | 'info';
+
 export interface ToastEntry {
   id: string;
   message: string;
-  type: 'success' | 'error';
+  type: ToastType;
 }
 
 interface ToastState {
   toasts: ToastEntry[];
-  addToast: (message: string, type: 'success' | 'error') => void;
+  addToast: (message: string, type: ToastType) => void;
   dismissToast: (id: string) => void;
 }
 

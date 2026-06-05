@@ -11,6 +11,7 @@ pub fn process_queue(
     app_handle: AppHandle,
     job_ids: Vec<String>,
     enhancement_strength: Option<f64>,
+    ai_model: Option<String>,
 ) -> IpcResponse<()> {
     if job_ids.is_empty() {
         return IpcResponse {
@@ -59,11 +60,75 @@ pub fn process_queue(
         "job_ids": updated_ids,
         "callback_url": format!("http://127.0.0.1:{}", callback_port),
         "strength": strength,
+        "model_type": ai_model.unwrap_or_else(|| "deepfilternet".to_string()),
     });
 
     tauri::async_runtime::spawn(async move {
         let url = format!("http://127.0.0.1:{}/enhance", backend_port);
         let _ = reqwest::Client::new().post(&url).json(&payload).send().await;
+    });
+
+    IpcResponse {
+        success: true,
+        data: Some(()),
+        error: None,
+    }
+}
+
+#[tauri::command]
+pub fn cancel_jobs(
+    state: State<'_, AppState>,
+    app_handle: AppHandle,
+    job_ids: Vec<String>,
+) -> IpcResponse<()> {
+    if job_ids.is_empty() {
+        return IpcResponse {
+            success: true,
+            data: Some(()),
+            error: None,
+        };
+    }
+
+    let backend_port = state.backend_port;
+
+    // Immediately revert status in DB and emit events so the UI responds instantly.
+    // Only revert jobs that are still in an active state — don't clobber 'done'.
+    {
+        let conn = match state.db.lock() {
+            Ok(c) => c,
+            Err(e) => {
+                return IpcResponse {
+                    success: false,
+                    data: None,
+                    error: Some(e.to_string()),
+                }
+            }
+        };
+        let now = chrono::Utc::now().to_rfc3339();
+        for id in &job_ids {
+            let _ = conn.execute(
+                "UPDATE queue_jobs SET status = 'pending', updated_at = ?1 WHERE id = ?2 AND status IN ('processing','queued')",
+                rusqlite::params![now, id],
+            );
+        }
+    }
+
+    for id in &job_ids {
+        let _ = app_handle.emit(
+            "queue://status-change",
+            json!({ "jobId": id, "status": "pending" }),
+        );
+    }
+
+    // Fire-and-forget cancellation signal to Python sidecar
+    let ids = job_ids.clone();
+    tauri::async_runtime::spawn(async move {
+        let url = format!("http://127.0.0.1:{}/cancel", backend_port);
+        let _ = reqwest::Client::new()
+            .post(&url)
+            .json(&serde_json::json!({ "job_ids": ids }))
+            .send()
+            .await;
     });
 
     IpcResponse {

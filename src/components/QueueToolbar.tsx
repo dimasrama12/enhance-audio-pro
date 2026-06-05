@@ -6,14 +6,19 @@ import RecordButton from '@/components/RecordButton';
 import { useQueueStore } from '@/stores/useQueueStore';
 import { useSettingsStore } from '@/stores/useSettingsStore';
 import { useUIStore } from '@/stores/useUIStore';
+import { useToastStore } from '@/stores/useToastStore';
 import {
   invokeProcessQueue,
   invokeSeparateStems,
   invokeConvertFiles,
   invokeSetOutputFormat,
   invokeArchiveJobs,
+  invokeCancelJobs,
 } from '@/lib/ipc';
+import { createLogger } from '@/lib/logger';
 import type { ViewMode } from '@/stores/useQueueStore';
+
+const log = createLogger('QueueToolbar');
 
 const FILTERS = [
   { value: 'all', label: 'All' }, { value: 'pending', label: 'Pending' },
@@ -31,7 +36,9 @@ export default function QueueToolbar(): JSX.Element {
   const focusSearchTick = useUIStore((s) => s.focusSearchTick);
   const activeTab = useUIStore((s) => s.activeTab);
   const searchRef = useRef<HTMLInputElement>(null);
+  const abortProcessRef = useRef(false);
   const { t } = useTranslation();
+  const { addToast } = useToastStore();
 
   useEffect(() => {
     if (focusSearchTick > 0) searchRef.current?.focus();
@@ -42,8 +49,12 @@ export default function QueueToolbar(): JSX.Element {
   const [isConverting, setIsConverting] = useState(false);
   const [globalFormat, setGlobalFormat] = useState('wav');
 
+  // "Enhance All" targets pending + error files — error files can be retried.
+  // Separate / Convert only operate on strictly pending files.
   const pendingIds = jobs.filter((j) => j.status === 'pending').map((j) => j.id);
-  const canEnhance = pendingIds.length > 0 && !isProcessing;
+  const enhanceableIds = jobs.filter((j) => j.status === 'pending' || j.status === 'error').map((j) => j.id);
+
+  const canEnhance = enhanceableIds.length > 0 && !isProcessing;
   const canSeparate = pendingIds.length > 0 && !isSeparating;
   const canConvert = pendingIds.length > 0 && !isConverting;
 
@@ -58,7 +69,10 @@ export default function QueueToolbar(): JSX.Element {
         // 5-minute per-job timeout — prevents infinite hang if the sidecar
         // crashes or the callback POST silently fails.
         const timeoutId = setTimeout(() => {
-          if (!settled) { settled = true; unlisten?.(); resolve(); }
+          if (!settled) {
+            log.warn(`Job ${id} timed out after 5 minutes — advancing queue`);
+            settled = true; unlisten?.(); resolve();
+          }
         }, 300_000);
 
         const settle = (): void => {
@@ -67,14 +81,21 @@ export default function QueueToolbar(): JSX.Element {
 
         listen<{ jobId: string; status: string }>('queue://status-change', (evt) => {
           if (!settled && evt.payload.jobId === id &&
-            (evt.payload.status === 'done' || evt.payload.status === 'error')) {
+            (evt.payload.status === 'done' || evt.payload.status === 'error' || evt.payload.status === 'pending')) {
+            log.info(`Job ${id} settled with status: ${evt.payload.status}`);
             settle();
           }
         }).then((fn) => {
           unlisten = fn;
-          if (!settled) invoke(id).catch(() => settle());
+          if (!settled && !abortProcessRef.current) {
+            log.info(`Dispatching job ${id}`);
+            invoke(id).catch(() => settle());
+          } else {
+            settle();
+          }
         });
       });
+      if (abortProcessRef.current) break;
     }
   }
 
@@ -97,8 +118,34 @@ export default function QueueToolbar(): JSX.Element {
   async function handleProcess(): Promise<void> {
     if (!canEnhance) return;
     setIsProcessing(true);
-    try { await runSequentially(pendingIds, (id) => invokeProcessQueue([id], enhancementStrength)); }
-    finally { setIsProcessing(false); }
+    abortProcessRef.current = false;
+    const { setStatus } = useQueueStore.getState();
+    const { aiModel } = useSettingsStore.getState();
+    log.info(`Enhance All: queuing ${enhanceableIds.length} job(s)`);
+    enhanceableIds.forEach(id => setStatus(id, 'queued'));
+    try {
+      await runSequentially(enhanceableIds, (id) => invokeProcessQueue([id], enhancementStrength, aiModel));
+    } finally {
+      setIsProcessing(false);
+      log.info('Enhance All: batch complete');
+    }
+  }
+
+  async function handleCancelAll(): Promise<void> {
+    abortProcessRef.current = true;
+    const { jobs } = useQueueStore.getState();
+    const activeIds = jobs.filter(j => j.status === 'processing' || j.status === 'queued').map(j => j.id);
+    log.info(`Cancel All: cancelling ${activeIds.length} active job(s)`);
+    if (activeIds.length > 0) {
+      try {
+        await invokeCancelJobs(activeIds);
+        addToast(`Cancelled ${activeIds.length} job${activeIds.length > 1 ? 's' : ''}`, 'info');
+        log.info(`Cancel All: sent cancel signal for ${activeIds.length} job(s)`);
+      } catch (err) {
+        log.error('Cancel All failed', err);
+      }
+    }
+    setIsProcessing(false);
   }
 
   async function handleSeparate(): Promise<void> {
@@ -149,6 +196,7 @@ export default function QueueToolbar(): JSX.Element {
     <div className="flex items-center gap-2 shrink-0 flex-wrap">
       {/* ── Left: Primary action buttons ── */}
       <div className="flex items-center gap-1 bg-slate-100 dark:bg-white/[0.03] rounded-xl px-1 py-1 border border-slate-200 dark:border-white/[0.06]">
+        {/* Enhance All — always visible; disabled while a batch is running */}
         <button
           onClick={handleProcess}
           disabled={!canEnhance}
@@ -174,6 +222,16 @@ export default function QueueToolbar(): JSX.Element {
           {isConverting ? 'Converting…' : 'Convert All'}
         </button>
         {activeTab === 'audio' && <RecordButton />}
+        {/* Cancel All — only visible while a batch is processing; placed after Record */}
+        {isProcessing && (
+          <button
+            onClick={handleCancelAll}
+            title="Cancel all active enhancements"
+            className="flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium h-[28px] shrink-0 transition-all duration-150 bg-red-600 hover:bg-red-500 text-white shadow-glow-red-sm"
+          >
+            Cancel All
+          </button>
+        )}
       </div>
 
       {/* ── Spacer ── */}
