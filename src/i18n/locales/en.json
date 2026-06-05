@@ -18,6 +18,7 @@
   },
   "queue": {
     "empty": "No files in queue. Drop audio or video files above to get started.",
+    "confirmDeleteProcessing": "Are you sure you want to delete? The file is currently being processed.",
     "col": {
       "index": "#",
       "filename": "Filename",

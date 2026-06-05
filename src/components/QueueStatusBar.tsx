@@ -31,6 +31,17 @@ export default function QueueStatusBar(): JSX.Element {
       {error > 0 && (
         <span className="text-red-500 dark:text-red-400">{error} error{error !== 1 ? 's' : ''}</span>
       )}
+      {(processing > 0 || jobs.some(j => j.status === 'queued')) && (
+        <>
+          <span className="text-slate-300 dark:text-white/10">|</span>
+          <button
+            onClick={() => window.dispatchEvent(new CustomEvent('queue:cancel-all'))}
+            className="text-red-500 hover:text-red-400 font-semibold focus:outline-none transition-colors transition-all active:scale-95 cursor-pointer"
+          >
+            Cancel All
+          </button>
+        </>
+      )}
     </div>
   );
 }

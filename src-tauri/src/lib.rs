@@ -14,7 +14,7 @@ use commands::manipulate::{apply_eq, loop_audio, manipulate_audio, merge_audio};
 use commands::process::{cancel_jobs, process_queue};
 use commands::queue::{
     add_files, list_folder_files, get_queue, get_recent_history, archive_jobs, archive_all_queue,
-    delete_job, delete_all_history, read_audio_file,
+    delete_job, delete_all_history, read_audio_file, set_destination, show_item_in_folder,
 };
 use commands::separate::separate_stems;
 use commands::settings::{get_settings, save_settings};
@@ -79,6 +79,11 @@ pub fn run() {
                 api.prevent_close();
 
                 let state = window.state::<AppState>();
+                // Clean up temporary files (recordings/caches) stored in system temp dir
+                if let Ok(conn) = state.db.lock() {
+                    cleanup_temp_files(window.app_handle(), &conn);
+                }
+
                 // Kill Python backend sidecar so no orphaned processes remain
                 if let Ok(mut child_lock) = state.sidecar_child.lock() {
                     if let Some(child) = child_lock.take() {
@@ -116,7 +121,37 @@ pub fn run() {
             loop_audio,
             apply_eq,
             read_audio_file,
+            set_destination,
+            show_item_in_folder,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
+}
+
+fn cleanup_temp_files(app_handle: &tauri::AppHandle, db: &rusqlite::Connection) {
+    if let Ok(temp_dir) = app_handle.path().temp_dir() {
+        if let Ok(mut stmt) = db.prepare("SELECT filepath, output_filepath FROM queue_jobs") {
+            let paths_iter = stmt.query_map([], |row| {
+                let fp: Option<String> = row.get(0).ok();
+                let ofp: Option<String> = row.get(1).ok();
+                Ok((fp, ofp))
+            });
+            if let Ok(rows) = paths_iter {
+                for row_res in rows {
+                    if let Ok((fp, ofp)) = row_res {
+                        for path_str_opt in &[fp, ofp] {
+                            if let Some(path_str) = path_str_opt {
+                                if !path_str.is_empty() {
+                                    let p = std::path::Path::new(path_str);
+                                    if p.starts_with(&temp_dir) && p.is_file() {
+                                        let _ = std::fs::remove_file(p);
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
 }

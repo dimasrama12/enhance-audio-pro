@@ -4,22 +4,31 @@ from PyInstaller.utils.hooks import collect_all, collect_data_files, collect_sub
 torch_datas, torch_binaries, torch_hidden = collect_all('torch')
 torchaudio_datas, torchaudio_binaries, torchaudio_hidden = collect_all('torchaudio')
 demucs_datas, demucs_binaries, demucs_hidden = collect_all('demucs')
+LavaSR_datas, LavaSR_binaries, LavaSR_hidden = collect_all('LavaSR')
 
 a = Analysis(
     ['main.py'],
     pathex=['.'],
-    binaries=torch_binaries + torchaudio_binaries + demucs_binaries,
+    binaries=torch_binaries + torchaudio_binaries + demucs_binaries + LavaSR_binaries,
     datas=(
-        torch_datas + torchaudio_datas + demucs_datas
+        torch_datas + torchaudio_datas + demucs_datas + LavaSR_datas
         + collect_data_files('df')
         + collect_data_files('scipy')
     ),
     hiddenimports=(
-        torch_hidden + torchaudio_hidden + demucs_hidden
+        torch_hidden + torchaudio_hidden + demucs_hidden + LavaSR_hidden
         + collect_submodules('df')
+        + collect_submodules('LavaSR')
         + collect_submodules('numpy')
         + collect_submodules('scipy')
         + [
+            # df submodules
+            'df.checkpoint', 'df.config', 'df.deepfilternet', 'df.deepfilternet2',
+            'df.deepfilternet3', 'df.deepfilternetmf', 'df.enhance',
+            'df.evaluation_utils', 'df.io', 'df.logger', 'df.loss',
+            'df.lr', 'df.model', 'df.modules', 'df.multiframe',
+            'df.sepm', 'df.stoi', 'df.train', 'df.utils',
+            'df.version', 'df.visualization',
             # uvicorn internals
             'uvicorn.logging', 'uvicorn.loops', 'uvicorn.loops.auto',
             'uvicorn.protocols', 'uvicorn.protocols.http',

@@ -1,5 +1,5 @@
 export type MediaType = 'audio' | 'video';
-export type JobStatus = 'pending' | 'processing' | 'done' | 'error';
+export type JobStatus = 'pending' | 'queued' | 'processing' | 'done' | 'error';
 
 export interface QueueJob {
   id: string;
@@ -14,6 +14,7 @@ export interface QueueJob {
   output_format: string;
   bitrate: string;
   output_filepath: string | null;
+  startedAt?: number;
   ab_mode?: 'enhanced' | 'original';
   sample_rate: string;
   created_at: string;

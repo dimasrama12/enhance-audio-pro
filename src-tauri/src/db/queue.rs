@@ -187,6 +187,16 @@ pub fn update_job_output_filepath(conn: &Connection, id: &str, filepath: &str) -
     Ok(())
 }
 
+pub fn update_job_destination(conn: &Connection, id: &str, destination: &str) -> Result<()> {
+    let now = Utc::now().to_rfc3339();
+    conn.execute(
+        "UPDATE queue_jobs SET destination = ?1, updated_at = ?2 WHERE id = ?3",
+        params![destination, now, id],
+    )?;
+    Ok(())
+}
+
+
 pub fn get_recent_jobs(conn: &Connection, limit: i64) -> Result<Vec<QueueJob>> {
     let mut stmt = conn.prepare(
         "SELECT id, filename, filepath, destination, size_bytes, media_type, status,

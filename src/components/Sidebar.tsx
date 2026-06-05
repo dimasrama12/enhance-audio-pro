@@ -26,6 +26,8 @@ export default function Sidebar(): JSX.Element {
       enhancementStrength: store.enhancementStrength,
       filenameTemplate: store.filenameTemplate,
       keyboardShortcuts: store.keyboardShortcuts,
+      recordingPrefix: store.recordingPrefix ?? 'Record',
+      aiModel: store.aiModel ?? 'deepfilternet',
     };
     await invokeSaveSettings(settings);
   };

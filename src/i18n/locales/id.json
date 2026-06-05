@@ -16,6 +16,7 @@
   },
   "queue": {
     "empty": "Tidak ada file dalam antrean. Seret file audio atau video ke sini.",
+    "confirmDeleteProcessing": "Apakah Anda yakin ingin menghapus? File sedang diproses.",
     "col": {
       "index": "#",
       "filename": "Nama File",

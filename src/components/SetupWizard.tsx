@@ -49,6 +49,8 @@ export default function SetupWizard(): JSX.Element {
           enhancementStrength: store.enhancementStrength,
           filenameTemplate: store.filenameTemplate,
           keyboardShortcuts: store.keyboardShortcuts,
+          recordingPrefix: store.recordingPrefix ?? 'Record',
+          aiModel: store.aiModel ?? 'deepfilternet',
         });
       }
     );

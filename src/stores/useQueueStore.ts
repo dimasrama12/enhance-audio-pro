@@ -112,9 +112,15 @@ export const useQueueStore = create<QueueState>()(
 
   setStatus: (id, status, errorMessage) =>
     set((s) => ({
-      jobs: s.jobs.map((j) =>
-        j.id === id ? { ...j, status, error_message: errorMessage ?? j.error_message } : j
-      ),
+      jobs: s.jobs.map((j) => {
+        if (j.id !== id) return j;
+        const newStartedAt = status === 'processing' && j.status !== 'processing' 
+          ? Date.now() 
+          : (status === 'done' || status === 'error' || status === 'pending') 
+            ? undefined 
+            : j.startedAt;
+        return { ...j, status, error_message: errorMessage ?? j.error_message, startedAt: newStartedAt };
+      }),
     })),
 
   setOutputFormat: (id, format) =>

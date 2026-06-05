@@ -17,6 +17,7 @@ import {
 } from '@/lib/ipc';
 import { createLogger } from '@/lib/logger';
 import type { ViewMode } from '@/stores/useQueueStore';
+import type { QueueJob } from '@/types/queue';
 
 const log = createLogger('QueueToolbar');
 
@@ -100,11 +101,24 @@ export default function QueueToolbar(): JSX.Element {
   }
 
   async function handleDeleteSelected(): Promise<void> {
-    const { selectedJobIds, deleteJobs, lockedJobIds } = useQueueStore.getState();
+    const { selectedJobIds, jobs, deleteJobs, lockedJobIds } = useQueueStore.getState();
     if (selectedJobIds.length === 0) return;
 
     const idsToDelete = selectedJobIds.filter((id) => !lockedJobIds.includes(id));
     if (idsToDelete.length === 0) return;
+
+    const activeJobs = idsToDelete.map(id => jobs.find(j => j.id === id)).filter((j): j is QueueJob => j !== undefined && (j.status === 'processing' || j.status === 'queued'));
+    if (activeJobs.length > 0) {
+      const isIndonesian = useSettingsStore.getState().language === 'id';
+      const fallbackMsg = isIndonesian
+        ? (activeJobs.length === 1
+            ? `Apakah Anda yakin ingin menghapus "${activeJobs[0].filename}"? File sedang diproses.`
+            : `Apakah Anda yakin ingin menghapus ${activeJobs.length} file? Beberapa file sedang diproses.`)
+        : (activeJobs.length === 1
+            ? `Are you sure you want to delete "${activeJobs[0].filename}"? The file is currently being processed.`
+            : `Are you sure you want to delete ${activeJobs.length} files? Some files are currently being processed.`);
+      if (!window.confirm(fallbackMsg)) return;
+    }
 
     const activePlayerJobId = useUIStore.getState().activePlayerJobId;
     if (idsToDelete.includes(activePlayerJobId || '')) {
@@ -147,6 +161,14 @@ export default function QueueToolbar(): JSX.Element {
     }
     setIsProcessing(false);
   }
+
+  useEffect(() => {
+    const onCancelAll = (): void => {
+      void handleCancelAll();
+    };
+    window.addEventListener('queue:cancel-all', onCancelAll);
+    return () => window.removeEventListener('queue:cancel-all', onCancelAll);
+  }, []);
 
   async function handleSeparate(): Promise<void> {
     if (!canSeparate) return;
@@ -222,16 +244,6 @@ export default function QueueToolbar(): JSX.Element {
           {isConverting ? 'Converting…' : 'Convert All'}
         </button>
         {activeTab === 'audio' && <RecordButton />}
-        {/* Cancel All — only visible while a batch is processing; placed after Record */}
-        {isProcessing && (
-          <button
-            onClick={handleCancelAll}
-            title="Cancel all active enhancements"
-            className="flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium h-[28px] shrink-0 transition-all duration-150 bg-red-600 hover:bg-red-500 text-white shadow-glow-red-sm"
-          >
-            Cancel All
-          </button>
-        )}
       </div>
 
       {/* ── Spacer ── */}

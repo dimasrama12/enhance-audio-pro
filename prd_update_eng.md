@@ -361,3 +361,48 @@ This document summarizes the update notes and functional improvements that need 
   - Modified the file import logic in the Rust backend (`db::queue::insert_job`) to dynamically extract the original audio file's extension (e.g., `mp3`, `wav`, `flac`) and set it as the default output format for that queue item. Previously, this was hardcoded to `wav`. If a user wishes to convert it to a different format, they can still manually change it via the format dropdown in the table.
 - **Tauri Release Binary Rebuild:**
   - Rebuilt the Tauri application release binary at `D:\cargo_build\enhance-audio-pro\release\enhance-audio-pro.exe`.
+
+## 63. UI Refinements, Deletion Warnings, and Directory Persistence 🚀 [NEW] ✅
+- **Original Indonesian Requests:**
+  1. Setting destination folder saves updates to the SQLite `destination` column directly. Corrected saving to original folders.
+  2. status status enhance is updated to Done green badge instead of showing Enhanced/Original toggles.
+  3. Clean up temporary files on app closure (WindowEvent::CloseRequested) to prevent cache accumulation.
+  4. Flex alignment for column resizing keeps Size, Format, Bitrate, Sample Hz, and Status anchored to the right side next to Tools, Lock, Clear when filename is resized.
+  5. Delete confirmation pop-up triggers when deleting/clearing files in processing/queued states.
+  6. Waveform A/B switches without flashing the "Loading waveform..." text overlay.
+  7. Processed Files History panel refresh icon removed; clicking a row opens/reveals the folder location.
+- **Directory Persistence:**
+  - Persist the custom save destination folder chosen in the table queue items to the SQLite database (`queue_jobs` table `destination` column) so the backend sidecar correctly reads and outputs the processed files to that folder instead of reverting to the source file's directory.
+- **Table Column Resizing and Alignment:**
+  - Modify the column width constraints in the queue table so that shrinking the "FILENAME" column keeps all other right-hand columns (`SIZE`, `FORMAT` (Output), `BITRATE`, `SAMPLE HZ`, `STATUS`) tightly packed and aligned/anchored to the right side next to `TOOLS`, `LOCK`, and `CLEAR`.
+  - To achieve this, give the `STATUS` column a fixed width (e.g., `w-32` / 128px) and make `FILENAME` the flexible column (using `width: '100%'` and `minWidth: colWidths.filename`), allowing it to absorb any remaining horizontal space.
+  - Apply resizable widths dynamically to the `DESTINATION` table cells using `colWidths.destination`.
+- **Done Status Indicator:**
+  - In both Table View and Grid View, remove the A/B toggle buttons ("Enhanced" and "Original") from the status column of the queue. Once enhancement finishes, simply display the green "Done" status badge. (The A/B toggle will remain available inside the Waveform Player).
+- **Confirmation Warnings for Deletions:**
+  - Show a confirmation popup asking: "Apakah Anda yakin ingin menghapus? File sedang diproses." (or equivalent English message depending on the active locale) if the user attempts to delete a file that is in `processing` or `queued` state.
+  - This check must be enforced for keyboard deletes (`Delete` key), single-row trash icon clicks, toolbar "Delete Selected" button clicks, and when executing the "Clear All" action in the table column.
+- **Clean Waveform Player Toggle Transitions:**
+  - Remove the "Loading waveform..." text overlay when toggling between "Enhanced" and "Original" in the Waveform Player. Let the audio load in the background and immediately replace the waveform canvas without any flashing text.
+- **History Panel Updates:**
+  - Remove the refresh (`RefreshCw`) icon from the "Processed Files History" panel header.
+  - Bind clicking a history item row to open/reveal the output file in the OS File Explorer (e.g. using a native `explorer.exe /select,"<path>"` command on Windows).
+- **Process Cancellation & Application Cache Cleanup:**
+  - Ensure all temporary/cache files created during processing or cancellation are cleanly deleted.
+  - Implement a cleanup routine in the Rust layer to locate and delete any temporary recorded or processed audio files stored in the system temp directory on application exit (`WindowEvent::CloseRequested` handler).
+
+
+## 64. Enhance Pipeline Improvements & Output Format Fix 🚀 [NEW] ✅
+- **EnhanceRowButton UX Cleanup:**
+  - When a queue item status is `done`, the Enhance button in the TOOLS column is now hidden entirely (returns null). Only the green Done status badge is shown — this is cleaner and less confusing.
+  - Error status now shows an amber "Retry" button instead of the same purple "Enhance" button, making it visually distinct.
+  - Queued status shows a disabled (30% opacity) button instead of the isDisabled logic conflating done+queued states.
+- **Output Format Respect:**
+  - `backend/routers/enhance.py` now reads `output_format` from the DB (previously only `filepath, destination, filename` were read). The output filename extension now correctly uses the user-selected format (e.g. if user changes format to `mp3`, the enhanced file is saved as `_enhanced.mp3`).
+  - `backend/processors/enhance_speech.py` now handles non-native soundfile formats (MP3, AAC, M4A, OPUS, WMA): enhances to a temporary WAV first, then converts to the requested format via ffmpeg. The intermediate WAV is always cleaned up.
+- **Partial Output Cleanup on Cancellation:**
+  - When a job is cancelled mid-enhancement, `backend/routers/enhance.py` now detects and deletes any partially-written output file before sending the `pending` status callback. This prevents stale/incomplete files from accumulating on disk.
+- **Old Rust Target Directory Cleanup:**
+  - Deleted `src-tauri/target/` (the default Cargo output dir in the path-with-spaces workspace). This directory contained old artifacts compiled against the spaces path that caused linker failures (`rust-lld: error: could not open 'coding\\app\\'`). All future Rust builds must use `CARGO_TARGET_DIR=D:\cargo_build\enhance-audio-pro`.
+- **Release Binary Rebuild:**
+  - Rebuilt Python sidecar and Tauri release binary at `D:\cargo_build\enhance-audio-pro\release\enhance-audio-pro.exe`.

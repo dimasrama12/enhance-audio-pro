@@ -7,6 +7,19 @@ export async function invokeAddFiles(paths: string[]): Promise<IpcResponse<Queue
   return invoke<IpcResponse<QueueJob[]>>('add_files', { paths });
 }
 
+export async function invokeSetDestination(jobId: string, destination: string): Promise<IpcResponse<null>> {
+  return invoke<IpcResponse<null>>('set_destination', { jobId, destination });
+}
+
+export async function invokeShowItemInFolder(path: string): Promise<IpcResponse<null>> {
+  try {
+    await invoke('show_item_in_folder', { path });
+    return { success: true, data: null, error: null };
+  } catch (err) {
+    return { success: false, data: null, error: String(err) };
+  }
+}
+
 export async function invokeListFolderFiles(folder: string): Promise<IpcResponse<string[]>> {
   return invoke<IpcResponse<string[]>>('list_folder_files', { folder });
 }

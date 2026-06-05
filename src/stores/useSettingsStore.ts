@@ -13,6 +13,7 @@ interface SettingsState extends AppSettings {
   setFilenameTemplate: (t: string) => void;
   setKeyboardShortcuts: (shortcuts: KeyboardShortcutMap) => void;
   setRecordingPrefix: (prefix: string) => void;
+  setAiModel: (model: 'deepfilternet' | 'lavasr') => void;
   markSetupComplete: () => void;
   setInitialized: (v: boolean) => void;
 }
@@ -30,6 +31,7 @@ export const useSettingsStore = create<SettingsState>()(
       setFilenameTemplate: (filenameTemplate) => set({ filenameTemplate }),
       setKeyboardShortcuts: (keyboardShortcuts) => set({ keyboardShortcuts }),
       setRecordingPrefix: (recordingPrefix) => set({ recordingPrefix }),
+      setAiModel: (aiModel: 'deepfilternet' | 'lavasr') => set({ aiModel }),
       markSetupComplete: () => set({ setupComplete: true }),
       setInitialized: (initialized) => set({ initialized }),
     }),
@@ -43,6 +45,7 @@ export const useSettingsStore = create<SettingsState>()(
         filenameTemplate: state.filenameTemplate,
         keyboardShortcuts: state.keyboardShortcuts,
         recordingPrefix: state.recordingPrefix,
+        aiModel: state.aiModel,
       }),
     }
   )

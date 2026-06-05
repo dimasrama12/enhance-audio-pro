@@ -148,7 +148,32 @@ def enhance_file(
         enhanced_audio = torch.cat(enhanced_chunks, dim=-1)
 
         t_save = time.perf_counter()
-        save_audio(output_path, enhanced_audio, df_state.sr())
+        # DeepFilterNet's save_audio writes via soundfile — natively supports WAV, FLAC, OGG.
+        # For other formats (MP3, AAC, M4A, OPUS, WMA) we save to a temp WAV first, then
+        # convert via ffmpeg.
+        output_ext = pathlib.Path(output_path).suffix.lower().lstrip('.')
+        _SOUNDFILE_SAVE_NATIVE = {'wav', 'flac', 'ogg', 'aiff', 'aif'}
+        if output_ext in _SOUNDFILE_SAVE_NATIVE:
+            save_audio(output_path, enhanced_audio, df_state.sr())
+        else:
+            # Save intermediate WAV to temp dir then convert
+            wav_tmp = str(pathlib.Path(tmp_dir) / "enhanced_out.wav")
+            save_audio(wav_tmp, enhanced_audio, df_state.sr())
+            logger.info(f"[{job_id}] Converting WAV → {output_ext.upper()} via ffmpeg")
+            conv_result = subprocess.run(
+                [_ffmpeg_exe(), '-y', '-i', wav_tmp, output_path],
+                capture_output=True,
+                text=True,
+            )
+            # Always clean up the intermediate WAV
+            try:
+                os.unlink(wav_tmp)
+            except OSError:
+                pass
+            if conv_result.returncode != 0:
+                raise RuntimeError(
+                    f"ffmpeg post-conversion failed (exit {conv_result.returncode}): {conv_result.stderr[-400:]}"
+                )
         logger.info(f"[{job_id}] Saved to {output_path!r} in {time.perf_counter() - t_save:.2f}s")
 
         progress_cb(100)

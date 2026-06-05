@@ -80,7 +80,7 @@ export default function WaveformPlayer({ filepath, outputFilepath, filename }: P
 
   const [isPlaying, setIsPlaying] = useState(false);
   const [isReady, setIsReady] = useState(false);
-  const [isLoading, setIsLoading] = useState(false);
+  const [, setIsLoading] = useState(false);
   const [showOutput, setShowOutput] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
@@ -919,9 +919,6 @@ export default function WaveformPlayer({ filepath, outputFilepath, filename }: P
         className="rounded-lg overflow-hidden bg-slate-100 dark:bg-white/[0.05] border border-slate-200 dark:border-white/[0.08] min-h-[72px]"
         style={{ transform: 'translateZ(0)', willChange: 'transform, opacity' }}
       />
-      {isLoading && (
-        <p className="text-[10px] text-slate-400 dark:text-white/30 text-center -mt-2">Loading waveform…</p>
-      )}
       {loadError && (
         <div className="absolute inset-0 flex flex-col items-center justify-center bg-slate-100/90 dark:bg-slate-900/90 z-20 rounded-lg">
           <span className="text-red-500 font-semibold text-xs mb-1">Playback Error</span>

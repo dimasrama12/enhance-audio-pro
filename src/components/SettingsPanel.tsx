@@ -169,6 +169,7 @@ export default function SettingsPanel({ open, onClose }: Props): JSX.Element {
       filenameTemplate: store.filenameTemplate,
       keyboardShortcuts: store.keyboardShortcuts,
       recordingPrefix: store.recordingPrefix ?? 'Record',
+      aiModel: store.aiModel ?? 'deepfilternet',
       ...patch,
     };
     store.setSettings(next);
@@ -273,6 +274,23 @@ export default function SettingsPanel({ open, onClose }: Props): JSX.Element {
                         </span>
                       </div>
                       <p className="text-[10px] text-slate-400 dark:text-white/30">{t('settings.strengthHint')}</p>
+
+                      <label className="text-sm text-slate-900 dark:text-slate-100 mt-2">AI Enhancement Model</label>
+                      <div className="flex gap-2">
+                        {(['deepfilternet', 'lavasr'] as const).map((model) => (
+                          <button
+                            key={model}
+                            onClick={() => save({ aiModel: model })}
+                            className={`flex-1 py-1.5 px-3 rounded-lg text-xs capitalize transition-colors border ${store.aiModel === model
+                                ? 'bg-violet-500/10 border-violet-500/30 text-violet-600 dark:text-violet-400'
+                                : 'bg-transparent border-slate-200 dark:border-white/[0.08] text-slate-500 dark:text-white/50 hover:bg-slate-50 dark:hover:bg-white/[0.02]'
+                              }`}
+                          >
+                            {model === 'deepfilternet' ? 'V1 (DeepFilterNet)' : 'V2 (LavaSR)'}
+                          </button>
+                        ))}
+                      </div>
+                      <p className="text-[10px] text-slate-400 dark:text-white/30">V1 is stable for noise reduction. V2 is faster and provides superior speech quality.</p>
                     </Section>
 
                     <Section title={t('settings.output')}>

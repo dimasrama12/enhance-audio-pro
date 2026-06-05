@@ -62,10 +62,11 @@ async def _process_jobs(job_ids: List[str], callback_url: str, strength: float =
 
     for job_id in job_ids:
         t_job_start = time.perf_counter()
+        output_path: str | None = None  # track for partial cleanup
         try:
             conn = sqlite3.connect(str(db_path))
             row = conn.execute(
-                "SELECT filepath, destination, filename FROM queue_jobs WHERE id = ?",
+                "SELECT filepath, destination, filename, output_format FROM queue_jobs WHERE id = ?",
                 (job_id,),
             ).fetchone()
             conn.close()
@@ -74,16 +75,17 @@ async def _process_jobs(job_ids: List[str], callback_url: str, strength: float =
                 logger.warning(f"[{job_id}] Not found in DB — skipping")
                 continue
 
-            filepath, destination, filename = row
+            filepath, destination, filename, output_format = row
+            # output_format is the user-selected format (e.g. 'wav', 'mp3', 'flac')
+            output_format = (output_format or pathlib.Path(filename).suffix.lstrip('.')).lower()
             stem = pathlib.Path(filename).stem
-            suffix = pathlib.Path(filename).suffix
             out_dir = (
                 pathlib.Path(destination)
                 if destination
                 else pathlib.Path(filepath).parent
             )
             out_dir.mkdir(parents=True, exist_ok=True)
-            output_path = str(out_dir / f"{stem}_enhanced{suffix}")
+            output_path = str(out_dir / f"{stem}_enhanced.{output_format}")
 
             logger.info(f"[{job_id}] Starting: {filename!r} → {output_path!r} (model={model_type}, strength={strength:.2f})")
 
@@ -125,6 +127,15 @@ async def _process_jobs(job_ids: List[str], callback_url: str, strength: float =
         except JobCancelledError:
             elapsed = time.perf_counter() - t_job_start
             logger.info(f"[{job_id}] Cancelled after {elapsed:.2f}s")
+            # Clean up any partially written output file
+            if output_path:
+                out_p = pathlib.Path(output_path)
+                if out_p.exists():
+                    try:
+                        out_p.unlink()
+                        logger.info(f"[{job_id}] Deleted partial output: {output_path!r}")
+                    except OSError as del_err:
+                        logger.warning(f"[{job_id}] Could not delete partial output: {del_err}")
             try:
                 async with httpx.AsyncClient(timeout=5) as client:
                     await client.post(

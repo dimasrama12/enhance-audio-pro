@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, Clock, CheckCircle, AlertCircle, FileAudio, RefreshCw, Trash2 } from 'lucide-react';
+import { X, Clock, CheckCircle, AlertCircle, FileAudio, Trash2 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
-import { invokeGetRecentHistory, invokeDeleteJob, invokeDeleteAllHistory } from '@/lib/ipc';
+import { invokeGetRecentHistory, invokeDeleteJob, invokeDeleteAllHistory, invokeShowItemInFolder } from '@/lib/ipc';
 import type { QueueJob } from '@/types/queue';
 
 interface Props {
@@ -85,14 +85,6 @@ export default function HistoryPanel({ open, onClose }: Props): JSX.Element {
               </div>
               <div className="flex items-center gap-1">
                 <button
-                  onClick={() => void load()}
-                  disabled={loading}
-                  className="p-1 rounded hover:bg-zinc-100 dark:hover:bg-white/10 text-zinc-400 dark:text-white/50 hover:text-zinc-900 dark:hover:text-white disabled:opacity-40 transition-colors"
-                  title="Refresh"
-                >
-                  <RefreshCw size={13} className={loading ? 'animate-spin' : ''} />
-                </button>
-                <button
                   onClick={onClose}
                   className="p-1 rounded hover:bg-zinc-100 dark:hover:bg-white/10 text-zinc-400 dark:text-white/50 hover:text-zinc-900 dark:hover:text-white transition-colors"
                 >
@@ -122,7 +114,14 @@ export default function HistoryPanel({ open, onClose }: Props): JSX.Element {
               {jobs.map((job) => (
                 <div
                   key={job.id}
-                  className="group relative flex items-start gap-3 px-4 py-2.5 hover:bg-zinc-50 dark:hover:bg-white/5 transition-colors"
+                  onClick={() => {
+                    if (job.output_filepath) {
+                      void invokeShowItemInFolder(job.output_filepath);
+                    }
+                  }}
+                  className={`group relative flex items-start gap-3 px-4 py-2.5 hover:bg-zinc-50 dark:hover:bg-white/5 transition-colors ${
+                    job.output_filepath ? 'cursor-pointer' : 'cursor-default'
+                  }`}
                 >
                   <div className="mt-0.5 shrink-0">
                     {job.status === 'done' ? (

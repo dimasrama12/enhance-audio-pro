@@ -66,6 +66,8 @@ export function useKeyboardShortcuts(): void {
           enhancementStrength: s.enhancementStrength,
           filenameTemplate: s.filenameTemplate,
           keyboardShortcuts: s.keyboardShortcuts,
+          recordingPrefix: s.recordingPrefix ?? 'Record',
+          aiModel: s.aiModel ?? 'deepfilternet',
           ...patch,
         };
         s.setSettings(next);
@@ -81,7 +83,8 @@ export function useKeyboardShortcuts(): void {
       }
 
       if (isPlayerFocused) {
-        if (e.key.toLowerCase() === 'l' || e.key.toLowerCase() === 'j') {
+        const isUnmodified = !e.ctrlKey && !e.metaKey && !e.altKey && !e.shiftKey;
+        if (isUnmodified && (e.key.toLowerCase() === 'l' || e.key.toLowerCase() === 'j')) {
           return;
         }
       }
@@ -139,6 +142,20 @@ export function useKeyboardShortcuts(): void {
           e.preventDefault();
           const idsToDelete = q.selectedJobIds.filter((id) => !q.lockedJobIds.includes(id));
           if (idsToDelete.length > 0) {
+            const activeJobs = idsToDelete.map(id => q.jobs.find(j => j.id === id)).filter((j): j is typeof q.jobs[0] => j !== undefined && (j.status === 'processing' || j.status === 'queued'));
+            if (activeJobs.length > 0) {
+              const isIndonesian = useSettingsStore.getState().language === 'id';
+              const fallbackMsg = isIndonesian
+                ? (activeJobs.length === 1
+                    ? `Apakah Anda yakin ingin menghapus "${activeJobs[0].filename}"? File sedang diproses.`
+                    : `Apakah Anda yakin ingin menghapus ${activeJobs.length} file? Beberapa file sedang diproses.`)
+                : (activeJobs.length === 1
+                    ? `Are you sure you want to delete "${activeJobs[0].filename}"? The file is currently being processed.`
+                    : `Are you sure you want to delete ${activeJobs.length} files? Some files are currently being processed.`);
+              if (!window.confirm(fallbackMsg)) {
+                return;
+              }
+            }
             const activePlayerJobId = ui.activePlayerJobId;
             if (activePlayerJobId && idsToDelete.includes(activePlayerJobId)) {
               useUIStore.setState({ activePlayerJobId: null, playerOpen: false });

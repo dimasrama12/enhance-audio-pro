@@ -196,3 +196,55 @@ pub fn read_audio_file(path: String) -> Result<tauri::ipc::Response, String> {
     let bytes = std::fs::read(&path).map_err(|e| e.to_string())?;
     Ok(tauri::ipc::Response::new(bytes))
 }
+
+#[tauri::command]
+pub fn set_destination(
+    state: State<'_, AppState>,
+    job_id: String,
+    destination: String,
+) -> IpcResponse<()> {
+    let conn = match state.db.lock() {
+        Ok(c) => c,
+        Err(e) => return IpcResponse { success: false, data: None, error: Some(e.to_string()) },
+    };
+    match crate::db::queue::update_job_destination(&conn, &job_id, &destination) {
+        Ok(()) => IpcResponse { success: true, data: Some(()), error: None },
+        Err(e) => IpcResponse { success: false, data: None, error: Some(e.to_string()) },
+    }
+}
+
+#[tauri::command]
+pub fn show_item_in_folder(path: String) -> Result<(), String> {
+    #[cfg(target_os = "windows")]
+    {
+        // On Windows, use explorer /select,"path"
+        let clean_path = path.replace('/', "\\");
+        std::process::Command::new("explorer.exe")
+            .arg(format!("/select,{}", clean_path))
+            .spawn()
+            .map_err(|e| e.to_string())?;
+        Ok(())
+    }
+    #[cfg(target_os = "macos")]
+    {
+        std::process::Command::new("open")
+            .arg("-R")
+            .arg(&path)
+            .spawn()
+            .map_err(|e| e.to_string())?;
+        Ok(())
+    }
+    #[cfg(not(any(target_os = "windows", target_os = "macos")))]
+    {
+        if let Some(parent) = std::path::Path::new(&path).parent() {
+            if let Some(parent_str) = parent.to_str() {
+                std::process::Command::new("xdg-open")
+                    .arg(parent_str)
+                    .spawn()
+                    .map_err(|e| e.to_string())?;
+            }
+        }
+        Ok(())
+    }
+}
+

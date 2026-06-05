@@ -95,6 +95,7 @@ export interface AppSettings {
   filenameTemplate: string;
   keyboardShortcuts: KeyboardShortcutMap;
   recordingPrefix?: string;
+  aiModel: 'deepfilternet' | 'lavasr';
 }
 
 export const DEFAULT_SETTINGS: AppSettings = {
@@ -106,4 +107,5 @@ export const DEFAULT_SETTINGS: AppSettings = {
   filenameTemplate: '{name}_enhanced',
   keyboardShortcuts: { ...DEFAULT_KEYBOARD_SHORTCUTS },
   recordingPrefix: 'Record',
+  aiModel: 'deepfilternet',
 };
