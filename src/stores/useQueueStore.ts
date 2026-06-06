@@ -114,12 +114,18 @@ export const useQueueStore = create<QueueState>()(
     set((s) => ({
       jobs: s.jobs.map((j) => {
         if (j.id !== id) return j;
+        let completed_duration = j.completed_duration;
+        if (status === 'done' && j.status === 'processing' && j.startedAt) {
+          completed_duration = Math.floor((Date.now() - j.startedAt) / 1000);
+        } else if (status === 'processing') {
+          completed_duration = undefined;
+        }
         const newStartedAt = status === 'processing' && j.status !== 'processing' 
           ? Date.now() 
           : (status === 'done' || status === 'error' || status === 'pending') 
             ? undefined 
             : j.startedAt;
-        return { ...j, status, error_message: errorMessage ?? j.error_message, startedAt: newStartedAt };
+        return { ...j, status, error_message: errorMessage ?? j.error_message, startedAt: newStartedAt, completed_duration };
       }),
     })),
 

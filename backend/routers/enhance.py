@@ -110,7 +110,17 @@ async def _process_jobs(job_ids: List[str], callback_url: str, strength: float =
                     else pathlib.Path(filepath).parent
                 )
                 out_dir.mkdir(parents=True, exist_ok=True)
-                output_path = str(out_dir / f"{stem}_enhanced.{output_format}")
+                
+                base_name = f"{stem}_enhanced"
+                candidate_path = out_dir / f"{base_name}.{output_format}"
+                if candidate_path.exists():
+                    counter = 1
+                    while True:
+                        candidate_path = out_dir / f"{base_name}_{counter:02d}.{output_format}"
+                        if not candidate_path.exists():
+                            break
+                        counter += 1
+                output_path = str(candidate_path)
 
                 logger.info(f"[{job_id}] Starting: {filename!r} → {output_path!r} (model={model_type}, strength={strength:.2f})")
 
