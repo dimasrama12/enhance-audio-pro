@@ -279,6 +279,12 @@ chore    : [configuration changes, tooling, etc.]
 - [x] Task 64.3 — enhance_speech.py handles non-native formats (MP3/AAC/M4A/OPUS/WMA) via temp WAV + ffmpeg conversion; intermediate WAV always cleaned up
 - [x] Release binary rebuilt: D:\cargo_build\enhance-audio-pro\release\enhance-audio-pro.exe (7.7 MB, 2026-06-05 21:26)
 
+# PRD Task 67 — Backend Retry, Enhance-All First-Row Fix, Scratch Disk Setting (2026-06-06)
+- [x] Task 67.1 — Backend unavailable retry: `src-tauri/src/commands/process.rs` now retries the HTTP POST to `/enhance` up to 8 times with a 2-second delay between attempts (total ≤16 s window). This covers PyInstaller sidecar cold-start latency so the first enhance after app launch no longer immediately reports "Backend unavailable" error. Added tokio "time" feature to Cargo.toml.
+- [x] Task 67.2 — Enhance All first-row processing fix: `QueueToolbar.tsx handleProcess()` was reading the stale closure variable `jobs` (pre-setStatus state) to find the next queued job to dispatch. Replaced with `useQueueStore.getState().jobs` so the fresh post-update state is read and the first job correctly transitions to "processing" immediately.
+- [x] Task 67.3 — Scratch Disk / Cache Directory setting: added `scratchDiskDir` field to `AppSettings` type, `setScratchDiskDir` action to `useSettingsStore`, browse+clear UI in SettingsPanel Output section, `invokeGetScratchDiskDir`/`invokeSaveScratchDiskDir` IPC wrappers, Rust `get_scratch_disk_dir`/`save_scratch_disk_dir` commands (persist to `app_data_dir/scratch_disk.txt`), `sidecar/manager.rs` passes `SCRATCH_DISK_DIR` env var, Python `enhance_speech.py` uses it for temp dirs, and `lib.rs` cleans `enhance-audio-pro-cache/` inside the scratch disk on app close.
+- [x] Release binary rebuilt: D:\cargo_build\enhance-audio-pro\release\enhance-audio-pro.exe (8.1 MB, 2026-06-06 17:26).
+
 # PRD Task 65 — Fix Stuck Enhance Process (2026-06-06)
 - [x] Task 65.1 — Global asyncio lock added to `backend/routers/enhance.py`: `_enhance_lock = asyncio.Lock()` serialises all `_process_jobs` invocations. Concurrent `/enhance` requests (toolbar batch + per-row button) no longer run the DeepFilterNet model in parallel threads — the second request waits for the lock instead of causing CUDA OOM/hang.
 - [x] Task 65.2 — Per-job heartbeat: after acquiring the lock, Python sends a "processing" status callback before starting each job, refreshing UI state for jobs that were waiting behind the lock.
