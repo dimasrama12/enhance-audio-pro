@@ -15,7 +15,7 @@ use commands::process::{cancel_jobs, process_queue};
 use commands::queue::{
     add_files, list_folder_files, get_queue, get_recent_history, archive_jobs, archive_all_queue,
     delete_job, delete_all_history, read_audio_file, set_destination, show_item_in_folder,
-    set_job_status,
+    set_job_status, append_error_log,
 };
 use commands::separate::separate_stems;
 use commands::settings::{get_settings, save_settings, get_scratch_disk_dir, save_scratch_disk_dir};
@@ -145,6 +145,7 @@ pub fn run() {
             set_destination,
             show_item_in_folder,
             set_job_status,
+            append_error_log,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

@@ -1,5 +1,5 @@
 use std::path::Path;
-use tauri::State;
+use tauri::{Manager, State};
 
 const SUPPORTED_AUDIO_VIDEO_EXTENSIONS: &[&str] = &[
     "mp3", "wav", "flac", "aac", "ogg", "opus", "m4a", "wma", "aiff", "mp2",
@@ -189,6 +189,29 @@ pub fn delete_all_history(state: State<AppState>) -> IpcResponse<()> {
     }
 }
 
+/// Append a markdown-formatted error entry to a daily log file under app_data_dir/error-logs/.
+#[tauri::command]
+pub fn append_error_log(app_handle: tauri::AppHandle, entry: String) -> IpcResponse<()> {
+    use std::io::Write;
+    let data_dir = match app_handle.path().app_data_dir() {
+        Ok(d) => d,
+        Err(e) => return IpcResponse { success: false, data: None, error: Some(e.to_string()) },
+    };
+    let log_dir = data_dir.join("error-logs");
+    if let Err(e) = std::fs::create_dir_all(&log_dir) {
+        return IpcResponse { success: false, data: None, error: Some(e.to_string()) };
+    }
+    let today = chrono::Utc::now().format("%Y-%m-%d").to_string();
+    let log_file = log_dir.join(format!("{}.md", today));
+    match std::fs::OpenOptions::new().create(true).append(true).open(&log_file) {
+        Ok(mut f) => {
+            let _ = writeln!(f, "{}", entry);
+            IpcResponse { success: true, data: Some(()), error: None }
+        }
+        Err(e) => IpcResponse { success: false, data: None, error: Some(e.to_string()) },
+    }
+}
+
 /// Read a local audio file and return its raw bytes as a binary IPC response.
 /// This bypasses the asset:// protocol so WaveSurfer can load via a Blob URL.
 #[tauri::command]
@@ -222,10 +245,10 @@ pub fn show_item_in_folder(path: String) -> Result<(), String> {
 
     #[cfg(target_os = "windows")]
     {
-        // On Windows, use explorer /select,"path"
+        use std::os::windows::process::CommandExt;
         let clean_path = path.replace('/', "\\");
         std::process::Command::new("explorer.exe")
-            .arg(format!("/select,{}", clean_path))
+            .raw_arg(format!(r#"/select,"{}""#, clean_path))
             .spawn()
             .map_err(|e| e.to_string())?;
         Ok(())
@@ -250,6 +273,30 @@ pub fn show_item_in_folder(path: String) -> Result<(), String> {
             }
         }
         Ok(())
+    }
+}
+
+#[tauri::command]
+pub fn set_job_status(
+    state: tauri::State<'_, crate::AppState>,
+    app_handle: tauri::AppHandle,
+    job_id: String,
+    status: String,
+) -> IpcResponse<()> {
+    use tauri::Emitter;
+    let conn = match state.db.lock() {
+        Ok(c) => c,
+        Err(e) => return IpcResponse { success: false, data: None, error: Some(e.to_string()) },
+    };
+    match crate::db::queue::update_job_status(&conn, &job_id, &status) {
+        Ok(()) => {
+            let _ = app_handle.emit(
+                "queue://status-change",
+                serde_json::json!({ "jobId": job_id, "status": status }),
+            );
+            IpcResponse { success: true, data: Some(()), error: None }
+        }
+        Err(e) => IpcResponse { success: false, data: None, error: Some(e.to_string()) },
     }
 }
 

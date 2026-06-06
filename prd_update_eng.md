@@ -416,3 +416,54 @@ This document summarizes the update notes and functional improvements that need 
   - Clicking a history item must attempt to reveal the output file in its saved folder. If the file has been moved or deleted (i.e. does not exist at the target path), display a popup message saying "File telah dipindahkan".
   - Add a button at the bottom of the history panel labeled "Clear All History" (or "Hapus Semua Histori") to allow deleting all records from the processed history database.
 
+## 66. Queue Enhancements, Resizable Size Column, Sequential Queueing, History Reveal Fix, Unique Naming, and Rebuild 🚀 [NEW] ✅
+- **Count Up Duration Retention:**
+  - Keep the final elapsed duration visible on the queue row once the status changes to `done` so the user knows how long the enhancement took.
+- **Resizable Size Column:**
+  - Make the `SIZE` table column resizable in the table view, matching the behavior of `FILENAME` and `DESTINATION` columns.
+- **Queued Cancel Button:**
+  - Render the "Cancel" button in the tools column for jobs that are in the `queued` state (as well as `processing`) to allow users to cancel them. Cancelling a queued job transitions it to `pending` and allows the queue to proceed to the next queued file.
+- **Sequential Queueing on Individual Enhance:**
+  - When clicking the individual "Enhance" button on a row, if another job is already processing, change the new job's status to `queued` (blue) instead of starting it immediately.
+  - When the active job completes (status changes to `done`), the next `queued` job must automatically start processing.
+- **History Reveal to Saved Destination:**
+  - Clicking a history item in the "Processed Files History" panel must reveal/open the output folder where the enhanced file was saved, according to the job's set destination folder, rather than the default documents folder.
+- **Unique Output Filename:**
+  - If an enhanced file with the same name and format already exists in the destination folder, append an auto-incremented number suffix (e.g., `_01`, `_02`, etc.) to the output filename to prevent overwriting existing files.
+- **Tauri Release Binary Rebuild:**
+  - Rebuild the Tauri application release binary at `D:\cargo_build\enhance-audio-pro\release\enhance-audio-pro.exe`.
+
+## 68. Delete Confirmation Re-verification, History Error Fix, Enhance Cold-Start Fix, Background Audio Preload & Debug Error Logger 🚀 [NEW]
+- **Delete Warning Confirmation (Re-verification):**
+  - When the file status is `processing` or `queued` and the user selects that queue item then presses the Delete key, clicks the row trash icon, or clicks the toolbar "Delete Selected" button, show a `window.confirm()` warning popup. Already implemented (Tasks 63.5 / 65.5); verified still present in all paths.
+  - The "Clear All" header button shows a modal with a red warning line if any active jobs are present; user must explicitly click "Yes, Clear All" to proceed.
+- **History Panel Error Message Fix:**
+  - Root cause: `get_recent_jobs` SQL had no `archived` filter, so error jobs still in the active queue (e.g. "Backend unavailable after N attempts") appeared in the History panel.
+  - Fix: change query to `WHERE status = 'done' OR (status = 'error' AND archived = 1)` so active-queue error jobs are excluded. They only appear in history once explicitly removed from the queue.
+- **Enhance Cold-Start Fix (First Enhance All Failure):**
+  - Root cause: PyInstaller sidecar cold-start can exceed 16 s (8 attempts × 2 s). Clicking play before Enhance All accidentally gave the sidecar extra startup time — the audio load itself was not the true cause.
+  - Fix: increase `MAX_ATTEMPTS` in `process.rs` from 8 to 25 (50 s total window), covering all realistic PyInstaller cold-start times.
+- **Background Audio Preload on File Import:**
+  - New `src/lib/audioPreload.ts` with `prewarmAudio(filepath)` that calls `read_audio_file` IPC in the background when files are added, storing the resulting Blob URL in `prewarmCache` for faster first WaveformPlayer open.
+  - `submitAddFilesDirect` in `importHelper.ts` calls `prewarmAudio` for each newly added file.
+- **Real-Time Debug Error Logger (.md files):**
+  - New Rust command `append_error_log(entry)` appends markdown entries to `{app_data_dir}/error-logs/YYYY-MM-DD.md`.
+  - New `src/lib/errorLogger.ts` with `logError(source, message, details?)` formats and fires the IPC call.
+  - `QueueGrid.tsx` status-change error handler calls `logError` for every enhancement failure.
+- **Tauri Release Binary Rebuild:**
+  - Recompile release binary at `D:\cargo_build\enhance-audio-pro\release\enhance-audio-pro.exe`.
+
+## 67. Backend Unavailable Fix, Enhance All Processing Transition, Custom Settings Cache Location, and Binary Rebuild 🚀 [NEW] ✅
+- **Backend Unavailable Connection Error Fix:**
+  - Investigate and resolve the `Backend unavailable: error sending request for url (http://127.0.0.1:<port>/enhance)` error that triggers during both "Enhance All" and individual "Enhance" operations. Ensure the Python sidecar launches, binds, and communicates reliably.
+- **Enhance All Initial Row Processing Fix:**
+  - Fix the bug where clicking "Enhance All" marks all rows as `'queued'` instead of immediately starting the first row as `'processing'`. When the batch starts, the first queued job must immediately transition to `'processing'` and begin execution.
+- **Scratch Disk / Cache Directory Setting:**
+  - Add a new "Scratch Disk Location" or "Cache Directory" option in the Settings panel (e.g. allowing the user to browse and select a directory such as `D:\`).
+  - Update both the Tauri frontend/backend and Python sidecar to use this custom directory for any temporary recordings, audio/video processing cache, and model temporary folders.
+  - Ensure that this cache folder is automatically cleaned up and deleted on application close (`WindowEvent::CloseRequested` in Rust).
+- **Tauri Release Binary Rebuild:**
+  - Recompile the Tauri application release binary at `D:\cargo_build\enhance-audio-pro\release\enhance-audio-pro.exe`.
+
+
+

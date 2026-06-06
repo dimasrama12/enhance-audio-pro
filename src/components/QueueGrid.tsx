@@ -30,8 +30,9 @@ import { useQueueStore } from '@/stores/useQueueStore';
 import { useUIStore } from '@/stores/useUIStore';
 import { useSettingsStore } from '@/stores/useSettingsStore';
 
-import { invokeSetOutputFormat, invokeSetBitrate, invokeSetSampleRate, invokeArchiveJobs, invokeProcessQueue, invokeCancelJobs, invokeSetDestination } from '@/lib/ipc';
+import { invokeSetOutputFormat, invokeSetBitrate, invokeSetSampleRate, invokeArchiveJobs, invokeProcessQueue, invokeCancelJobs, invokeSetDestination, invokeSetJobStatus } from '@/lib/ipc';
 import { useToastStore } from '@/stores/useToastStore';
+import { logError } from '@/lib/errorLogger';
 import type { QueueJob, JobStatus } from '@/types/queue';
 
 // ─── Resize handle ────────────────────────────────────────────────────────────
@@ -181,14 +182,14 @@ function EnhanceRowButton({ job }: { job: QueueJob }): JSX.Element | null {
   const { addToast } = useToastStore();
   const isProcessing = job.status === 'processing';
   const isQueued = job.status === 'queued';
+  const canCancel = isProcessing || isQueued;
 
   // Hide entirely when done — status badge is enough feedback
   if (job.status === 'done') return null;
 
   async function handleEnhance(e: React.MouseEvent): Promise<void> {
     e.stopPropagation();
-    if (isQueued) return;
-    if (isProcessing) {
+    if (canCancel) {
       try {
         await invokeCancelJobs([job.id]);
         addToast(`Cancelled "${job.filename}"`, 'info');
@@ -197,28 +198,41 @@ function EnhanceRowButton({ job }: { job: QueueJob }): JSX.Element | null {
       }
       return;
     }
+    
+    // Check if any job is already processing
+    const { jobs } = useQueueStore.getState();
+    const hasActive = jobs.some((j) => j.status === 'processing');
     const { aiModel } = useSettingsStore.getState();
-    await invokeProcessQueue([job.id], enhancementStrength, aiModel);
+
+    if (hasActive) {
+      try {
+        const { setStatus } = useQueueStore.getState();
+        setStatus(job.id, 'queued');
+        await invokeSetJobStatus(job.id, 'queued');
+        addToast(`Queued "${job.filename}"`, 'info');
+      } catch (err) {
+        console.error('Failed to queue job', err);
+      }
+    } else {
+      await invokeProcessQueue([job.id], enhancementStrength, aiModel);
+    }
   }
 
   return (
     <button
       onClick={handleEnhance}
-      disabled={isQueued}
-      title={isProcessing ? 'Cancel processing' : job.status === 'error' ? 'Retry enhancement' : 'Enhance this file'}
+      title={canCancel ? 'Cancel processing' : job.status === 'error' ? 'Retry enhancement' : 'Enhance this file'}
       className={clsx(
         'flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-medium transition-all duration-150',
-        isQueued
-          ? 'opacity-30 cursor-not-allowed text-slate-400 dark:text-white/30'
-          : isProcessing
+        canCancel
           ? 'bg-red-500/10 text-red-600 dark:text-red-400 hover:bg-red-500/20'
           : job.status === 'error'
           ? 'bg-amber-500/10 text-amber-600 dark:text-amber-400 hover:bg-amber-500/20'
           : 'bg-violet-500/10 text-violet-600 dark:text-violet-400 hover:bg-violet-500/20',
       )}
     >
-      {isProcessing ? <Trash2 size={10} /> : <Wand2 size={10} />}
-      {isProcessing ? 'Cancel' : job.status === 'error' ? 'Retry' : 'Enhance'}
+      {canCancel ? <Trash2 size={10} /> : <Wand2 size={10} />}
+      {canCancel ? 'Cancel' : job.status === 'error' ? 'Retry' : 'Enhance'}
     </button>
   );
 }
@@ -233,7 +247,7 @@ function SortableJobRow({ job, index, isSelected, onSelect, isImporting, activeD
   isImporting?: boolean;
   activeDragId: string | null;
   onErrorClick?: (filename: string, errorMessage: string) => void;
-  colWidths: { filename: number; destination: number };
+  colWidths: { filename: number; destination: number; size: number };
 }): JSX.Element {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: job.id });
   const selectedJobIds = useQueueStore((s) => s.selectedJobIds);
@@ -303,8 +317,17 @@ function SortableJobRow({ job, index, isSelected, onSelect, isImporting, activeD
           >
             <Play size={10} fill="currentColor" />
           </button>
-          <span className="truncate">{job.filename}</span>
-          {job.status === 'processing' && <ProcessingTimer startedAt={job.startedAt} />}
+          <span className="truncate flex-1">{job.filename}</span>
+          {job.status === 'processing' && (
+            <span className="ml-auto shrink-0">
+              <ProcessingTimer startedAt={job.startedAt} />
+            </span>
+          )}
+          {job.status === 'done' && job.completed_duration !== undefined && (
+            <span className="text-xs text-yellow-600/85 bg-yellow-500/10 dark:text-yellow-400/90 dark:bg-yellow-500/10 px-2 py-0.5 rounded whitespace-nowrap font-medium tabular-nums ml-auto shrink-0">
+              {Math.floor(job.completed_duration / 60).toString().padStart(2, '0')}:{(job.completed_duration % 60).toString().padStart(2, '0')}
+            </span>
+          )}
         </div>
       </td>
       <td
@@ -334,7 +357,13 @@ function SortableJobRow({ job, index, isSelected, onSelect, isImporting, activeD
           <span className="truncate">{job.destination || defaultOutputFolder || '—'}</span>
         </button>
       </td>
-      <td className="px-4 py-2 text-xs text-slate-400 dark:text-white/40 w-20 tabular-nums">{formatBytes(job.size_bytes)}</td>
+      <td
+        className="px-2 py-2 text-xs text-slate-400 dark:text-white/40 truncate tabular-nums"
+        style={{ width: colWidths.size, minWidth: 50, maxWidth: colWidths.size }}
+        title={formatBytes(job.size_bytes)}
+      >
+        {formatBytes(job.size_bytes)}
+      </td>
       <td className="px-4 py-2 w-24"><FormatSelect job={job} /></td>
       <td className="px-4 py-2 w-24"><BitrateSelect job={job} /></td>
       <td className="px-4 py-2 w-24"><SampleRateSelect job={job} /></td>
@@ -555,7 +584,7 @@ export default function QueueGrid(): JSX.Element {
   const groupByFormat = useQueueStore((s) => s.groupByFormat);
   const clearSelection = useQueueStore((s) => s.clearSelection);
   const { t } = useTranslation();
-  const [colWidths, setColWidths] = useState({ filename: 240, destination: 140 });
+  const [colWidths, setColWidths] = useState({ filename: 240, destination: 140, size: 80 });
   const tableContainerRef = useRef<HTMLDivElement>(null);
 
   const importingJobIds = useQueueStore((s) => s.importingJobIds);
@@ -684,8 +713,10 @@ export default function QueueGrid(): JSX.Element {
     window.addEventListener('mouseup', onMouseUp);
   }
 
-  const adjustWidth = (col: keyof typeof colWidths, delta: number): void =>
-    setColWidths((p) => ({ ...p, [col]: Math.max(80, p[col] + delta) }));
+  const adjustWidth = (col: keyof typeof colWidths, delta: number): void => {
+    const minW = col === 'size' ? 50 : 80;
+    setColWidths((p) => ({ ...p, [col]: Math.max(minW, p[col] + delta) }));
+  };
   const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set());
   const toggleGroup = (label: string): void =>
     setCollapsedGroups((prev) => {
@@ -708,11 +739,12 @@ export default function QueueGrid(): JSX.Element {
     let done = false;
     const obs = new ResizeObserver(() => {
       if (done || container.clientWidth === 0) return;
-      const FIXED_COLS = 680;
-      const remaining = Math.max(160, container.clientWidth - FIXED_COLS);
+      const FIXED_COLS = 600;
+      const remaining = Math.max(240, container.clientWidth - FIXED_COLS);
       setColWidths({
-        filename: Math.max(120, Math.round(remaining * 0.6)),
-        destination: Math.max(80, Math.round(remaining * 0.4)),
+        filename: Math.max(120, Math.round(remaining * 0.5)),
+        destination: Math.max(80, Math.round(remaining * 0.35)),
+        size: Math.max(60, Math.round(remaining * 0.15)),
       });
       done = true;
       obs.disconnect();
@@ -744,6 +776,24 @@ export default function QueueGrid(): JSX.Element {
         } else if (status === 'error') {
           console.error(`Error enhancing "${filename}":`, error_message);
           addToast(`Error: ${error_message || "Failed to enhance " + filename}`, 'error');
+          logError('Enhancement', `Failed to enhance "${filename}"`, error_message ?? undefined);
+        }
+
+        // Auto-run next queued job if active one settles
+        if (status === 'done' || status === 'error' || status === 'pending') {
+          setTimeout(() => {
+            const { jobs } = useQueueStore.getState();
+            const isAnyProcessing = jobs.some((j) => j.status === 'processing');
+            if (!isAnyProcessing) {
+              const nextQueuedJob = jobs.find((j) => j.status === 'queued');
+              if (nextQueuedJob) {
+                const { aiModel, enhancementStrength } = useSettingsStore.getState();
+                invokeProcessQueue([nextQueuedJob.id], enhancementStrength, aiModel).catch((err) => {
+                  console.error('Failed to auto-start queued job', err);
+                });
+              }
+            }
+          }, 100);
         }
       }
     );
@@ -914,7 +964,10 @@ export default function QueueGrid(): JSX.Element {
           <span className="px-2">{t('queue.col.destination')}</span>
           <ResizeHandle onDelta={(d) => adjustWidth('destination', d)} />
         </th>
-        <th className="px-4 py-2.5 w-20">{t('queue.col.size')}</th>
+        <th className="resizable-th px-2 py-2.5 text-left" style={{ width: colWidths.size, minWidth: 50, maxWidth: colWidths.size }}>
+          <span className="px-2">{t('queue.col.size')}</span>
+          <ResizeHandle onDelta={(d) => adjustWidth('size', d)} />
+        </th>
         <th className="px-4 py-2.5 w-24">{t('queue.col.output')}</th>
         <th className="px-4 py-2.5 w-24">{t('queue.col.bitrate')}</th>
         <th className="px-4 py-2.5 w-28 whitespace-nowrap">{t('queue.col.sampleHz')}</th>

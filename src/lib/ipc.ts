@@ -127,3 +127,11 @@ export async function invokeGetScratchDiskDir(): Promise<IpcResponse<string>> {
 export async function invokeSaveScratchDiskDir(path: string): Promise<IpcResponse<null>> {
   return invoke<IpcResponse<null>>('save_scratch_disk_dir', { path });
 }
+
+export async function invokeAppendErrorLog(entry: string): Promise<void> {
+  try {
+    await invoke('append_error_log', { entry });
+  } catch {
+    // Fire-and-forget — logging failure must never break the UI
+  }
+}

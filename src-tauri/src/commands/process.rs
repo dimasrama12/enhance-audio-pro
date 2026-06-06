@@ -72,8 +72,9 @@ pub fn process_queue(
     tauri::async_runtime::spawn(async move {
         let url = format!("http://127.0.0.1:{}/enhance", backend_port);
 
-        // Retry up to 8 times (≤16 s) so PyInstaller sidecar startup latency is covered.
-        const MAX_ATTEMPTS: u32 = 8;
+        // Retry up to 25 times (≤50 s) so PyInstaller sidecar cold-start latency is covered.
+        // Cold PyInstaller binaries can take 20–40 s to extract and initialise on the first launch.
+        const MAX_ATTEMPTS: u32 = 25;
         let mut attempts = 0u32;
         let err_msg = loop {
             let result = reqwest::Client::new()

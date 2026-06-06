@@ -3,6 +3,7 @@ import { invokeAddFiles, invokeSetDestination } from '@/lib/ipc';
 import { useQueueStore } from '@/stores/useQueueStore';
 import { useSettingsStore } from '@/stores/useSettingsStore';
 import { useUIStore } from '@/stores/useUIStore';
+import { prewarmAudio } from '@/lib/audioPreload';
 
 export const MAX_QUEUE_JOBS = 150;
 
@@ -81,6 +82,12 @@ export async function submitAddFilesDirect(
   const res = await invokeAddFiles(capped);
   if (res.success && res.data) {
     useQueueStore.getState().addJobs(res.data);
+    // Pre-warm audio blob URLs in the background. Serves two purposes:
+    // 1. Gives the PyInstaller sidecar extra startup time on cold launch.
+    // 2. Caches blob URLs so WaveformPlayer opens without re-reading from disk.
+    for (const job of res.data) {
+      prewarmAudio(job.filepath);
+    }
     // Auto-apply settings default output folder to new jobs that have no destination
     const outputFolder = useSettingsStore.getState().outputFolder;
     if (outputFolder) {

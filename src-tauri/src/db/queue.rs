@@ -203,7 +203,7 @@ pub fn get_recent_jobs(conn: &Connection, limit: i64) -> Result<Vec<QueueJob>> {
                 progress, error_message, output_format, bitrate, output_filepath,
                 sample_rate, created_at, updated_at
          FROM queue_jobs
-         WHERE status IN ('done', 'error')
+         WHERE status = 'done' OR (status = 'error' AND archived = 1)
          ORDER BY updated_at DESC
          LIMIT ?1",
     )?;
