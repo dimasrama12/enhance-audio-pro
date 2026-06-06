@@ -11,6 +11,10 @@ export async function invokeSetDestination(jobId: string, destination: string): 
   return invoke<IpcResponse<null>>('set_destination', { jobId, destination });
 }
 
+export async function invokeSetJobStatus(jobId: string, status: string): Promise<IpcResponse<void>> {
+  return invoke<IpcResponse<void>>('set_job_status', { jobId, status });
+}
+
 export async function invokeShowItemInFolder(path: string): Promise<IpcResponse<null>> {
   try {
     await invoke('show_item_in_folder', { path });
@@ -114,4 +118,12 @@ export async function invokeSaveRecording(bytes: number[], filename: string): Pr
 
 export async function invokeCancelJobs(jobIds: string[]): Promise<IpcResponse<null>> {
   return invoke<IpcResponse<null>>('cancel_jobs', { jobIds });
+}
+
+export async function invokeGetScratchDiskDir(): Promise<IpcResponse<string>> {
+  return invoke<IpcResponse<string>>('get_scratch_disk_dir');
+}
+
+export async function invokeSaveScratchDiskDir(path: string): Promise<IpcResponse<null>> {
+  return invoke<IpcResponse<null>>('save_scratch_disk_dir', { path });
 }

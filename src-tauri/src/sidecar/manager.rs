@@ -27,6 +27,7 @@ pub fn spawn(
     app: &AppHandle,
     port: u16,
     callback_port: u16,
+    scratch_disk_dir: &str,
 ) -> Result<CommandChild, Box<dyn std::error::Error>> {
     let models = models_dir();
     let db_path = app.path().app_data_dir()?.join("app.db");
@@ -37,6 +38,7 @@ pub fn spawn(
         .env("CALLBACK_PORT", callback_port.to_string())
         .env("MODELS_DIR", models)
         .env("DATABASE_PATH", db_path.to_string_lossy().to_string())
+        .env("SCRATCH_DISK_DIR", scratch_disk_dir)
         .spawn()
         .map_err(|e| e.to_string())?;
     Ok(child)

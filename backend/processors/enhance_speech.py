@@ -123,7 +123,12 @@ def enhance_file(
 
     pathlib.Path(output_path).parent.mkdir(parents=True, exist_ok=True)
 
-    tmp_dir = tempfile.mkdtemp()
+    scratch_disk = os.environ.get("SCRATCH_DISK_DIR", "").strip()
+    if scratch_disk:
+        tmp_dir = str(pathlib.Path(scratch_disk) / "enhance-audio-pro-cache" / (job_id or "tmp"))
+        pathlib.Path(tmp_dir).mkdir(parents=True, exist_ok=True)
+    else:
+        tmp_dir = tempfile.mkdtemp()
     process_path, needs_cleanup = _to_wav_if_needed(input_path, tmp_dir)
     try:
         progress_cb(10)
@@ -197,7 +202,9 @@ def enhance_file(
                 os.unlink(process_path)
             except OSError:
                 pass
-        try:
-            os.rmdir(tmp_dir)
-        except OSError:
-            pass
+        # Only remove the tmp_dir if we created it via tempfile (not scratch disk)
+        if not os.environ.get("SCRATCH_DISK_DIR", "").strip():
+            try:
+                os.rmdir(tmp_dir)
+            except OSError:
+                pass

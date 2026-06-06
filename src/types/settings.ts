@@ -96,6 +96,7 @@ export interface AppSettings {
   keyboardShortcuts: KeyboardShortcutMap;
   recordingPrefix?: string;
   aiModel: 'deepfilternet' | 'lavasr';
+  scratchDiskDir?: string;
 }
 
 export const DEFAULT_SETTINGS: AppSettings = {
@@ -108,4 +109,5 @@ export const DEFAULT_SETTINGS: AppSettings = {
   keyboardShortcuts: { ...DEFAULT_KEYBOARD_SHORTCUTS },
   recordingPrefix: 'Record',
   aiModel: 'deepfilternet',
+  scratchDiskDir: '',
 };

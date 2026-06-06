@@ -71,19 +71,33 @@ pub fn process_queue(
 
     tauri::async_runtime::spawn(async move {
         let url = format!("http://127.0.0.1:{}/enhance", backend_port);
-        let result = reqwest::Client::new()
-            .post(&url)
-            .json(&payload)
-            .timeout(Duration::from_secs(10))
-            .send()
-            .await;
 
-        let err_msg = match result {
-            Err(e) => Some(format!("Backend unavailable: {}", e)),
-            Ok(resp) if !resp.status().is_success() => {
-                Some(format!("Backend error: {}", resp.status()))
+        // Retry up to 8 times (≤16 s) so PyInstaller sidecar startup latency is covered.
+        const MAX_ATTEMPTS: u32 = 8;
+        let mut attempts = 0u32;
+        let err_msg = loop {
+            let result = reqwest::Client::new()
+                .post(&url)
+                .json(&payload)
+                .timeout(Duration::from_secs(10))
+                .send()
+                .await;
+
+            match result {
+                Ok(resp) if resp.status().is_success() || resp.status().as_u16() == 202 => {
+                    break None; // Python accepted the request — it will send callbacks
+                }
+                Ok(resp) => {
+                    break Some(format!("Backend error: {}", resp.status()));
+                }
+                Err(e) => {
+                    attempts += 1;
+                    if attempts >= MAX_ATTEMPTS {
+                        break Some(format!("Backend unavailable after {} attempts: {}", attempts, e));
+                    }
+                    tokio::time::sleep(Duration::from_secs(2)).await;
+                }
             }
-            Ok(_) => None, // Success — Python will send progress/status callbacks
         };
 
         if let Some(msg) = err_msg {

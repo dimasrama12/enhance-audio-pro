@@ -14,6 +14,7 @@ import {
   invokeSetOutputFormat,
   invokeArchiveJobs,
   invokeCancelJobs,
+  invokeSetJobStatus,
 } from '@/lib/ipc';
 import { createLogger } from '@/lib/logger';
 import type { ViewMode } from '@/stores/useQueueStore';
@@ -45,7 +46,6 @@ export default function QueueToolbar(): JSX.Element {
     if (focusSearchTick > 0) searchRef.current?.focus();
   }, [focusSearchTick]);
 
-  const [isProcessing, setIsProcessing] = useState(false);
   const [isSeparating, setIsSeparating] = useState(false);
   const [isConverting, setIsConverting] = useState(false);
   const [globalFormat, setGlobalFormat] = useState('wav');
@@ -55,9 +55,10 @@ export default function QueueToolbar(): JSX.Element {
   const pendingIds = jobs.filter((j) => j.status === 'pending').map((j) => j.id);
   const enhanceableIds = jobs.filter((j) => j.status === 'pending' || j.status === 'error').map((j) => j.id);
 
-  const canEnhance = enhanceableIds.length > 0 && !isProcessing;
-  const canSeparate = pendingIds.length > 0 && !isSeparating;
-  const canConvert = pendingIds.length > 0 && !isConverting;
+  const isAnyEnhancing = jobs.some((j) => j.status === 'processing' || j.status === 'queued');
+  const canEnhance = enhanceableIds.length > 0 && !isAnyEnhancing;
+  const canSeparate = pendingIds.length > 0 && !isSeparating && !isAnyEnhancing;
+  const canConvert = pendingIds.length > 0 && !isConverting && !isAnyEnhancing;
 
   async function runSequentially(
     ids: string[],
@@ -129,17 +130,23 @@ export default function QueueToolbar(): JSX.Element {
 
   async function handleProcess(): Promise<void> {
     if (!canEnhance) return;
-    setIsProcessing(true);
     abortProcessRef.current = false;
     const { setStatus } = useQueueStore.getState();
     const { aiModel } = useSettingsStore.getState();
     log.info(`Enhance All: queuing ${enhanceableIds.length} job(s)`);
-    enhanceableIds.forEach(id => setStatus(id, 'queued'));
-    try {
-      await runSequentially(enhanceableIds, (id) => invokeProcessQueue([id], enhancementStrength, aiModel));
-    } finally {
-      setIsProcessing(false);
-      log.info('Enhance All: batch complete');
+    for (const id of enhanceableIds) {
+      setStatus(id, 'queued');
+      await invokeSetJobStatus(id, 'queued');
+    }
+    const freshJobs = useQueueStore.getState().jobs;
+    const isAnyProcessing = freshJobs.some((j) => j.status === 'processing');
+    if (!isAnyProcessing) {
+      const nextQueuedJob = freshJobs.find((j) => j.status === 'queued');
+      if (nextQueuedJob) {
+        invokeProcessQueue([nextQueuedJob.id], enhancementStrength, aiModel).catch((err) => {
+          console.error('Failed to auto-start queued job', err);
+        });
+      }
     }
   }
 
@@ -157,7 +164,6 @@ export default function QueueToolbar(): JSX.Element {
         log.error('Cancel All failed', err);
       }
     }
-    setIsProcessing(false);
   }
 
   useEffect(() => {
@@ -223,7 +229,7 @@ export default function QueueToolbar(): JSX.Element {
           title="Enhance speech [E]"
           className="flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium h-[28px] shrink-0 transition-all duration-150 bg-violet-600 hover:bg-violet-500 text-white shadow-glow-violet-sm disabled:opacity-40 disabled:cursor-not-allowed disabled:shadow-none"
         >
-          {isProcessing ? 'Enhancing…' : 'Enhance All'}
+          {isAnyEnhancing ? 'Enhancing…' : 'Enhance All'}
         </button>
         <button
           onClick={handleSeparate}

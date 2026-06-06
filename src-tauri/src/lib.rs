@@ -15,9 +15,10 @@ use commands::process::{cancel_jobs, process_queue};
 use commands::queue::{
     add_files, list_folder_files, get_queue, get_recent_history, archive_jobs, archive_all_queue,
     delete_job, delete_all_history, read_audio_file, set_destination, show_item_in_folder,
+    set_job_status,
 };
 use commands::separate::separate_stems;
-use commands::settings::{get_settings, save_settings};
+use commands::settings::{get_settings, save_settings, get_scratch_disk_dir, save_scratch_disk_dir};
 
 pub struct AppState {
     pub db: Arc<Mutex<rusqlite::Connection>>,
@@ -25,6 +26,7 @@ pub struct AppState {
     pub callback_port: u16,
     // Held so we can kill the Python sidecar on app close
     pub sidecar_child: Mutex<Option<CommandChild>>,
+    pub scratch_disk_dir: String,
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -44,6 +46,13 @@ pub fn run() {
             let _ = conn.execute("UPDATE queue_jobs SET archived = 1 WHERE archived = 0", []);
             let db = Arc::new(Mutex::new(conn));
 
+            // Read saved scratch disk dir from file (persisted by save_scratch_disk_dir command)
+            let scratch_disk_txt = data_dir.join("scratch_disk.txt");
+            let scratch_disk_dir = std::fs::read_to_string(&scratch_disk_txt)
+                .unwrap_or_default()
+                .trim()
+                .to_string();
+
             // Bind callback server to a random OS-assigned port
             let cb_listener = std::net::TcpListener::bind("127.0.0.1:0")
                 .map_err(|e| e.to_string())?;
@@ -62,13 +71,14 @@ pub fn run() {
             });
 
             let backend_port = sidecar::manager::available_port();
-            let child = sidecar::manager::spawn(app.handle(), backend_port, callback_port)?;
+            let child = sidecar::manager::spawn(app.handle(), backend_port, callback_port, &scratch_disk_dir)?;
 
             app.manage(AppState {
                 db,
                 backend_port,
                 callback_port,
                 sidecar_child: Mutex::new(Some(child)),
+                scratch_disk_dir,
             });
 
             Ok(())
@@ -82,6 +92,15 @@ pub fn run() {
                 // Clean up temporary files (recordings/caches) stored in system temp dir
                 if let Ok(conn) = state.db.lock() {
                     cleanup_temp_files(window.app_handle(), &conn);
+                }
+
+                // Clean up scratch disk cache dir if configured
+                let scratch_disk = state.scratch_disk_dir.clone();
+                if !scratch_disk.is_empty() {
+                    let cache_dir = std::path::Path::new(&scratch_disk).join("enhance-audio-pro-cache");
+                    if cache_dir.is_dir() {
+                        let _ = std::fs::remove_dir_all(&cache_dir);
+                    }
                 }
 
                 // Kill Python backend sidecar so no orphaned processes remain
@@ -106,6 +125,8 @@ pub fn run() {
             delete_all_history,
             get_settings,
             save_settings,
+            get_scratch_disk_dir,
+            save_scratch_disk_dir,
             process_queue,
             cancel_jobs,
             start_model_download,
@@ -123,6 +144,7 @@ pub fn run() {
             read_audio_file,
             set_destination,
             show_item_in_folder,
+            set_job_status,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

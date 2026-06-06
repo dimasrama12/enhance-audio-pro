@@ -6,7 +6,7 @@ import {
 import type { LucideIcon } from 'lucide-react';
 import { open as openDialog } from '@tauri-apps/plugin-dialog';
 import { useSettingsStore } from '@/stores/useSettingsStore';
-import { invokeSaveSettings } from '@/lib/ipc';
+import { invokeSaveSettings, invokeSaveScratchDiskDir } from '@/lib/ipc';
 import { SUPPORTED_LANGUAGES } from '@/i18n';
 import { useTranslation } from 'react-i18next';
 import i18n from '@/i18n';
@@ -182,6 +182,21 @@ export default function SettingsPanel({ open, onClose }: Props): JSX.Element {
     if (typeof selected === 'string' && selected) await save({ outputFolder: selected });
   };
 
+  const browseScratchDisk = async (): Promise<void> => {
+    const selected = await openDialog({ directory: true, multiple: false, title: 'Select Scratch Disk / Cache Directory' });
+    if (typeof selected === 'string' && selected) {
+      store.setScratchDiskDir(selected);
+      await save({ scratchDiskDir: selected });
+      await invokeSaveScratchDiskDir(selected);
+    }
+  };
+
+  const clearScratchDisk = async (): Promise<void> => {
+    store.setScratchDiskDir('');
+    await save({ scratchDiskDir: '' });
+    await invokeSaveScratchDiskDir('');
+  };
+
   return (
     <AnimatePresence>
       {open && (
@@ -331,6 +346,34 @@ export default function SettingsPanel({ open, onClose }: Props): JSX.Element {
                       />
                       <p className="text-[10px] text-slate-400 dark:text-white/30">
                         Recorded files are named <code className="font-mono">01_Record.wav</code> using this prefix.
+                      </p>
+
+                      <label className="text-sm text-slate-900 dark:text-slate-100 mt-1">Scratch Disk / Cache Directory</label>
+                      <div className="flex gap-2">
+                        <input
+                          type="text" readOnly
+                          value={store.scratchDiskDir || 'System default (C: drive)'}
+                          className="flex-1 px-3 py-1.5 bg-slate-100 dark:bg-white/[0.06] border border-slate-200 dark:border-white/[0.08] rounded-lg text-sm text-slate-500 dark:text-white/50 outline-none truncate"
+                        />
+                        <button
+                          onClick={browseScratchDisk}
+                          className="p-2 rounded-lg bg-slate-100 dark:bg-white/[0.06] hover:bg-slate-200 dark:hover:bg-white/[0.10] text-slate-500 dark:text-white/50 hover:text-slate-900 dark:hover:text-white transition-colors shrink-0"
+                          title="Browse for scratch disk directory"
+                        >
+                          <FolderOpen size={15} />
+                        </button>
+                        {store.scratchDiskDir && (
+                          <button
+                            onClick={clearScratchDisk}
+                            className="p-2 rounded-lg bg-slate-100 dark:bg-white/[0.06] hover:bg-red-100 dark:hover:bg-red-900/20 text-slate-500 dark:text-white/50 hover:text-red-600 dark:hover:text-red-400 transition-colors shrink-0"
+                            title="Reset to system default"
+                          >
+                            <X size={15} />
+                          </button>
+                        )}
+                      </div>
+                      <p className="text-[10px] text-slate-400 dark:text-white/30">
+                        Redirect temp processing files (e.g. <code className="font-mono">D:\</code>) to save C: drive space. Takes effect after restart.
                       </p>
                     </Section>
 
