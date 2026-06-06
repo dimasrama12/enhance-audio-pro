@@ -406,3 +406,13 @@ This document summarizes the update notes and functional improvements that need 
   - Deleted `src-tauri/target/` (the default Cargo output dir in the path-with-spaces workspace). This directory contained old artifacts compiled against the spaces path that caused linker failures (`rust-lld: error: could not open 'coding\\app\\'`). All future Rust builds must use `CARGO_TARGET_DIR=D:\cargo_build\enhance-audio-pro`.
 - **Release Binary Rebuild:**
   - Rebuilt Python sidecar and Tauri release binary at `D:\cargo_build\enhance-audio-pro\release\enhance-audio-pro.exe`.
+
+## 65. Enhance Process Fix, Delete Warning, and History Panel Upgrades 🚀 [NEW] ✅
+- **Fix Stuck Enhance Process:**
+  - Resolve the issue where the audio enhance process gets stuck, the progress bar does not advance, and the task waits indefinitely. Ensure progress is updated and processes do not hang.
+- **Delete-While-Processing Confirmation Warning:**
+  - Show a confirmation popup ("Apakah Anda yakin ingin menghapus? File sedang diproses.") when the user attempts to delete a file that is currently in `processing` or `queued` state. Ensure this warning triggers for all deletion methods (individual row trash icons, keyboard delete key, toolbar delete, and "Clear" queue buttons).
+- **History Panel Improvements (Reveal Location, Missing Popup, Clear History):**
+  - Clicking a history item must attempt to reveal the output file in its saved folder. If the file has been moved or deleted (i.e. does not exist at the target path), display a popup message saying "File telah dipindahkan".
+  - Add a button at the bottom of the history panel labeled "Clear All History" (or "Hapus Semua Histori") to allow deleting all records from the processed history database.
+

@@ -215,6 +215,11 @@ pub fn set_destination(
 
 #[tauri::command]
 pub fn show_item_in_folder(path: String) -> Result<(), String> {
+    let p = std::path::Path::new(&path);
+    if !p.exists() {
+        return Err("File does not exist".to_string());
+    }
+
     #[cfg(target_os = "windows")]
     {
         // On Windows, use explorer /select,"path"

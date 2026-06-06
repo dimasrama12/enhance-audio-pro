@@ -4,6 +4,7 @@ import { X, Clock, CheckCircle, AlertCircle, FileAudio, Trash2 } from 'lucide-re
 import { useTranslation } from 'react-i18next';
 import { invokeGetRecentHistory, invokeDeleteJob, invokeDeleteAllHistory, invokeShowItemInFolder } from '@/lib/ipc';
 import type { QueueJob } from '@/types/queue';
+import { useSettingsStore } from '@/stores/useSettingsStore';
 
 interface Props {
   open: boolean;
@@ -114,9 +115,16 @@ export default function HistoryPanel({ open, onClose }: Props): JSX.Element {
               {jobs.map((job) => (
                 <div
                   key={job.id}
-                  onClick={() => {
+                  onClick={async () => {
                     if (job.output_filepath) {
-                      void invokeShowItemInFolder(job.output_filepath);
+                      const res = await invokeShowItemInFolder(job.output_filepath);
+                      if (!res.success) {
+                        const isIndonesian = useSettingsStore.getState().language === 'id';
+                        const msg = isIndonesian
+                          ? "File telah dipindahkan"
+                          : "File has been moved or deleted";
+                        alert(msg);
+                      }
                     }
                   }}
                   className={`group relative flex items-start gap-3 px-4 py-2.5 hover:bg-zinc-50 dark:hover:bg-white/5 transition-colors ${
@@ -165,17 +173,16 @@ export default function HistoryPanel({ open, onClose }: Props): JSX.Element {
               ))}
             </div>
 
-            {jobs.length > 0 && (
-              <div className="p-3 border-t border-zinc-200 dark:border-white/10 bg-zinc-50 dark:bg-neutral-950/20 shrink-0">
-                <button
-                  onClick={() => void handleDeleteAll()}
-                  className="w-full py-1.5 px-3 rounded bg-red-500/10 hover:bg-red-500/20 text-red-500 dark:text-red-400 hover:text-red-600 dark:hover:text-red-300 border border-red-500/20 hover:border-red-500/30 text-xs font-semibold transition-all flex items-center justify-center gap-1.5"
-                >
-                  <Trash2 size={13} />
-                  {t('history.deleteAll')}
-                </button>
-              </div>
-            )}
+            <div className="p-3 border-t border-zinc-200 dark:border-white/10 bg-zinc-50 dark:bg-neutral-950/20 shrink-0">
+              <button
+                onClick={() => void handleDeleteAll()}
+                disabled={jobs.length === 0}
+                className="w-full py-1.5 px-3 rounded bg-red-500/10 hover:bg-red-500/20 text-red-500 dark:text-red-400 hover:text-red-600 dark:hover:text-red-300 border border-red-500/20 hover:border-red-500/30 text-xs font-semibold transition-all flex items-center justify-center gap-1.5 disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                <Trash2 size={13} />
+                {t('history.deleteAll')}
+              </button>
+            </div>
           </motion.aside>
         </>
       )}

@@ -279,6 +279,15 @@ chore    : [configuration changes, tooling, etc.]
 - [x] Task 64.3 — enhance_speech.py handles non-native formats (MP3/AAC/M4A/OPUS/WMA) via temp WAV + ffmpeg conversion; intermediate WAV always cleaned up
 - [x] Release binary rebuilt: D:\cargo_build\enhance-audio-pro\release\enhance-audio-pro.exe (7.7 MB, 2026-06-05 21:26)
 
+# PRD Task 65 — Fix Stuck Enhance Process (2026-06-06)
+- [x] Task 65.1 — Global asyncio lock added to `backend/routers/enhance.py`: `_enhance_lock = asyncio.Lock()` serialises all `_process_jobs` invocations. Concurrent `/enhance` requests (toolbar batch + per-row button) no longer run the DeepFilterNet model in parallel threads — the second request waits for the lock instead of causing CUDA OOM/hang.
+- [x] Task 65.2 — Per-job heartbeat: after acquiring the lock, Python sends a "processing" status callback before starting each job, refreshing UI state for jobs that were waiting behind the lock.
+- [x] Task 65.3 — Per-job hard timeout (30 min): `threading.Timer` per job sets the `cancellation_events` flag if enhance takes too long. Timed-out jobs report as "error" (not "pending") with a descriptive message.
+- [x] Task 65.4 — Rust HTTP error recovery in `src-tauri/src/commands/process.rs`: reqwest POST now carries a 10-second timeout; on failure, Rust writes "error" status to SQLite and emits `queue://status-change` error events — jobs no longer get permanently stuck in "processing" when the sidecar is unavailable.
+- [x] Task 65.5 — Delete-While-Processing Confirmation: already fully implemented (row trash, toolbar delete, keyboard Delete, Clear All).
+- [x] Task 65.6 — History Panel: Reveal-in-folder + "File has been moved" popup + Clear All History button already fully implemented.
+- [x] Release binary rebuilt: D:\cargo_build\enhance-audio-pro\release\enhance-audio-pro.exe (7.7 MB, 2026-06-06 14:23). Windows installer: Enhance Audio Pro_0.1.0_x64-setup.exe (46.6 MB).
+
 # Test Coverage (final)
 - 38/38 Vitest (frontend)
 - 65/65 Pytest (backend)

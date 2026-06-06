@@ -1,3 +1,5 @@
+use std::sync::Arc;
+use std::time::Duration;
 use serde_json::json;
 use tauri::{AppHandle, Emitter, State};
 
@@ -55,7 +57,6 @@ pub fn process_queue(
     // Normalize strength: frontend sends 0-100, Python expects 0.0-1.0
     let strength = enhancement_strength.unwrap_or(50.0).clamp(0.0, 100.0) / 100.0;
 
-    // Fire-and-forget to Python — Python processes jobs serially and calls back
     let payload = json!({
         "job_ids": updated_ids,
         "callback_url": format!("http://127.0.0.1:{}", callback_port),
@@ -63,9 +64,49 @@ pub fn process_queue(
         "model_type": ai_model.unwrap_or_else(|| "deepfilternet".to_string()),
     });
 
+    // Clone handles needed for async error recovery (if Python is unreachable)
+    let recovery_ids = updated_ids.clone();
+    let app_clone = app_handle.clone();
+    let db_arc = Arc::clone(&state.db);
+
     tauri::async_runtime::spawn(async move {
         let url = format!("http://127.0.0.1:{}/enhance", backend_port);
-        let _ = reqwest::Client::new().post(&url).json(&payload).send().await;
+        let result = reqwest::Client::new()
+            .post(&url)
+            .json(&payload)
+            .timeout(Duration::from_secs(10))
+            .send()
+            .await;
+
+        let err_msg = match result {
+            Err(e) => Some(format!("Backend unavailable: {}", e)),
+            Ok(resp) if !resp.status().is_success() => {
+                Some(format!("Backend error: {}", resp.status()))
+            }
+            Ok(_) => None, // Success — Python will send progress/status callbacks
+        };
+
+        if let Some(msg) = err_msg {
+            let now = chrono::Utc::now().to_rfc3339();
+            if let Ok(conn) = db_arc.lock() {
+                for id in &recovery_ids {
+                    let _ = conn.execute(
+                        "UPDATE queue_jobs SET status = 'error', error_message = ?1, updated_at = ?2 WHERE id = ?3",
+                        rusqlite::params![msg, now, id],
+                    );
+                }
+            }
+            for id in &recovery_ids {
+                let _ = app_clone.emit(
+                    "queue://status-change",
+                    json!({
+                        "jobId": id,
+                        "status": "error",
+                        "error_message": msg,
+                    }),
+                );
+            }
+        }
     });
 
     IpcResponse {
@@ -127,6 +168,7 @@ pub fn cancel_jobs(
         let _ = reqwest::Client::new()
             .post(&url)
             .json(&serde_json::json!({ "job_ids": ids }))
+            .timeout(Duration::from_secs(5))
             .send()
             .await;
     });

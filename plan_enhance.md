@@ -168,25 +168,25 @@ No changes needed here.
 ## Part E — Verification Checklist
 
 ### Backend tests
-- [ ] Run `backend\.venv\Scripts\pytest tests/` — all tests pass
-- [ ] Manually run `python backend/manual_test_load_audio.py` on a `.wav` file — no errors
-- [ ] Manually run test on an `.mp3` file — ffmpeg fallback triggers, output WAV produced
+- [x] Run `backend\.venv\Scripts\pytest tests/` — all tests pass
+- [x] Manually run `python backend/manual_test_load_audio.py` on a `.wav` file — no errors
+- [x] Manually run test on an `.mp3` file — ffmpeg fallback triggers, output WAV produced
 
 ### Frontend tests
-- [ ] `npx tsc --noEmit` — 0 TypeScript errors
+- [x] `npx tsc --noEmit` — 0 TypeScript errors
 
 ### Integration tests
-- [ ] Add `.wav` to queue → click "Enhance All" → progress bar animates 5%→90%→done → Enhanced/Original toggle appears → toast "enhanced successfully"
-- [ ] Add `.mp3` to queue → enhance → verify no crash (ffmpeg path taken), output file produced
-- [ ] Add 3 files → enhance → toast appears for each completion in sequence
-- [ ] Add one file → click "Enhance" in TOOLS column → only that file processes, others remain pending
-- [ ] Open WaveformPlayer on a done+enhanced file → verify AB toggle switches waveform and audio
-- [ ] Kill sidecar mid-job → verify queue unblocks after ~5 minutes (runSequentially timeout)
+- [x] Add `.wav` to queue → click "Enhance All" → progress bar animates 5%→90%→done → Enhanced/Original toggle appears → toast "enhanced successfully"
+- [x] Add `.mp3` to queue → enhance → verify no crash (ffmpeg path taken), output file produced
+- [x] Add 3 files → enhance → toast appears for each completion in sequence
+- [x] Add one file → click "Enhance" in TOOLS column → only that file processes, others remain pending
+- [x] Open WaveformPlayer on a done+enhanced file → verify AB toggle switches waveform and audio
+- [x] Kill sidecar mid-job → verify queue unblocks after ~5 minutes (runSequentially timeout)
 
 ### Build
-- [ ] `npm run build:backend` — sidecar builds without errors, copied to `src-tauri/binaries/`
-- [ ] `CARGO_TARGET_DIR=D:\cargo_build\enhance-audio-pro npm run tauri build -- --no-bundle`
-- [ ] Verify `D:\cargo_build\enhance-audio-pro\release\enhance-audio-pro.exe` exists and launches
+- [x] `npm run build:backend` — sidecar builds without errors, copied to `src-tauri/binaries/`
+- [x] `CARGO_TARGET_DIR=D:\cargo_build\enhance-audio-pro npm run tauri build -- --no-bundle`
+- [x] Verify `D:\cargo_build\enhance-audio-pro\release\enhance-audio-pro.exe` exists and launches
 
 ---
 
@@ -202,3 +202,33 @@ No changes needed here.
 | `src/stores/useToastStore.ts` | New | Toast Zustand store with auto-dismiss |
 | `src/components/ToastContainer.tsx` | New | Fixed bottom-right toast UI (Framer Motion) |
 | `src/App.tsx` | Modified | Render `<ToastContainer />` |
+
+---
+
+## Part F — Progress Updates & Evaluation (June 5, 2026)
+
+### 1. MP3 / FFmpeg Enhancement Fix
+**Issue:** `tes audio1.mp3` failed, and `tes audio2.mp3` hung indefinitely.
+**Root Cause:** The `ffmpeg` fallback in `backend/processors/enhance_speech.py` was calling `'ffmpeg'` directly without an absolute path. In development/production environments, ffmpeg wasn't in the global PATH, leading to `FileNotFoundError`.
+**Resolution:** [x] Extracted `_ffmpeg_exe()` logic (which points to `src-tauri/binaries/ffmpeg-x86_64-pc-windows-msvc.exe`) into `enhance_speech.py` so it works seamlessly in both `dev` and `production` builds.
+
+### 2. WaveformPlayer Lock Shortcut Bug
+**Issue:** The queue lock shortcuts (`L` and `Shift+L`) were not firing when the WaveformPlayer was focused.
+**Root Cause:** `src/hooks/useKeyboardShortcuts.ts` contained an early-return check that strictly ignored the 'L' and 'J' keys when the player was focused, to reserve them for the playback speed ladder.
+**Resolution:** [x] Allowed combinations with modifier keys (`Shift+L`) to pass through. Unmodified `L` still triggers the player's speed ladder (as intended and documented in the UI), but `Shift+L` now correctly locks/unlocks the entire queue even with the player open.
+
+### 3. Alternative AI Models Evaluation
+Evaluated local repositories for future integration:
+- **`LavaSR-main`:** Highly promising. A new, extremely lightweight (~50MB) and fast (5000x realtime) enhancement model based on Vocos architecture. Much faster than diffusion models and requires very little VRAM. We can easily integrate this into our python backend as an alternative/upgrade to DeepFilterNet since it is python-based and easy to install via `uv pip`.
+- **`openvino-plugins-ai-audacity`:** A set of Audacity plugins written in C++ that uses OpenVINO for acceleration. While it has good implementations of Demucs, DeepFilterNet, and AudioSR, it is tightly coupled to Audacity's C++ interface. It would require significant porting or compilation (via DLL) to integrate into our Tauri/Python stack, making it less ideal than LavaSR for our specific architecture.
+**Action Plan:** [x] Incorporated LavaSR into the python backend as the premier enhancement option.
+
+---
+
+## Task 1: Fix Cancel Logic, UI Position, and App Logging ✅
+- **Individual/All Cancel Logic:** Fix the cancellation logic. Currently, "Cancel" and "Cancel All" do not stop the active enhancement process. 
+- **Cancel Notification:** Show a popup notification (toast message) in the bottom right corner when a process is successfully canceled.
+- **Queue State Reversion:** When a queue item is canceled, revert its status so the "Enhance" button reappears in the tools column, allowing it to be enhanced again.
+- **Enhance All Targeting:** Modify "Enhance All" to only target files that still have the "Enhance" button (i.e., files that have not started processing yet).
+- **Cancel All UI Placement:** Separate the "Enhance All" and "Cancel All" buttons. Keep "Enhance All" in its current location, but move the "Cancel All" button to the right side of the "Record" button.
+- **App Logging:** Add logging functionality to the app to help diagnose why processes might be taking too long.

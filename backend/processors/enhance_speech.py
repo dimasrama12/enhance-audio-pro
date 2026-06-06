@@ -33,6 +33,19 @@ def _ffmpeg_exe() -> str:
 
 def _load_model():
     global _model
+    
+    # Set DF_HOME and DFHOME environment variables so init_df knows where to find the model
+    env_dir = os.environ.get("MODELS_DIR")
+    if env_dir:
+        models_dir = pathlib.Path(env_dir)
+    else:
+        appdata = os.environ.get("APPDATA", str(pathlib.Path.home()))
+        models_dir = pathlib.Path(appdata) / "enhance-audio-pro" / "models" / "deepfilter"
+        
+    os.environ["DFHOME"] = str(models_dir)
+    os.environ["DF_HOME"] = str(models_dir)
+    logger.info(f"Using DeepFilterNet model directory: {models_dir}")
+
     # pyrefly: ignore [missing-import]
     from df.enhance import init_df
 

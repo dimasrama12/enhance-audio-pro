@@ -146,9 +146,7 @@ export function useKeyboardShortcuts(): void {
             if (activeJobs.length > 0) {
               const isIndonesian = useSettingsStore.getState().language === 'id';
               const fallbackMsg = isIndonesian
-                ? (activeJobs.length === 1
-                    ? `Apakah Anda yakin ingin menghapus "${activeJobs[0].filename}"? File sedang diproses.`
-                    : `Apakah Anda yakin ingin menghapus ${activeJobs.length} file? Beberapa file sedang diproses.`)
+                ? "Apakah Anda yakin ingin menghapus? File sedang diproses."
                 : (activeJobs.length === 1
                     ? `Are you sure you want to delete "${activeJobs[0].filename}"? The file is currently being processed.`
                     : `Are you sure you want to delete ${activeJobs.length} files? Some files are currently being processed.`);

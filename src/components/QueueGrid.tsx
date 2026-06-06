@@ -379,7 +379,7 @@ function SortableJobRow({ job, index, isSelected, onSelect, isImporting, activeD
             if (job.status === 'processing' || job.status === 'queued') {
               const isIndonesian = useSettingsStore.getState().language === 'id';
               const msg = isIndonesian
-                ? `Apakah Anda yakin ingin menghapus "${job.filename}"? File sedang diproses.`
+                ? "Apakah Anda yakin ingin menghapus? File sedang diproses."
                 : `Are you sure you want to delete "${job.filename}"? The file is currently being processed.`;
               if (!window.confirm(msg)) return;
             }
@@ -941,6 +941,16 @@ export default function QueueGrid(): JSX.Element {
           <button
             onClick={(e) => {
               e.stopPropagation();
+              const { jobs: allJobs, lockedJobIds } = useQueueStore.getState();
+              const nonLocked = allJobs.filter((j) => !lockedJobIds.includes(j.id));
+              const hasProcessing = nonLocked.some((j) => j.status === 'processing' || j.status === 'queued');
+              if (hasProcessing) {
+                const isIndonesian = useSettingsStore.getState().language === 'id';
+                const msg = isIndonesian
+                  ? "Apakah Anda yakin ingin menghapus? File sedang diproses."
+                  : "Are you sure you want to delete? File is currently being processed.";
+                if (!window.confirm(msg)) return;
+              }
               setShowClearConfirm(true);
             }}
             className="text-red-500 hover:text-red-400 font-semibold text-[10px] uppercase tracking-wider transition-colors"
