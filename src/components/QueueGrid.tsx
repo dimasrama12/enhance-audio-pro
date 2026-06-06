@@ -2,9 +2,9 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { listen } from '@tauri-apps/api/event';
 import { motion, AnimatePresence } from 'framer-motion';
 import { clsx } from 'clsx';
-import { GripVertical, Play, FolderOpen, Lock, ChevronRight, Trash2, Wand2 } from 'lucide-react';
+import { GripVertical, Play, Lock, ChevronRight, Trash2, Wand2, Download } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
-import { open as openDialog } from '@tauri-apps/plugin-dialog';
+import { save as saveDialog } from '@tauri-apps/plugin-dialog';
 import ProcessingTimer from '@/components/ProcessingTimer';
 import {
   DndContext,
@@ -30,7 +30,7 @@ import { useQueueStore } from '@/stores/useQueueStore';
 import { useUIStore } from '@/stores/useUIStore';
 import { useSettingsStore } from '@/stores/useSettingsStore';
 
-import { invokeSetOutputFormat, invokeSetBitrate, invokeSetSampleRate, invokeArchiveJobs, invokeProcessQueue, invokeCancelJobs, invokeSetDestination, invokeSetJobStatus } from '@/lib/ipc';
+import { invokeSetOutputFormat, invokeSetBitrate, invokeSetSampleRate, invokeArchiveJobs, invokeProcessQueue, invokeCancelJobs, invokeSetJobStatus, invokeCopyEnhancedFile } from '@/lib/ipc';
 import { useToastStore } from '@/stores/useToastStore';
 import { logError } from '@/lib/errorLogger';
 import type { QueueJob, JobStatus } from '@/types/queue';
@@ -175,6 +175,14 @@ function SampleRateSelect({ job }: { job: QueueJob }): JSX.Element {
   );
 }
 
+function getSourceDir(filepath: string): string {
+  if (!filepath) return '';
+  const lastBackslash = filepath.lastIndexOf('\\');
+  const lastSlash = filepath.lastIndexOf('/');
+  const lastSep = Math.max(lastBackslash, lastSlash);
+  return lastSep > 0 ? filepath.substring(0, lastSep) : filepath;
+}
+
 // ─── Per-row enhance button ────────────────────────────────────────────────────
 
 function EnhanceRowButton({ job }: { job: QueueJob }): JSX.Element | null {
@@ -237,6 +245,50 @@ function EnhanceRowButton({ job }: { job: QueueJob }): JSX.Element | null {
   );
 }
 
+// ─── Per-row download button ───────────────────────────────────────────────────
+
+function DownloadJobButton({ job }: { job: QueueJob }): JSX.Element {
+  const { addToast } = useToastStore();
+  const canDownload = job.status === 'done' && !!job.output_filepath;
+
+  async function handleDownload(e: React.MouseEvent): Promise<void> {
+    e.stopPropagation();
+    if (!canDownload || !job.output_filepath) return;
+
+    const srcPath = job.output_filepath;
+    const filename = srcPath.replace(/\\/g, '/').split('/').pop() ?? job.filename;
+
+    const destPath = await saveDialog({
+      defaultPath: filename,
+      title: 'Save Enhanced File As',
+    });
+    if (!destPath) return;
+
+    const res = await invokeCopyEnhancedFile(srcPath, destPath);
+    if (res.success) {
+      addToast(`Saved "${filename}"`, 'success');
+    } else {
+      addToast(`Save failed: ${res.error ?? 'Unknown error'}`, 'error');
+    }
+  }
+
+  return (
+    <button
+      onClick={handleDownload}
+      disabled={!canDownload}
+      title={canDownload ? 'Download enhanced file' : 'File not enhanced yet'}
+      className={clsx(
+        'transition-all duration-150',
+        canDownload
+          ? 'text-emerald-600 hover:text-emerald-500 dark:text-emerald-400 dark:hover:text-emerald-300 active:scale-95'
+          : 'text-slate-300 dark:text-white/15 cursor-not-allowed',
+      )}
+    >
+      <Download size={12} />
+    </button>
+  );
+}
+
 // ─── Sortable row ─────────────────────────────────────────────────────────────
 
 function SortableJobRow({ job, index, isSelected, onSelect, isImporting, activeDragId, onErrorClick, colWidths }: {
@@ -257,7 +309,6 @@ function SortableJobRow({ job, index, isSelected, onSelect, isImporting, activeD
   const isDraggingAnySelected = isDragOfSelectedItem && selectedJobIds.includes(job.id);
   const isLocked = useQueueStore((s) => s.lockedJobIds.includes(job.id));
   const unlockJobs = useQueueStore((s) => s.unlockJobs);
-  const defaultOutputFolder = useSettingsStore((s) => s.outputFolder);
 
   const isEnhanced = job.ab_mode === 'enhanced';
   // Primary drag item stays in DOM (opacity 0) so DnD kit can measure it for
@@ -331,31 +382,11 @@ function SortableJobRow({ job, index, isSelected, onSelect, isImporting, activeD
         </div>
       </td>
       <td
-        className="px-2 py-2 text-xs text-slate-400 dark:text-white/40 truncate group/dest"
+        className="px-2 py-2 text-xs text-slate-400 dark:text-white/40"
         style={{ width: colWidths.destination, minWidth: 80, maxWidth: colWidths.destination }}
-        title={job.destination || 'Click to set destination'}
+        title={getSourceDir(job.filepath)}
       >
-        <button
-          onClick={async (e) => {
-            e.stopPropagation();
-            const sel = await openDialog({ directory: true, multiple: false, title: 'Select Output Folder' });
-            if (typeof sel !== 'string' || !sel) return;
-            const { selectedJobIds, setDestination, setDestinationBatch } = useQueueStore.getState();
-            if (selectedJobIds.includes(job.id)) {
-              setDestinationBatch(selectedJobIds, sel);
-              for (const id of selectedJobIds) {
-                await invokeSetDestination(id, sel);
-              }
-            } else {
-              setDestination(job.id, sel);
-              await invokeSetDestination(job.id, sel);
-            }
-          }}
-          className="flex items-center gap-1 w-full truncate hover:text-violet-500 dark:hover:text-violet-400 transition-colors"
-        >
-          <FolderOpen size={11} className="shrink-0 opacity-0 group-hover/dest:opacity-100 transition-opacity" />
-          <span className="truncate">{job.destination || defaultOutputFolder || '—'}</span>
-        </button>
+        <span className="truncate block">{getSourceDir(job.filepath) || '—'}</span>
       </td>
       <td
         className="px-2 py-2 text-xs text-slate-400 dark:text-white/40 truncate tabular-nums"
@@ -380,7 +411,10 @@ function SortableJobRow({ job, index, isSelected, onSelect, isImporting, activeD
         />
       </td>
       <td className="px-3 py-2 w-28">
-        <EnhanceRowButton job={job} />
+        <div className="flex items-center gap-1.5">
+          <EnhanceRowButton job={job} />
+          <DownloadJobButton job={job} />
+        </div>
       </td>
       <td className="px-2 py-2 w-8 group/lock">
         <button

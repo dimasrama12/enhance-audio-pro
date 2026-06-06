@@ -135,3 +135,7 @@ export async function invokeAppendErrorLog(entry: string): Promise<void> {
     // Fire-and-forget — logging failure must never break the UI
   }
 }
+
+export async function invokeCopyEnhancedFile(srcPath: string, destPath: string): Promise<IpcResponse<string>> {
+  return invoke<IpcResponse<string>>('copy_enhanced_file', { srcPath, destPath });
+}

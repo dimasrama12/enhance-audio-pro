@@ -466,4 +466,17 @@ This document summarizes the update notes and functional improvements that need 
   - Recompile the Tauri application release binary at `D:\cargo_build\enhance-audio-pro\release\enhance-audio-pro.exe`.
 
 
+## Task 69: Destination Column & Download Implementation ✅
+- **Destination Column Update**: The "Destination" column in the queue table must display the original source file's location/path, not the output folder.
+- **New Download Column/Icon**: Add a new column (or add it to the Tools column) with a "Download" (down arrow) icon. This icon is initially a pale gray color (disabled) similar to the default LOCK icon.
+- **Individual Download**: When a row's enhancement status is 'Done', the enhanced file is *not* saved automatically. Instead, the download icon becomes active. When the user clicks the download icon, a save dialog (explorer pop-up window) appears, allowing the user to manually select the folder to save the specific enhanced file.
+- **Multiple/Batch Download**:
+  - If the user selects multiple rows (that have status 'Done'), a "Download multiple" clickable text should appear to the right of the queue status summary text (e.g., next to "3 files 1 processing Cancel All"). Clicking this will prompt the user to choose a destination folder to save all selected files.
+  - Alternatively, when the entire queue is completely processed (no items are 'processing' or 'queued', and all are 'done'), the same "Download multiple" clickable text should appear automatically. Clicking it will open a save dialog to choose a folder for downloading all finished files at once.
 
+**Implementation (2026-06-07):**
+- `DESTINATION` column now shows source file's parent directory (`filepath` dirname) instead of the output folder — read-only display.
+- `DownloadJobButton` component added to the TOOLS column: gray/disabled when not done, emerald/active when `status === 'done'` and `output_filepath` is set. Clicking opens a `save` dialog (tauri-plugin-dialog) for "Save As" and copies the enhanced file via new Rust command `copy_enhanced_file`.
+- `copy_enhanced_file(src_path, dest_path)` Rust command added to `commands/queue.rs`, registered in `lib.rs`, and exposed as `invokeCopyEnhancedFile` in `ipc.ts`.
+- `dialog:allow-save` permission added to `capabilities/default.json`.
+- `QueueStatusBar` updated: shows "Download selected (N)" when 2+ done rows are selected; shows "Download all (N)" when entire queue is done and non-empty. Both buttons open folder picker and batch-copy all enhanced files.

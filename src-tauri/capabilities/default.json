@@ -17,6 +17,7 @@
     "shell:allow-spawn",
     "shell:allow-kill",
     "dialog:allow-open",
+    "dialog:allow-save",
     "store:allow-get",
     "store:allow-set",
     "store:allow-save",

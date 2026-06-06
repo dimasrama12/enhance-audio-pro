@@ -300,3 +300,25 @@ pub fn set_job_status(
     }
 }
 
+/// Copy an enhanced file from its output location to a user-chosen destination path.
+#[tauri::command]
+pub fn copy_enhanced_file(src_path: String, dest_path: String) -> IpcResponse<String> {
+    let src = std::path::Path::new(&src_path);
+    if !src.exists() {
+        return IpcResponse {
+            success: false,
+            data: None,
+            error: Some(format!("Source file not found: {}", src_path)),
+        };
+    }
+    if let Some(parent) = std::path::Path::new(&dest_path).parent() {
+        if !parent.as_os_str().is_empty() && !parent.exists() {
+            let _ = std::fs::create_dir_all(parent);
+        }
+    }
+    match std::fs::copy(&src_path, &dest_path) {
+        Ok(_) => IpcResponse { success: true, data: Some(dest_path), error: None },
+        Err(e) => IpcResponse { success: false, data: None, error: Some(e.to_string()) },
+    }
+}
+
