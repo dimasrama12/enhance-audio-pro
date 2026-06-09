@@ -529,3 +529,21 @@ This document summarizes the update notes and functional improvements that need 
   - The deletion must execute after `cleanup_temp_files` so that output file paths are still available for cleanup before records are removed.
 - **Tauri Release Binary Rebuild:**
   - Rebuild the Tauri application release binary at `D:\cargo_build\enhance-audio-pro\release\enhance-audio-pro.exe`.
+
+## Task 74: Unlimited Queue, Sequential Convert All, Per-Row Enhance/Convert Toggle, Completion Toast & Download All 🚀 [NEW] ✅
+- **Unlimited File Input:**
+  - Remove the 150-file (formerly "30-file") queue capacity limit so users can add an unlimited number of audio files. Deleted the `MAX_QUEUE_JOBS` constant and both capacity-check blocks in `src/lib/importHelper.ts` (`handleImportFiles` and `submitAddFilesDirect`).
+- **Per-Row Enhance/Convert Mode Dropdown:**
+  - Add a small `ToolModeSelect` dropdown (Enh / Conv) in the TOOLS column of each queue row. Selecting "Conv" replaces the per-row "Enhance" button with a blue "Convert" button (`ConvertRowButton`) for individual, manual conversions. The selected mode is tracked in a non-persisted `jobOperationTypes: Record<string,'enhance'|'convert'>` Zustand map.
+  - The dropdown is hidden once a job is `done`, `processing`, or `queued` (mode is locked in during/after a run).
+- **Sequential Convert All:**
+  - Pressing "Convert All" now mirrors "Enhance All": all pending jobs are marked `queued`, the first is immediately dispatched as `processing`, and the auto-advance listener in `QueueGrid` starts the next `queued` job only after the active one settles.
+  - The auto-advance logic reads `jobOperationTypes` to dispatch the correct IPC: `invokeConvertFiles` for convert-typed jobs, `invokeProcessQueue` for enhance-typed jobs.
+- **Toolbar Button Reorder + Shortcut:**
+  - Toolbar order is now **Enhance All → Convert All → Separate → Record**. The `C` keyboard shortcut triggers the same sequential convert-queue logic (was previously dispatching all pending at once).
+- **Completion Toast + Download All:**
+  - When a Convert All batch finishes, a bottom-right success toast appears: "N files converted" with a "Download All" action button (download icon). Clicking it opens a folder picker and batch-copies every converted output via `copy_enhanced_file` — identical to the enhance Download-All behavior. The toast store was extended with optional `action` and `duration` fields; `ToastContainer` renders the action button.
+- **Python Convert Router Hardening:**
+  - `backend/routers/convert.py` now wraps `_process_jobs` in a global `asyncio.Lock` (serializes convert work, prevents collisions when per-row + batch convert fire together) and sends a per-job "processing" heartbeat callback before each conversion.
+- **Tauri Release Binary Rebuild:**
+  - Rebuild the Python sidecar (PyInstaller) and the Tauri release binary at `D:\cargo_build\enhance-audio-pro\release\enhance-audio-pro.exe`.
