@@ -12,6 +12,7 @@ import {
   invokeSeparateStems,
   invokeSaveSettings,
   invokeArchiveJobs,
+  invokeSetJobStatus,
 } from '@/lib/ipc';
 import { DEFAULT_KEYBOARD_SHORTCUTS } from '@/types/settings';
 import type { AppSettings } from '@/types/settings';
@@ -107,8 +108,25 @@ export function useKeyboardShortcuts(): void {
 
       // ── Queue actions ──────────────────────────────────────────────────────
       if (matches(e, sc.enhance)) {
-        const ids = q.jobs.filter((j) => j.status === 'pending').map((j) => j.id);
-        if (ids.length) invokeProcessQueue(ids, s.enhancementStrength);
+        const enhanceableIds = q.jobs.filter((j) => j.status === 'pending' || j.status === 'error').map((j) => j.id);
+        if (enhanceableIds.length) {
+          const isAnyEnhancing = q.jobs.some((j) => j.status === 'processing' || j.status === 'queued');
+          if (isAnyEnhancing) return;
+          for (const id of enhanceableIds) {
+            q.setStatus(id, 'queued');
+            await invokeSetJobStatus(id, 'queued');
+          }
+          const freshJobs = useQueueStore.getState().jobs;
+          const isAnyProcessing = freshJobs.some((j) => j.status === 'processing');
+          if (!isAnyProcessing) {
+            const nextQueuedJob = freshJobs.find((j) => j.status === 'queued');
+            if (nextQueuedJob) {
+              invokeProcessQueue([nextQueuedJob.id], s.enhancementStrength, s.aiModel ?? 'deepfilternet').catch((err) => {
+                console.error('Failed to auto-start queued job', err);
+              });
+            }
+          }
+        }
         return;
       }
       if (matches(e, sc.separate)) {
@@ -146,9 +164,11 @@ export function useKeyboardShortcuts(): void {
             if (activeJobs.length > 0) {
               const isIndonesian = useSettingsStore.getState().language === 'id';
               const fallbackMsg = isIndonesian
-                ? "Apakah Anda yakin ingin menghapus? File sedang diproses."
+                ? (activeJobs.length === 1
+                    ? "Apakah Anda yakin ingin menghapus file ini? File ini sedang proses."
+                    : "Apakah Anda yakin ingin menghapus? File sedang diproses.")
                 : (activeJobs.length === 1
-                    ? `Are you sure you want to delete "${activeJobs[0].filename}"? The file is currently being processed.`
+                    ? "Are you sure you want to delete this file? The file is currently being processed."
                     : `Are you sure you want to delete ${activeJobs.length} files? Some files are currently being processed.`);
               if (!window.confirm(fallbackMsg)) {
                 return;

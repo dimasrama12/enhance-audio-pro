@@ -34,7 +34,7 @@ export default function Sidebar(): JSX.Element {
 
   const utilBtn = clsx(
     'p-2 rounded-lg transition-colors duration-150',
-    'text-slate-500 dark:text-white/40 hover:text-slate-800 dark:hover:text-white',
+    'text-slate-500 dark:text-zinc-100 hover:text-slate-800 dark:hover:text-white',
     'hover:bg-slate-200 dark:hover:bg-white/[0.08]',
   );
 

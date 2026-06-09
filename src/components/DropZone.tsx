@@ -199,7 +199,7 @@ export default function DropZone(): JSX.Element {
       <motion.div
         animate={{ scale: isDragging ? 1.08 : 1, y: isDragging ? -2 : 0 }}
         transition={{ type: 'spring', stiffness: 400, damping: 25 }}
-        className="flex items-center gap-4 text-slate-400 dark:text-white/40 z-10"
+        className="flex items-center gap-4 text-slate-400 dark:text-zinc-100 z-10"
       >
         {/* Icon cluster */}
         <div className="relative">
@@ -207,22 +207,22 @@ export default function DropZone(): JSX.Element {
             'w-9 h-9 rounded-xl flex items-center justify-center transition-colors duration-200',
             isDragging
               ? 'bg-violet-500/20 text-violet-400'
-              : 'bg-slate-100 dark:bg-white/[0.05] text-slate-400 dark:text-white/30 group-hover:bg-violet-100 dark:group-hover:bg-violet-500/10 group-hover:text-violet-500 dark:group-hover:text-violet-400',
+              : 'bg-slate-100 dark:bg-white/[0.05] text-slate-400 dark:text-zinc-100 group-hover:bg-violet-100 dark:group-hover:bg-violet-500/10 group-hover:text-violet-500 dark:group-hover:text-violet-400',
           )}>
             <Upload size={18} />
           </div>
           <div className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-slate-200 dark:bg-[#1A2237] border border-slate-300 dark:border-white/[0.08] flex items-center justify-center">
-            <TabIcon size={9} className="text-slate-500 dark:text-white/50" />
+            <TabIcon size={9} className="text-slate-500 dark:text-zinc-200" />
           </div>
         </div>
 
         {/* Text */}
         <div>
-          <p className="text-sm font-medium text-slate-600 dark:text-slate-300 leading-tight">{dropText}</p>
-          <p className="text-xs text-slate-400 dark:text-white/30 mt-0.5">
+          <p className="text-sm font-medium text-slate-600 dark:text-zinc-100 leading-tight">{dropText}</p>
+          <p className="text-xs text-slate-400 dark:text-zinc-200 mt-0.5">
             {t('dropzone.browse')}
             {' · '}
-            <span className="text-slate-400 dark:text-white/20">
+            <span className="text-slate-400 dark:text-zinc-200">
               {isAudio ? 'MP3, WAV, FLAC, AAC +7' : 'MP4, MKV, MOV, AVI +2'}
             </span>
           </p>

@@ -442,7 +442,7 @@ export default function WaveformPlayer({ filepath, outputFilepath, filename }: P
             height: 18,
             insertPosition: 'beforebegin',
             style: {
-              color: theme === 'dark' ? 'rgba(255,255,255,0.5)' : 'rgba(0,0,0,0.5)',
+              color: theme === 'dark' ? '#f4f4f5' : 'rgba(0,0,0,0.5)',
               fontSize: '9px',
               fontFamily: 'monospace',
             },
@@ -873,8 +873,8 @@ export default function WaveformPlayer({ filepath, outputFilepath, filename }: P
     };
   }, []);
 
-  // Human-readable speed badge
-  const speedLabel = jlSpeed !== 0
+  // Human-readable speed badge (only show for accelerated speeds, e.g., 2x, 4x, -2x, -4x)
+  const speedLabel = (jlSpeed !== 0 && jlSpeed !== 1 && jlSpeed !== -1)
     ? (jlSpeed > 0 ? `${jlSpeed}x ▶` : `${Math.abs(jlSpeed)}x ◀`)
     : null;
 
@@ -892,11 +892,11 @@ export default function WaveformPlayer({ filepath, outputFilepath, filename }: P
       {/* Header: filename + speed indicator + A/B toggle */}
       <div className="flex items-center justify-between gap-2">
         <div className="flex items-center gap-2 min-w-0">
-          <span className="text-[10px] text-slate-500 dark:text-white/40 uppercase tracking-wider truncate max-w-[200px]">
+          <span className="text-[10px] text-slate-500 dark:text-zinc-100 uppercase tracking-wider truncate max-w-[200px]">
             {showOutput && outputFilepath ? `${filename} (enhanced)` : filename}
           </span>
           {speedLabel && (
-            <span className="text-[9px] font-mono px-1.5 py-0.5 rounded bg-violet-500/20 text-violet-400 shrink-0">
+            <span className="text-[9px] font-mono px-1.5 py-0.5 rounded bg-violet-500/20 text-violet-600 dark:text-zinc-100 shrink-0 font-semibold">
               {speedLabel}
             </span>
           )}
@@ -904,7 +904,7 @@ export default function WaveformPlayer({ filepath, outputFilepath, filename }: P
         {outputFilepath && (
           <button
             onClick={() => setShowOutput((v) => !v)}
-            className="flex items-center gap-1 text-[10px] text-slate-500 dark:text-white/50 hover:text-violet-600 dark:hover:text-violet-400 transition-colors shrink-0"
+            className="flex items-center gap-1 text-[10px] text-slate-500 dark:text-zinc-100 hover:text-violet-600 dark:hover:text-violet-400 transition-colors shrink-0"
             title="Toggle A/B: original vs enhanced"
           >
             {showOutput ? <ToggleRight size={14} className="text-violet-500" /> : <ToggleLeft size={14} />}
@@ -954,9 +954,9 @@ export default function WaveformPlayer({ filepath, outputFilepath, filename }: P
           <RotateCcw size={12} />
         </button>
 
-        <span className="text-[10px] text-slate-500 dark:text-white/40 tabular-nums shrink-0">
+        <span className="text-[10px] text-slate-500 dark:text-zinc-100 tabular-nums shrink-0">
           {formatTimeHHMMSSFF(currentTime)} / {formatTimeHHMMSSFF(duration)}
-          <span className="ml-1.5 px-1 rounded bg-slate-200/50 dark:bg-white/[0.06] text-slate-600 dark:text-white/50 text-[9px] font-mono">
+          <span className="ml-1.5 px-1 rounded bg-slate-200/50 dark:bg-white/[0.06] text-slate-600 dark:text-zinc-100 text-[9px] font-mono">
             {volumeDb > -40 ? `${volumeDb > 0 ? '+' : ''}${volumeDb} dB` : 'Muted'}
           </span>
         </span>
@@ -978,7 +978,7 @@ export default function WaveformPlayer({ filepath, outputFilepath, filename }: P
         />
 
         <div className="flex items-center gap-1 shrink-0">
-          <span className="text-[10px] text-slate-500 dark:text-white/40 font-medium">Zoom:</span>
+          <span className="text-[10px] text-slate-500 dark:text-zinc-100 font-medium">Zoom:</span>
           <input
             type="range"
             min={minZoom}
@@ -988,14 +988,14 @@ export default function WaveformPlayer({ filepath, outputFilepath, filename }: P
             disabled={!isReady}
             className="w-24 h-1 bg-slate-200 dark:bg-white/[0.08] rounded-lg appearance-none cursor-pointer accent-violet-600 dark:accent-violet-400 focus:outline-none"
           />
-          <span className="text-[10px] text-slate-500 dark:text-white/40 w-12 text-right tabular-nums">
+          <span className="text-[10px] text-slate-500 dark:text-zinc-100 w-12 text-right tabular-nums">
             {Math.round(zoom)}px
           </span>
         </div>
       </div>
 
       {/* Shortcuts footer */}
-      <span className="text-[9px] text-slate-400 dark:text-white/20 px-1">
+      <span className="text-[9px] text-slate-400 dark:text-zinc-200 px-1">
         Space (pause/play) · ← → (skip 1s) · ⇧← / ⇧→ (skip 5s) · Ctrl+←/→ (start/end) · ⇧Left/⇧Right (±1 frame) · J/L (speed ladder: −4x↔−2x↔1x↔2x↔4x) · ↑↓ (vol dB) · Alt+Scroll (zoom)
       </span>
     </div>

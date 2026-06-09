@@ -116,8 +116,9 @@ export default function HistoryPanel({ open, onClose }: Props): JSX.Element {
                 <div
                   key={job.id}
                   onClick={async () => {
-                    if (job.output_filepath) {
-                      const res = await invokeShowItemInFolder(job.output_filepath);
+                    const targetPath = job.download_path || job.output_filepath;
+                    if (targetPath) {
+                      const res = await invokeShowItemInFolder(targetPath);
                       if (!res.success) {
                         const isIndonesian = useSettingsStore.getState().language === 'id';
                         const msg = isIndonesian
@@ -128,7 +129,7 @@ export default function HistoryPanel({ open, onClose }: Props): JSX.Element {
                     }
                   }}
                   className={`group relative flex items-start gap-3 px-4 py-2.5 hover:bg-zinc-50 dark:hover:bg-white/5 transition-colors ${
-                    job.output_filepath ? 'cursor-pointer' : 'cursor-default'
+                    (job.download_path || job.output_filepath) ? 'cursor-pointer' : 'cursor-default'
                   }`}
                 >
                   <div className="mt-0.5 shrink-0">
@@ -143,11 +144,15 @@ export default function HistoryPanel({ open, onClose }: Props): JSX.Element {
                     <p className="text-[11px] font-medium text-zinc-800 dark:text-white/90 truncate" title={job.filename}>
                       {job.filename}
                     </p>
-                    {job.output_filepath && (
+                    {job.download_path ? (
+                      <p className="text-[10px] text-zinc-400 dark:text-white/40 truncate mt-0.5" title={job.download_path}>
+                        → {job.download_path.split(/[\\/]/).pop()}
+                      </p>
+                    ) : job.output_filepath ? (
                       <p className="text-[10px] text-zinc-400 dark:text-white/40 truncate mt-0.5" title={job.output_filepath}>
                         → {job.output_filepath.split(/[\\/]/).pop()}
                       </p>
-                    )}
+                    ) : null}
                     {job.error_message && (
                       <p className="text-[10px] text-red-400/80 truncate mt-0.5" title={job.error_message}>
                         {job.error_message}

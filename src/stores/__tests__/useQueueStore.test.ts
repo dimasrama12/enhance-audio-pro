@@ -15,6 +15,7 @@ const makeJob = (overrides: Partial<QueueJob> = {}): QueueJob => ({
   output_format: 'wav',
   bitrate: '',
   output_filepath: null,
+  download_path: null,
   sample_rate: '',
   created_at: '2026-05-20T00:00:00Z',
   updated_at: '2026-05-20T00:00:00Z',

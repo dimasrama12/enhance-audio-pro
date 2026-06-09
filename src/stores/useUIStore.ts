@@ -20,6 +20,8 @@ interface UIState {
   duplicatePending: DuplicatePending | null;
   importError: string | null;
   importLimitWarning: string | null;
+  isImporting: boolean;
+  setIsImporting: (v: boolean) => void;
   toggleSidebar: () => void;
   setSidebarVisible: (v: boolean) => void;
   setActiveTab: (tab: AppTab) => void;
@@ -48,6 +50,8 @@ export const useUIStore = create<UIState>((set) => ({
   duplicatePending: null,
   importError: null,
   importLimitWarning: null,
+  isImporting: false,
+  setIsImporting: (isImporting) => set({ isImporting }),
   toggleSidebar: () => set((s) => ({ sidebarVisible: !s.sidebarVisible })),
   setSidebarVisible: (sidebarVisible) => set({ sidebarVisible }),
   setActiveTab: (activeTab) => set({ activeTab }),

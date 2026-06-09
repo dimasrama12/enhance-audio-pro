@@ -19,7 +19,7 @@ import { useKeyboardShortcuts } from '@/hooks/useKeyboardShortcuts';
 export default function App(): JSX.Element {
   const { theme, language, setSettings, setInitialized } = useSettingsStore();
   const { setJobs } = useQueueStore();
-  const { sidebarVisible, settingsOpen, closeSettings } = useUIStore();
+  const { sidebarVisible, settingsOpen, closeSettings, isImporting } = useUIStore();
 
   useKeyboardShortcuts();
 
@@ -69,6 +69,16 @@ export default function App(): JSX.Element {
       <SettingsPanel open={settingsOpen} onClose={closeSettings} />
       <ContextMenu />
       <ToastContainer />
+      {isImporting && (
+        <div className="fixed inset-0 z-[10000] flex flex-col items-center justify-center bg-black/60 backdrop-blur-sm">
+          <div className="flex flex-col items-center gap-4 bg-white/10 dark:bg-black/40 border border-white/10 p-8 rounded-2xl shadow-2xl backdrop-blur-md">
+            <div className="w-10 h-10 border-4 border-violet-500 border-t-transparent rounded-full animate-spin" />
+            <span className="text-sm font-semibold text-white tracking-wide">
+              {language === 'id' ? 'Memasukkan file...' : 'Importing files...'}
+            </span>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

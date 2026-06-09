@@ -202,9 +202,5 @@ def enhance_file(
                 os.unlink(process_path)
             except OSError:
                 pass
-        # Only remove the tmp_dir if we created it via tempfile (not scratch disk)
-        if not os.environ.get("SCRATCH_DISK_DIR", "").strip():
-            try:
-                os.rmdir(tmp_dir)
-            except OSError:
-                pass
+        import shutil
+        shutil.rmtree(tmp_dir, ignore_errors=True)

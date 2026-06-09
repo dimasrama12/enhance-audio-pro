@@ -112,9 +112,11 @@ export default function QueueToolbar(): JSX.Element {
     if (activeJobs.length > 0) {
       const isIndonesian = useSettingsStore.getState().language === 'id';
       const fallbackMsg = isIndonesian
-        ? "Apakah Anda yakin ingin menghapus? File sedang diproses."
+        ? (activeJobs.length === 1
+            ? "Apakah Anda yakin ingin menghapus file ini? File ini sedang proses."
+            : "Apakah Anda yakin ingin menghapus? File sedang diproses.")
         : (activeJobs.length === 1
-            ? `Are you sure you want to delete "${activeJobs[0].filename}"? The file is currently being processed.`
+            ? "Are you sure you want to delete this file? The file is currently being processed."
             : `Are you sure you want to delete ${activeJobs.length} files? Some files are currently being processed.`);
       if (!window.confirm(fallbackMsg)) return;
     }
@@ -213,7 +215,7 @@ export default function QueueToolbar(): JSX.Element {
 
   const iconBtn = [
     'p-2 rounded-lg transition-colors duration-150',
-    'text-slate-500 dark:text-white/40',
+    'text-slate-500 dark:text-zinc-100',
     'hover:text-slate-800 dark:hover:text-white',
     'hover:bg-slate-200 dark:hover:bg-white/[0.08]',
   ].join(' ');
@@ -255,14 +257,14 @@ export default function QueueToolbar(): JSX.Element {
 
       {/* ── Right: Search, filter, format, icons ── */}
       <div className="relative">
-        <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 dark:text-white/30 pointer-events-none" />
+        <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 dark:text-zinc-100 pointer-events-none" />
         <input
           ref={searchRef}
           type="text"
           placeholder={t('toolbar.search')}
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
-          className="pl-8 pr-3 py-1.5 bg-slate-200 dark:bg-white/[0.06] rounded-lg text-sm text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-white/25 outline-none focus:ring-1 focus:ring-violet-500 transition w-44 border border-transparent focus:border-violet-500/30"
+          className="pl-8 pr-3 py-1.5 bg-slate-200 dark:bg-white/[0.06] rounded-lg text-sm text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-zinc-300 outline-none focus:ring-1 focus:ring-violet-500 transition w-44 border border-transparent focus:border-violet-500/30"
         />
       </div>
 
@@ -277,7 +279,7 @@ export default function QueueToolbar(): JSX.Element {
       </select>
 
       <div className="flex items-center gap-1.5 bg-slate-200 dark:bg-white/[0.06] rounded-lg px-3 py-1.5 border border-transparent">
-        <span className="text-slate-400 dark:text-white/30 text-xs font-medium">→</span>
+        <span className="text-slate-400 dark:text-zinc-100 text-xs font-medium">→</span>
         <select
           value={globalFormat}
           onChange={(e) => setGlobalFormat(e.target.value)}
@@ -291,7 +293,7 @@ export default function QueueToolbar(): JSX.Element {
           onClick={handleApplyFormat}
           disabled={pendingIds.length === 0}
           title={t('toolbar.applyFormat')}
-          className="text-slate-400 dark:text-white/40 hover:text-violet-600 dark:hover:text-violet-400 disabled:opacity-40 transition-colors"
+          className="text-slate-400 dark:text-zinc-100 hover:text-violet-600 dark:hover:text-violet-400 disabled:opacity-40 transition-colors"
         >
           <RefreshCw size={12} />
         </button>
@@ -314,7 +316,7 @@ export default function QueueToolbar(): JSX.Element {
         onClick={handleDeleteSelected}
         disabled={selectedJobIds.length === 0}
         title={t('toolbar.deleteSelected', 'Delete selected')}
-        className="p-2 rounded-lg text-slate-400 dark:text-white/40 hover:text-red-500 dark:hover:text-red-400 hover:bg-red-500/10 disabled:opacity-30 disabled:pointer-events-none transition-colors duration-150"
+        className="p-2 rounded-lg text-slate-400 dark:text-zinc-100 hover:text-red-500 dark:hover:text-red-400 hover:bg-red-500/10 disabled:opacity-30 disabled:pointer-events-none transition-colors duration-150"
       >
         <Trash2 size={16} />
       </button>

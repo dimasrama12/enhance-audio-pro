@@ -14,8 +14,11 @@ async function downloadFilesToFolder(jobs: QueueJob[], addToast: (msg: string, t
     const filename = job.output_filepath.replace(/\\/g, '/').split('/').pop() ?? job.filename;
     const sep = folder.includes('\\') ? '\\' : '/';
     const destPath = `${folder}${sep}${filename}`;
-    const res = await invokeCopyEnhancedFile(job.output_filepath, destPath);
-    if (res.success) count++;
+    const res = await invokeCopyEnhancedFile(job.id, job.output_filepath, destPath);
+    if (res.success) {
+      useQueueStore.getState().setDownloadPath(job.id, destPath);
+      count++;
+    }
   }
   addToast(`Downloaded ${count} file${count !== 1 ? 's' : ''} to ${folder}`, 'success');
 }

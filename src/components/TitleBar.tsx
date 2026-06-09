@@ -43,7 +43,7 @@ export default function TitleBar(): JSX.Element {
         <span className="text-violet-600 dark:text-violet-400">
           <WaveformIcon />
         </span>
-        <span className="text-xs font-semibold tracking-tight text-slate-700 dark:text-slate-300" data-tauri-drag-region>
+        <span className="text-xs font-semibold tracking-tight text-slate-700 dark:text-zinc-100" data-tauri-drag-region>
           Enhance Audio Pro
         </span>
       </div>

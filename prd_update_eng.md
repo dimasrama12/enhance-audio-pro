@@ -513,7 +513,7 @@ This document summarizes the update notes and functional improvements that need 
 - **Tauri Release Binary Rebuild:**
   - Compile the Tauri release binary and output it to `D:\cargo_build\enhance-audio-pro\release\enhance-audio-pro.exe`.
 
-## Task 73: Column Overflow Fix, Filename/Destination Ellipsis Expand, and History Auto-Clear on Close 🚀 [NEW]
+## Task 73: Column Overflow Fix, Filename/Destination Ellipsis Expand, and History Auto-Clear on Close 🚀 [NEW] ✅
 - **Column Width Overflow Fix:**
   - Fix the issue where widening the FILENAME column (via the resize handle) pushes the DESTINATION, SIZE, and other adjacent columns outside the visible window boundary.
   - Change the FILENAME column from `width: '100%'` to an explicit pixel width matching `colWidths.filename`, removing the implicit "fill all remaining space" behavior that caused overflow. The initial computed width (from ResizeObserver) already fills the correct portion of available space.

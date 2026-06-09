@@ -21,6 +21,7 @@ pub struct QueueJob {
     pub sample_rate: String,
     pub created_at: String,
     pub updated_at: String,
+    pub download_path: Option<String>,
 }
 
 pub fn insert_job(
@@ -62,6 +63,7 @@ pub fn insert_job(
         sample_rate: "44100".to_string(),
         created_at: now.clone(),
         updated_at: now,
+        download_path: None,
     })
 }
 
@@ -69,7 +71,7 @@ pub fn get_all_jobs(conn: &Connection) -> Result<Vec<QueueJob>> {
     let mut stmt = conn.prepare(
         "SELECT id, filename, filepath, destination, size_bytes, media_type, status,
                 progress, error_message, output_format, bitrate, output_filepath,
-                sample_rate, created_at, updated_at
+                sample_rate, created_at, updated_at, download_path
          FROM queue_jobs
          WHERE archived = 0
          ORDER BY created_at ASC",
@@ -94,6 +96,7 @@ pub fn get_all_jobs(conn: &Connection) -> Result<Vec<QueueJob>> {
                 sample_rate: row.get::<_, Option<String>>(12)?.unwrap_or_else(|| "44100".to_string()),
                 created_at: row.get(13)?,
                 updated_at: row.get(14)?,
+                download_path: row.get(15)?,
             })
         })?
         .collect::<Result<Vec<_>>>()?;
@@ -105,7 +108,7 @@ pub fn get_job_by_id(conn: &Connection, id: &str) -> Result<Option<QueueJob>> {
     let mut stmt = conn.prepare(
         "SELECT id, filename, filepath, destination, size_bytes, media_type, status,
                 progress, error_message, output_format, bitrate, output_filepath,
-                sample_rate, created_at, updated_at
+                sample_rate, created_at, updated_at, download_path
          FROM queue_jobs WHERE id = ?1",
     )?;
 
@@ -127,6 +130,7 @@ pub fn get_job_by_id(conn: &Connection, id: &str) -> Result<Option<QueueJob>> {
             sample_rate: row.get::<_, Option<String>>(12)?.unwrap_or_else(|| "44100".to_string()),
             created_at: row.get(13)?,
             updated_at: row.get(14)?,
+            download_path: row.get(15)?,
         })
     })?;
 
@@ -187,6 +191,15 @@ pub fn update_job_output_filepath(conn: &Connection, id: &str, filepath: &str) -
     Ok(())
 }
 
+pub fn update_job_download_path(conn: &Connection, id: &str, download_path: &str) -> Result<()> {
+    let now = Utc::now().to_rfc3339();
+    conn.execute(
+        "UPDATE queue_jobs SET download_path = ?1, updated_at = ?2 WHERE id = ?3",
+        params![download_path, now, id],
+    )?;
+    Ok(())
+}
+
 pub fn update_job_destination(conn: &Connection, id: &str, destination: &str) -> Result<()> {
     let now = Utc::now().to_rfc3339();
     conn.execute(
@@ -201,7 +214,7 @@ pub fn get_recent_jobs(conn: &Connection, limit: i64) -> Result<Vec<QueueJob>> {
     let mut stmt = conn.prepare(
         "SELECT id, filename, filepath, destination, size_bytes, media_type, status,
                 progress, error_message, output_format, bitrate, output_filepath,
-                sample_rate, created_at, updated_at
+                sample_rate, created_at, updated_at, download_path
          FROM queue_jobs
          WHERE status = 'done' OR (status = 'error' AND archived = 1)
          ORDER BY updated_at DESC
@@ -227,6 +240,7 @@ pub fn get_recent_jobs(conn: &Connection, limit: i64) -> Result<Vec<QueueJob>> {
                 sample_rate: row.get::<_, Option<String>>(12)?.unwrap_or_else(|| "44100".to_string()),
                 created_at: row.get(13)?,
                 updated_at: row.get(14)?,
+                download_path: row.get(15)?,
             })
         })?
         .collect::<Result<Vec<_>>>()?;

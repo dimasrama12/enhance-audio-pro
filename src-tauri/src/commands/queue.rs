@@ -302,7 +302,12 @@ pub fn set_job_status(
 
 /// Copy an enhanced file from its output location to a user-chosen destination path.
 #[tauri::command]
-pub fn copy_enhanced_file(src_path: String, dest_path: String) -> IpcResponse<String> {
+pub fn copy_enhanced_file(
+    state: tauri::State<'_, crate::AppState>,
+    job_id: String,
+    src_path: String,
+    dest_path: String,
+) -> IpcResponse<String> {
     let src = std::path::Path::new(&src_path);
     if !src.exists() {
         return IpcResponse {
@@ -316,8 +321,16 @@ pub fn copy_enhanced_file(src_path: String, dest_path: String) -> IpcResponse<St
             let _ = std::fs::create_dir_all(parent);
         }
     }
-    match std::fs::copy(&src_path, &dest_path) {
-        Ok(_) => IpcResponse { success: true, data: Some(dest_path), error: None },
+    if let Err(e) = std::fs::copy(&src_path, &dest_path) {
+        return IpcResponse { success: false, data: None, error: Some(e.to_string()) };
+    }
+
+    let conn = match state.db.lock() {
+        Ok(c) => c,
+        Err(e) => return IpcResponse { success: false, data: None, error: Some(e.to_string()) },
+    };
+    match crate::db::queue::update_job_download_path(&conn, &job_id, &dest_path) {
+        Ok(()) => IpcResponse { success: true, data: Some(dest_path), error: None },
         Err(e) => IpcResponse { success: false, data: None, error: Some(e.to_string()) },
     }
 }

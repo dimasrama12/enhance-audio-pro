@@ -50,6 +50,7 @@ interface QueueState {
   setViewMode: (mode: ViewMode) => void;
   setGroupByFormat: (v: boolean) => void;
   deleteJobs: (ids: string[]) => void;
+  setDownloadPath: (id: string, path: string) => void;
 }
 
 export const useQueueStore = create<QueueState>()(
@@ -263,6 +264,11 @@ export const useQueueStore = create<QueueState>()(
       jobs: s.jobs.filter((j) => !ids.includes(j.id)),
       selectedJobIds: s.selectedJobIds.filter((id) => !ids.includes(id)),
       lockedJobIds: s.lockedJobIds.filter((id) => !ids.includes(id)),
+    })),
+
+  setDownloadPath: (id, path) =>
+    set((s) => ({
+      jobs: s.jobs.map((j) => (j.id === id ? { ...j, download_path: path } : j)),
     })),
     }),
     {

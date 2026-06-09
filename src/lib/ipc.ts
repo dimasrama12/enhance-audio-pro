@@ -136,6 +136,6 @@ export async function invokeAppendErrorLog(entry: string): Promise<void> {
   }
 }
 
-export async function invokeCopyEnhancedFile(srcPath: string, destPath: string): Promise<IpcResponse<string>> {
-  return invoke<IpcResponse<string>>('copy_enhanced_file', { srcPath, destPath });
+export async function invokeCopyEnhancedFile(jobId: string, srcPath: string, destPath: string): Promise<IpcResponse<string>> {
+  return invoke<IpcResponse<string>>('copy_enhanced_file', { jobId, srcPath, destPath });
 }

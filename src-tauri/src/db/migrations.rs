@@ -40,5 +40,8 @@ pub fn run_migrations(conn: &Connection) -> Result<()> {
     let _ = conn.execute_batch(
         "ALTER TABLE queue_jobs ADD COLUMN archived INTEGER NOT NULL DEFAULT 0;",
     );
+    let _ = conn.execute_batch(
+        "ALTER TABLE queue_jobs ADD COLUMN download_path TEXT;",
+    );
     Ok(())
 }

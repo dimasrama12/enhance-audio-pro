@@ -3,6 +3,7 @@ import logging
 import os
 import pathlib
 import sqlite3
+import tempfile
 import threading
 import time
 from typing import List
@@ -104,11 +105,14 @@ async def _process_jobs(job_ids: List[str], callback_url: str, strength: float =
                 filepath, destination, filename, output_format = row
                 output_format = (output_format or pathlib.Path(filename).suffix.lstrip('.')).lower()
                 stem = pathlib.Path(filename).stem
-                out_dir = (
-                    pathlib.Path(destination)
-                    if destination
-                    else pathlib.Path(filepath).parent
-                )
+                
+                # Redirect output directory to scratch cache directory
+                scratch_disk = os.environ.get("SCRATCH_DISK_DIR", "").strip()
+                if scratch_disk:
+                    out_dir = pathlib.Path(scratch_disk) / "enhance-audio-pro-cache" / "enhanced_temp"
+                else:
+                    out_dir = pathlib.Path(tempfile.gettempdir()) / "enhance-audio-pro-cache" / "enhanced_temp"
+                
                 out_dir.mkdir(parents=True, exist_ok=True)
                 
                 base_name = f"{stem}_enhanced"

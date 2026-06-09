@@ -20,4 +20,5 @@ export interface QueueJob {
   sample_rate: string;
   created_at: string;
   updated_at: string;
+  download_path: string | null;
 }
