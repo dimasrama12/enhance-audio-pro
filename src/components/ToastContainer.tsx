@@ -1,5 +1,5 @@
 import { AnimatePresence, motion } from 'framer-motion';
-import { CheckCircle, XCircle, Info, X } from 'lucide-react';
+import { CheckCircle, XCircle, Info, X, Download } from 'lucide-react';
 import { useToastStore } from '@/stores/useToastStore';
 
 const TOAST_STYLES = {
@@ -39,7 +39,21 @@ export default function ToastContainer(): JSX.Element {
               ].join(' ')}
             >
               {style.icon}
-              <span className="flex-1 leading-snug">{toast.message}</span>
+              <div className="flex-1 flex flex-col gap-1.5 min-w-0">
+                <span className="leading-snug">{toast.message}</span>
+                {toast.action && (
+                  <button
+                    onClick={() => {
+                      toast.action!.onClick();
+                      dismissToast(toast.id);
+                    }}
+                    className="flex items-center gap-1.5 text-xs font-semibold underline underline-offset-2 hover:opacity-80 transition-opacity self-start"
+                  >
+                    <Download size={11} />
+                    {toast.action.label}
+                  </button>
+                )}
+              </div>
               <button
                 onClick={() => dismissToast(toast.id)}
                 className="shrink-0 opacity-50 hover:opacity-100 transition-opacity mt-0.5"
