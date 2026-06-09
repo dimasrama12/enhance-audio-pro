@@ -294,6 +294,15 @@ chore    : [configuration changes, tooling, etc.]
 - [x] Task 65.6 — History Panel: Reveal-in-folder + "File has been moved" popup + Clear All History button already fully implemented.
 - [x] Release binary rebuilt: D:\cargo_build\enhance-audio-pro\release\enhance-audio-pro.exe (7.7 MB, 2026-06-06 14:23). Windows installer: Enhance Audio Pro_0.1.0_x64-setup.exe (46.6 MB).
 
+# PRD Task 74 — Unlimited Queue, Sequential Convert All, Per-Row Enhance/Convert Toggle (2026-06-09)
+- [x] Task 74.1 — Unlimited file input: removed `MAX_QUEUE_JOBS` const + both capacity-check blocks in `src/lib/importHelper.ts` (`handleImportFiles` and `submitAddFilesDirect`). Queue now accepts any number of files.
+- [x] Task 74.2 — Per-row Enhance/Convert mode: new `ToolModeSelect` dropdown (Enh/Conv) + `ConvertRowButton` in QueueGrid TOOLS column. Mode tracked in non-persisted `jobOperationTypes: Record<string,'enhance'|'convert'>` Zustand map with `setJobOperationMode` action.
+- [x] Task 74.3 — Sequential Convert All: `QueueToolbar.handleConvert` now mirrors `handleProcess` (mark all pending `queued`, dispatch first as `processing`, auto-advance the rest). `QueueGrid` auto-advance listener reads `jobOperationTypes` to call `invokeConvertFiles` vs `invokeProcessQueue` for the next queued job.
+- [x] Task 74.4 — Toolbar reorder: Enhance All → Convert All → Separate → Record. `C` shortcut in `useKeyboardShortcuts.ts` now triggers the same sequential convert queue.
+- [x] Task 74.5 — Completion toast + Download All: `useToastStore` extended with optional `action`/`duration`; `ToastContainer` renders an action button. `QueueToolbar` fires a bottom-right "N files converted" toast with "Download All" (folder picker + batch `copy_enhanced_file`) when a convert batch settles.
+- [x] Task 74.6 — Python `backend/routers/convert.py`: added global `asyncio.Lock` (serialize convert work) + per-job "processing" heartbeat callback.
+- [x] Python sidecar rebuilt via PyInstaller; Tauri release binary rebuilt at D:\cargo_build\enhance-audio-pro\release\enhance-audio-pro.exe.
+
 # Test Coverage (final)
 - 38/38 Vitest (frontend)
 - 65/65 Pytest (backend)
