@@ -51,6 +51,9 @@ interface QueueState {
   setGroupByFormat: (v: boolean) => void;
   deleteJobs: (ids: string[]) => void;
   setDownloadPath: (id: string, path: string) => void;
+  // Operation type tracking (not persisted — UI only)
+  jobOperationTypes: Record<string, 'enhance' | 'convert'>;
+  setJobOperationMode: (id: string, mode: 'enhance' | 'convert') => void;
 }
 
 export const useQueueStore = create<QueueState>()(
@@ -64,6 +67,7 @@ export const useQueueStore = create<QueueState>()(
   importingJobIds: [],
   viewMode: 'table',
   groupByFormat: false,
+  jobOperationTypes: {},
 
   setJobs: (jobs) => set({ jobs }),
   addJobs: (newJobs) => set((s) => {
@@ -270,6 +274,9 @@ export const useQueueStore = create<QueueState>()(
     set((s) => ({
       jobs: s.jobs.map((j) => (j.id === id ? { ...j, download_path: path } : j)),
     })),
+
+  setJobOperationMode: (id, mode) =>
+    set((s) => ({ jobOperationTypes: { ...s.jobOperationTypes, [id]: mode } })),
     }),
     {
       name: 'queue-ui-prefs',
