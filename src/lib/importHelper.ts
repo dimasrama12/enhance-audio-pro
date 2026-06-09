@@ -5,8 +5,6 @@ import { useSettingsStore } from '@/stores/useSettingsStore';
 import { useUIStore } from '@/stores/useUIStore';
 import { prewarmAudio } from '@/lib/audioPreload';
 
-export const MAX_QUEUE_JOBS = 150;
-
 // Normalization function to handle Windows case-insensitivity and backslash differences
 export function normalizePath(p: string): string {
   return p.replace(/\\/g, '/').toLowerCase();
@@ -26,26 +24,8 @@ export async function handleImportFiles(paths: string[]): Promise<void> {
       return;
     }
 
-    // Enforce queue capacity limit
-    const currentCount = useQueueStore.getState().jobs.length;
-    const remaining = MAX_QUEUE_JOBS - currentCount;
-
-    if (remaining <= 0) {
-      ui.setImportLimitWarning(`Queue is full (${MAX_QUEUE_JOBS} files max). Remove items to add more.`);
-      setTimeout(() => ui.setImportLimitWarning(null), 5000);
-      ui.setIsImporting(false);
-      return;
-    }
-
-    const capped = remaining < valid.length ? valid.slice(0, remaining) : valid;
-    const trimmedByLimit = valid.length - capped.length;
-
-    if (trimmedByLimit > 0) {
-      ui.setImportLimitWarning(
-        `Queue limit reached: only ${capped.length} of ${valid.length} files added (max ${MAX_QUEUE_JOBS}).`
-      );
-      setTimeout(() => ui.setImportLimitWarning(null), 5000);
-    }
+    // No queue capacity limit — accept all valid files
+    const capped = valid;
 
     // Duplicate detection: compare against current queue by normalized filepath
     const existingPaths = new Set(useQueueStore.getState().jobs.map((j) => normalizePath(j.filepath)));
@@ -77,18 +57,8 @@ export async function submitAddFilesDirect(
   const ui = useUIStore.getState();
   ui.setIsImporting(true);
   try {
-    // Re-check capacity (state may change between drop and duplicate dialog confirmation)
-    const currentCount = useQueueStore.getState().jobs.length;
-    const remaining = MAX_QUEUE_JOBS - currentCount;
-    const capped = remaining < paths.length ? paths.slice(0, remaining) : paths;
-    const trimmedByLimit = paths.length - capped.length;
-
-    if (trimmedByLimit > 0) {
-      ui.setImportLimitWarning(
-        `Queue limit reached: only ${capped.length} of ${paths.length} files added (max ${MAX_QUEUE_JOBS}).`
-      );
-      setTimeout(() => ui.setImportLimitWarning(null), 5000);
-    }
+    // No queue capacity limit — accept all provided paths
+    const capped = paths;
 
     if (capped.length === 0) return;
 
