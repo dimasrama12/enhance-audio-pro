@@ -136,7 +136,20 @@ export function useKeyboardShortcuts(): void {
       }
       if (matches(e, sc.convert)) {
         const ids = q.jobs.filter((j) => j.status === 'pending').map((j) => j.id);
-        if (ids.length) invokeConvertFiles(ids, s.filenameTemplate);
+        const isAnyActive = q.jobs.some((j) => j.status === 'processing' || j.status === 'queued');
+        if (!ids.length || isAnyActive) return;
+        for (const id of ids) {
+          q.setJobOperationMode(id, 'convert');
+          q.setStatus(id, 'queued');
+          await invokeSetJobStatus(id, 'queued');
+        }
+        const freshJobs = useQueueStore.getState().jobs;
+        const nextQueued = freshJobs.find((j) => j.status === 'queued');
+        if (nextQueued) {
+          invokeConvertFiles([nextQueued.id], s.filenameTemplate).catch((err) => {
+            console.error('Failed to auto-start convert job from shortcut', err);
+          });
+        }
         return;
       }
       if (matches(e, sc.openFiles)) {
