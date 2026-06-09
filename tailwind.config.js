@@ -4,6 +4,9 @@ export default {
   darkMode: "class",
   theme: {
     extend: {
+      spacing: {
+        18: '4.5rem',
+      },
       boxShadow: {
         'glow-violet': '0 0 24px rgba(124, 58, 237, 0.15)',
         'glow-violet-sm': '0 0 12px rgba(124, 58, 237, 0.10)',

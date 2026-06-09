@@ -498,10 +498,10 @@ function SortableJobRow({ job, index, isSelected, onSelect, isImporting, activeD
       >
         {formatBytes(job.size_bytes)}
       </td>
-      <td className="px-4 py-2 w-24"><FormatSelect job={job} /></td>
-      <td className="px-4 py-2 w-24"><BitrateSelect job={job} /></td>
-      <td className="px-4 py-2 w-24"><SampleRateSelect job={job} /></td>
-      <td className="px-4 py-2 text-xs font-medium whitespace-nowrap w-32">
+      <td className="px-4 py-2 w-18"><FormatSelect job={job} /></td>
+      <td className="px-4 py-2 w-18"><BitrateSelect job={job} /></td>
+      <td className="px-4 py-2 w-20"><SampleRateSelect job={job} /></td>
+      <td className="px-4 py-2 text-xs font-medium whitespace-nowrap w-20">
         <StatusBadge
           status={job.status}
           progress={job.progress}
@@ -513,8 +513,8 @@ function SortableJobRow({ job, index, isSelected, onSelect, isImporting, activeD
           }}
         />
       </td>
-      <td className="px-3 py-2 w-40">
-        <div className="flex items-center gap-1.5 flex-wrap">
+      <td className="px-3 py-2 w-32">
+        <div className="flex items-center flex-nowrap gap-1">
           {job.status !== 'done' && job.status !== 'processing' && job.status !== 'queued' && (
             <ToolModeSelect jobId={job.id} />
           )}
@@ -856,8 +856,37 @@ export default function QueueGrid(): JSX.Element {
   }
 
   const adjustWidth = (col: keyof typeof colWidths, delta: number): void => {
-    const minW = col === 'size' ? 50 : 80;
-    setColWidths((p) => ({ ...p, [col]: Math.max(minW, p[col] + delta) }));
+    if (col === 'filename') {
+      const newFilename = Math.max(120, colWidths.filename + delta);
+      const filenameDelta = newFilename - colWidths.filename;
+      const newDest = Math.max(80, colWidths.destination - filenameDelta);
+      const destDelta = newDest - colWidths.destination;
+      setColWidths((p) => ({
+        ...p,
+        filename: p.filename - destDelta,
+        destination: newDest,
+      }));
+    } else if (col === 'destination') {
+      const newDest = Math.max(80, colWidths.destination + delta);
+      const destDelta = newDest - colWidths.destination;
+      const newFilename = Math.max(120, colWidths.filename - destDelta);
+      const filenameDelta = newFilename - colWidths.filename;
+      setColWidths((p) => ({
+        ...p,
+        destination: p.destination - filenameDelta,
+        filename: newFilename,
+      }));
+    } else {
+      const newSize = Math.max(50, colWidths.size + delta);
+      const sizeDelta = newSize - colWidths.size;
+      const newDest = Math.max(80, colWidths.destination - sizeDelta);
+      const destDelta = newDest - colWidths.destination;
+      setColWidths((p) => ({
+        ...p,
+        size: p.size - destDelta,
+        destination: newDest,
+      }));
+    }
   };
   const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set());
   const toggleGroup = (label: string): void =>
@@ -873,7 +902,7 @@ export default function QueueGrid(): JSX.Element {
   );
 
   // Set FILENAME + DESTINATION widths to fill available space on first mount.
-  // Fixed columns total ≈ 680px (drag+#+ size+type+format+bitrate+sampleHz+status+lock+clear).
+  // Fixed columns total ≈ 568px (drag+#+ size+type+format+bitrate+sampleHz+status+tools+lock+clear).
   // FILENAME gets 60% of remaining space, DESTINATION gets 40%.
   useEffect(() => {
     const container = tableContainerRef.current;
@@ -881,7 +910,7 @@ export default function QueueGrid(): JSX.Element {
     let done = false;
     const obs = new ResizeObserver(() => {
       if (done || container.clientWidth === 0) return;
-      const FIXED_COLS = 600;
+      const FIXED_COLS = 568;
       const remaining = Math.max(240, container.clientWidth - FIXED_COLS);
       setColWidths({
         filename: Math.max(120, Math.round(remaining * 0.5)),
@@ -1117,11 +1146,11 @@ export default function QueueGrid(): JSX.Element {
           <span className="px-2">{t('queue.col.size')}</span>
           <ResizeHandle onDelta={(d) => adjustWidth('size', d)} />
         </th>
-        <th className="px-4 py-2.5 w-24">{t('queue.col.output')}</th>
-        <th className="px-4 py-2.5 w-24">{t('queue.col.bitrate')}</th>
-        <th className="px-4 py-2.5 w-28 whitespace-nowrap">{t('queue.col.sampleHz')}</th>
-        <th className="px-4 py-2.5 w-32 whitespace-nowrap">{t('queue.col.status')}</th>
-        <th className="px-3 py-2.5 w-40">TOOLS</th>
+        <th className="px-4 py-2.5 w-18">{t('queue.col.output')}</th>
+        <th className="px-4 py-2.5 w-18">{t('queue.col.bitrate')}</th>
+        <th className="px-4 py-2.5 w-20 whitespace-nowrap">{t('queue.col.sampleHz')}</th>
+        <th className="px-4 py-2.5 w-20 whitespace-nowrap">{t('queue.col.status')}</th>
+        <th className="px-3 py-2.5 w-32">TOOLS</th>
         <th className="px-2 py-2.5 w-8 text-center">
           <button
             onClick={(e) => {
@@ -1169,11 +1198,11 @@ export default function QueueGrid(): JSX.Element {
     <>
       <div
         ref={tableContainerRef}
-        className="flex-1 overflow-auto rounded-xl bg-white dark:bg-[#0C1120] shadow-sm border border-slate-200 dark:border-white/[0.06] scrollbar-thin"
+        className="flex-1 overflow-y-auto overflow-x-hidden rounded-xl bg-white dark:bg-[#0C1120] shadow-sm border border-slate-200 dark:border-white/[0.06] scrollbar-thin"
         onMouseDown={handleContainerMouseDown}
         onClick={(e) => { if ((e.target as HTMLElement).closest('tr') === null) clearSelection(); }}
       >
-        <table className="w-full text-left queue-table">
+        <table className="w-full text-left queue-table table-fixed">
           {tableHeader}
           <tbody>
             {jobs.length === 0 ? (
