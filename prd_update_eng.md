@@ -480,3 +480,52 @@ This document summarizes the update notes and functional improvements that need 
 - `copy_enhanced_file(src_path, dest_path)` Rust command added to `commands/queue.rs`, registered in `lib.rs`, and exposed as `invokeCopyEnhancedFile` in `ipc.ts`.
 - `dialog:allow-save` permission added to `capabilities/default.json`.
 - `QueueStatusBar` updated: shows "Download selected (N)" when 2+ done rows are selected; shows "Download all (N)" when entire queue is done and non-empty. Both buttons open folder picker and batch-copy all enhanced files.
+
+## Task 70: Keyboard Shortcut E, Backend Queue Errors, Output Redirection & Download Overwrite Fix 🚀 [NEW] ✅
+- **Keyboard Shortcut E for Enhance All:** Update the shortcut key `E` (or whatever `enhance` is bound to) to align with the toolbar's "Enhance All" button logic. Instead of running all pending files at once (which marks all rows as `'processing'`), it must mark the first row as `'processing'` and the subsequent rows as `'queued'`, executing the queue sequentially.
+- **Backend Queue & stuck process recovery:** Prevent port and port lock contention issues, ensuring the Python backend sidecar responds reliably without connection errors or freezing.
+- **Redirection of Initial Process Output:** Do not write the finished enhancement outputs directly to the user's destination or source parent folders. Instead, save them to the configured scratch disk cache folder (`SCRATCH_DISK_DIR` if set, otherwise system temp folder). Only when the user manually clicks "Download" should Rust copy the file to their chosen save location.
+- **Cache Cleanups on Job Completion:** Delete job-specific temp folders (`tmp_dir`) immediately after a job settles (done, error, or cancelled) to prevent cache build-up.
+- **Tauri Release Binary Rebuild:** Compile the Tauri release binary and output to `D:\cargo_build\enhance-audio-pro\release\enhance-audio-pro.exe`.
+
+## Task 71: Download Button Visibility, White/Bone-White Text Contrast & Waveform Player Speed Label Muting 🚀 [NEW] ✅
+- **Download Button Visibility:** The "Download" (unduh) button in the tools column must only be visible when a job status is `'done'`. For all other statuses, hide the icon entirely rather than showing a disabled grey icon.
+- **Text & Icon Contrast Upgrades (White / Bone-White):** To make elements more readable and visually clear in dark mode, change the dark theme text and icon colors to white/bone-white (`dark:text-zinc-100` / `dark:text-zinc-200` / `dark:text-white`) for:
+  - Sidebar icons and tooltips/buttons: `recent files`, `settings`, `switch theme`.
+  - App header title: "Enhance Audio Pro".
+  - Dropzone text elements: "Drop audio files here", "or click to browse...", and format extensions list.
+  - Search files text, icon, and placeholder.
+  - Toolbar buttons/icons: view mode selector (group view), group by format toggle, apply global format arrow, global format refresh, and delete selected icon.
+  - Table column headers: `#` (along with index numbers in cells below), `FILENAME`, `DESTINATION` (along with output directory cell text below), `SIZE` (along with size cell text below), `FORMAT`, `BITRATE`, `SAMPLE HZ`, `STATUS`, `TOOLS`.
+  - Waveform Player text and labels: filename text, speed multiplier badge, A/B toggle button, current/total time duration text, volume dB badge, Zoom label, zoom px scale, and shortcuts keyboard footer text.
+- **Waveform Player 1x Speed Muting:** Mute / hide the speed multiplier badge (e.g. `"1x ▶"`) when audio is playing at normal `1x` speed. Only show forward/backward speed labels when acceleration is active (e.g., `2x`, `4x`, `-2x`, `-4x`).
+- **Tauri Release Binary Rebuild:** Compile the Tauri release binary and output to `D:\cargo_build\enhance-audio-pro\release\enhance-audio-pro.exe`.
+
+## Task 72: Delete Confirmation Guard, Import Loading Indicator, Download Re-save Fix & Tauri Release Rebuild 🚀 [NEW] ✅
+- **Delete Confirmation Guard:**
+  - When deleting a file (via delete keyboard shortcut, clicking the trash icon in a row, or clicking the "delete selected" toolbar button), show a confirmation popup only if the file status is `processing` or `queued`: "Apakah Anda yakin ingin menghapus file ini? File ini sedang proses."
+  - For files in `pending`, `done`, or `error` status, bypass the confirmation popup and delete immediately.
+- **Import Loading Indicator:**
+  - Show a visual loading indicator when files are being imported into the app (e.g. during drag-and-drop or directory loading) so that the user knows import processing is in progress.
+- **Download Re-save Fix:**
+  - Fix the download/save bug: currently, downloading all files works once, but on subsequent attempts it says "downloaded 0 files". Additionally, downloading a file per row after it has been downloaded once displays a red error popup: "Save failed: Source file not found: ...".
+  - Ensure users can always download / re-save any enhanced file multiple times to any location, even if the file was previously saved or the old file was deleted.
+- **Tauri Release Binary Rebuild:**
+  - Compile the Tauri release binary and output it to `D:\cargo_build\enhance-audio-pro\release\enhance-audio-pro.exe`.
+
+## Task 73: Column Overflow Fix, Filename/Destination Ellipsis Expand, and History Auto-Clear on Close 🚀 [NEW]
+- **Column Width Overflow Fix:**
+  - Fix the issue where widening the FILENAME column (via the resize handle) pushes the DESTINATION, SIZE, and other adjacent columns outside the visible window boundary.
+  - Change the FILENAME column from `width: '100%'` to an explicit pixel width matching `colWidths.filename`, removing the implicit "fill all remaining space" behavior that caused overflow. The initial computed width (from ResizeObserver) already fills the correct portion of available space.
+  - Remove `maxWidth` constraints from the DESTINATION and SIZE columns in both `<th>` and `<td>` since they are already bounded by their explicit `width` values.
+- **Ellipsis Truncation with Click-to-Expand:**
+  - Truncate excessively long text in the FILENAME and DESTINATION columns with a CSS ellipsis (e.g., `"audiokerjasatulokasi palem..."`).
+  - When the user clicks on truncated text in either column, toggle expansion: the full name/path is shown with word-wrap so it wraps to new lines within the column boundary.
+  - Clicking again on the expanded text collapses it back to the single-line ellipsis form.
+  - Show a `title` tooltip with the full text on hover when the text is collapsed.
+- **History Auto-Clear on App Close:**
+  - Automatically delete all records from the processed files history (rows where `status IN ('done', 'error')`) whenever the application is closed (`WindowEvent::CloseRequested` in Rust `lib.rs`).
+  - This ensures the application opens with a completely clean, empty history panel on every launch.
+  - The deletion must execute after `cleanup_temp_files` so that output file paths are still available for cleanup before records are removed.
+- **Tauri Release Binary Rebuild:**
+  - Rebuild the Tauri application release binary at `D:\cargo_build\enhance-audio-pro\release\enhance-audio-pro.exe`.

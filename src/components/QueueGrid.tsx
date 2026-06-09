@@ -247,9 +247,10 @@ function EnhanceRowButton({ job }: { job: QueueJob }): JSX.Element | null {
 
 // ─── Per-row download button ───────────────────────────────────────────────────
 
-function DownloadJobButton({ job }: { job: QueueJob }): JSX.Element {
+function DownloadJobButton({ job }: { job: QueueJob }): JSX.Element | null {
   const { addToast } = useToastStore();
-  const canDownload = job.status === 'done' && !!job.output_filepath;
+  if (job.status !== 'done') return null;
+  const canDownload = !!job.output_filepath;
 
   async function handleDownload(e: React.MouseEvent): Promise<void> {
     e.stopPropagation();
@@ -264,8 +265,9 @@ function DownloadJobButton({ job }: { job: QueueJob }): JSX.Element {
     });
     if (!destPath) return;
 
-    const res = await invokeCopyEnhancedFile(srcPath, destPath);
+    const res = await invokeCopyEnhancedFile(job.id, srcPath, destPath);
     if (res.success) {
+      useQueueStore.getState().setDownloadPath(job.id, destPath);
       addToast(`Saved "${filename}"`, 'success');
     } else {
       addToast(`Save failed: ${res.error ?? 'Unknown error'}`, 'error');
@@ -301,6 +303,8 @@ function SortableJobRow({ job, index, isSelected, onSelect, isImporting, activeD
   onErrorClick?: (filename: string, errorMessage: string) => void;
   colWidths: { filename: number; destination: number; size: number };
 }): JSX.Element {
+  const [filenameExpanded, setFilenameExpanded] = useState(false);
+  const [destExpanded, setDestExpanded] = useState(false);
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: job.id });
   const selectedJobIds = useQueueStore((s) => s.selectedJobIds);
   // Only treat as a group drag when the DRAGGED item is itself selected.
@@ -354,8 +358,11 @@ function SortableJobRow({ job, index, isSelected, onSelect, isImporting, activeD
           <GripVertical size={14} />
         </button>
       </td>
-      <td className="px-4 py-2 text-slate-400 dark:text-white/25 text-xs w-10 tabular-nums">{index + 1}</td>
-      <td className="px-4 py-2 text-sm text-slate-800 dark:text-slate-100 font-medium overflow-hidden" style={{ width: '100%', minWidth: colWidths.filename }}>
+      <td className="px-4 py-2 text-slate-400 dark:text-zinc-100 text-xs w-10 tabular-nums">{index + 1}</td>
+      <td
+        className={clsx('px-4 py-2 text-sm text-slate-800 dark:text-zinc-100 font-medium', !filenameExpanded && 'overflow-hidden')}
+        style={{ width: colWidths.filename, minWidth: 120 }}
+      >
         <div className="flex items-center gap-2 min-w-0">
           <button
             onClick={(e) => {
@@ -368,7 +375,16 @@ function SortableJobRow({ job, index, isSelected, onSelect, isImporting, activeD
           >
             <Play size={10} fill="currentColor" />
           </button>
-          <span className="truncate flex-1">{job.filename}</span>
+          <span
+            onClick={(e) => { e.stopPropagation(); setFilenameExpanded((v) => !v); }}
+            className={clsx(
+              'flex-1 cursor-pointer hover:text-violet-600 dark:hover:text-violet-400 transition-colors',
+              filenameExpanded ? 'break-all whitespace-normal' : 'truncate',
+            )}
+            title={filenameExpanded ? undefined : job.filename}
+          >
+            {job.filename}
+          </span>
           {job.status === 'processing' && (
             <span className="ml-auto shrink-0">
               <ProcessingTimer startedAt={job.startedAt} />
@@ -382,15 +398,23 @@ function SortableJobRow({ job, index, isSelected, onSelect, isImporting, activeD
         </div>
       </td>
       <td
-        className="px-2 py-2 text-xs text-slate-400 dark:text-white/40"
-        style={{ width: colWidths.destination, minWidth: 80, maxWidth: colWidths.destination }}
-        title={getSourceDir(job.filepath)}
+        className="px-2 py-2 text-xs text-slate-400 dark:text-zinc-100 overflow-hidden"
+        style={{ width: colWidths.destination, minWidth: 80 }}
       >
-        <span className="truncate block">{getSourceDir(job.filepath) || '—'}</span>
+        <span
+          onClick={(e) => { e.stopPropagation(); setDestExpanded((v) => !v); }}
+          className={clsx(
+            'cursor-pointer hover:text-slate-600 dark:hover:text-white/70 transition-colors',
+            destExpanded ? 'break-all whitespace-normal block' : 'truncate block',
+          )}
+          title={destExpanded ? undefined : (getSourceDir(job.filepath) || undefined)}
+        >
+          {getSourceDir(job.filepath) || '—'}
+        </span>
       </td>
       <td
-        className="px-2 py-2 text-xs text-slate-400 dark:text-white/40 truncate tabular-nums"
-        style={{ width: colWidths.size, minWidth: 50, maxWidth: colWidths.size }}
+        className="px-2 py-2 text-xs text-slate-400 dark:text-zinc-100 truncate tabular-nums"
+        style={{ width: colWidths.size, minWidth: 50 }}
         title={formatBytes(job.size_bytes)}
       >
         {formatBytes(job.size_bytes)}
@@ -442,8 +466,8 @@ function SortableJobRow({ job, index, isSelected, onSelect, isImporting, activeD
             if (job.status === 'processing' || job.status === 'queued') {
               const isIndonesian = useSettingsStore.getState().language === 'id';
               const msg = isIndonesian
-                ? "Apakah Anda yakin ingin menghapus? File sedang diproses."
-                : `Are you sure you want to delete "${job.filename}"? The file is currently being processed.`;
+                ? "Apakah Anda yakin ingin menghapus file ini? File ini sedang proses."
+                : `Are you sure you want to delete this file? The file is currently being processed.`;
               if (!window.confirm(msg)) return;
             }
             const { deleteJobs } = useQueueStore.getState();
@@ -987,18 +1011,18 @@ export default function QueueGrid(): JSX.Element {
 
   const tableHeader = (
     <thead>
-      <tr className="text-slate-500 dark:text-white/35 font-semibold text-[10px] uppercase tracking-wider sticky top-0 bg-slate-50 dark:bg-[#090E1B] border-b-2 border-slate-200 dark:border-white/[0.08]">
+      <tr className="text-slate-500 dark:text-zinc-100 font-semibold text-[10px] uppercase tracking-wider sticky top-0 bg-slate-50 dark:bg-[#090E1B] border-b-2 border-slate-200 dark:border-white/[0.08]">
         <th className="px-2 py-2.5 w-8" />
         <th className="px-4 py-2.5 w-10">#</th>
-        <th className="resizable-th px-2 py-2.5 text-left" style={{ width: '100%', minWidth: colWidths.filename }}>
+        <th className="resizable-th px-2 py-2.5 text-left" style={{ width: colWidths.filename, minWidth: 120 }}>
           <span className="px-2">{t('queue.col.filename')}</span>
           <ResizeHandle onDelta={(d) => adjustWidth('filename', d)} />
         </th>
-        <th className="resizable-th px-2 py-2.5 text-left" style={{ width: colWidths.destination, minWidth: 80, maxWidth: colWidths.destination }}>
+        <th className="resizable-th px-2 py-2.5 text-left" style={{ width: colWidths.destination, minWidth: 80 }}>
           <span className="px-2">{t('queue.col.destination')}</span>
           <ResizeHandle onDelta={(d) => adjustWidth('destination', d)} />
         </th>
-        <th className="resizable-th px-2 py-2.5 text-left" style={{ width: colWidths.size, minWidth: 50, maxWidth: colWidths.size }}>
+        <th className="resizable-th px-2 py-2.5 text-left" style={{ width: colWidths.size, minWidth: 50 }}>
           <span className="px-2">{t('queue.col.size')}</span>
           <ResizeHandle onDelta={(d) => adjustWidth('size', d)} />
         </th>
@@ -1019,7 +1043,7 @@ export default function QueueGrid(): JSX.Element {
               }
             }}
             title="Lock / Unlock all items"
-            className="text-slate-400 hover:text-violet-500 dark:hover:text-violet-400 transition-colors"
+            className="text-slate-400 dark:text-zinc-100 hover:text-violet-500 dark:hover:text-violet-400 transition-colors"
           >
             <Lock size={11} className="mx-auto" />
           </button>

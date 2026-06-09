@@ -89,18 +89,27 @@ pub fn run() {
                 api.prevent_close();
 
                 let state = window.state::<AppState>();
-                // Clean up temporary files (recordings/caches) stored in system temp dir
+                // Clean up temporary files (recordings/caches) stored in system temp dir,
+                // then purge history so the next session opens with a clean state.
                 if let Ok(conn) = state.db.lock() {
                     cleanup_temp_files(window.app_handle(), &conn);
+                    let _ = conn.execute(
+                        "DELETE FROM queue_jobs WHERE status IN ('done', 'error')",
+                        [],
+                    );
                 }
 
-                // Clean up scratch disk cache dir if configured
+                // Clean up scratch disk or system temp cache dir recursively
                 let scratch_disk = state.scratch_disk_dir.clone();
-                if !scratch_disk.is_empty() {
-                    let cache_dir = std::path::Path::new(&scratch_disk).join("enhance-audio-pro-cache");
-                    if cache_dir.is_dir() {
-                        let _ = std::fs::remove_dir_all(&cache_dir);
-                    }
+                let cache_dir = if !scratch_disk.is_empty() {
+                    std::path::Path::new(&scratch_disk).join("enhance-audio-pro-cache")
+                } else if let Ok(temp_dir) = window.app_handle().path().temp_dir() {
+                    temp_dir.join("enhance-audio-pro-cache")
+                } else {
+                    std::path::PathBuf::new()
+                };
+                if !cache_dir.as_os_str().is_empty() && cache_dir.is_dir() {
+                    let _ = std::fs::remove_dir_all(&cache_dir);
                 }
 
                 // Kill Python backend sidecar so no orphaned processes remain
