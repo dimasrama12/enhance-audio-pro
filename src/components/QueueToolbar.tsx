@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { Search, Trash2, RefreshCw, LayoutList, LayoutGrid, Layers } from 'lucide-react';
 import { listen } from '@tauri-apps/api/event';
+import { open as openDialog } from '@tauri-apps/plugin-dialog';
 import { useTranslation } from 'react-i18next';
 import RecordButton from '@/components/RecordButton';
 import { useQueueStore } from '@/stores/useQueueStore';
@@ -15,6 +16,7 @@ import {
   invokeArchiveJobs,
   invokeCancelJobs,
   invokeSetJobStatus,
+  invokeCopyEnhancedFile,
 } from '@/lib/ipc';
 import { createLogger } from '@/lib/logger';
 import type { ViewMode } from '@/stores/useQueueStore';
@@ -39,6 +41,7 @@ export default function QueueToolbar(): JSX.Element {
   const activeTab = useUIStore((s) => s.activeTab);
   const searchRef = useRef<HTMLInputElement>(null);
   const abortProcessRef = useRef(false);
+  const prevIsAnyConvertingRef = useRef(false);
   const { t } = useTranslation();
   const { addToast } = useToastStore();
 
@@ -47,7 +50,6 @@ export default function QueueToolbar(): JSX.Element {
   }, [focusSearchTick]);
 
   const [isSeparating, setIsSeparating] = useState(false);
-  const [isConverting, setIsConverting] = useState(false);
   const [globalFormat, setGlobalFormat] = useState('wav');
 
   // "Enhance All" targets pending + error files — error files can be retried.
@@ -55,10 +57,38 @@ export default function QueueToolbar(): JSX.Element {
   const pendingIds = jobs.filter((j) => j.status === 'pending').map((j) => j.id);
   const enhanceableIds = jobs.filter((j) => j.status === 'pending' || j.status === 'error').map((j) => j.id);
 
-  const isAnyEnhancing = jobs.some((j) => j.status === 'processing' || j.status === 'queued');
-  const canEnhance = enhanceableIds.length > 0 && !isAnyEnhancing;
-  const canSeparate = pendingIds.length > 0 && !isSeparating && !isAnyEnhancing;
-  const canConvert = pendingIds.length > 0 && !isConverting && !isAnyEnhancing;
+  // Distinguish active enhance vs convert batches via the operation-type map.
+  const jobOperationTypes = useQueueStore((s) => s.jobOperationTypes);
+  const activeJobs = jobs.filter((j) => j.status === 'processing' || j.status === 'queued');
+  const isAnyActive = activeJobs.length > 0;
+  const isAnyConverting = activeJobs.some((j) => jobOperationTypes[j.id] === 'convert');
+  const isAnyEnhancing = activeJobs.some((j) => jobOperationTypes[j.id] !== 'convert');
+  const canEnhance = enhanceableIds.length > 0 && !isAnyActive;
+  const canSeparate = pendingIds.length > 0 && !isSeparating && !isAnyActive;
+  const canConvert = pendingIds.length > 0 && !isAnyActive;
+
+  // Fire a completion toast (with "Download All") when a convert batch finishes.
+  useEffect(() => {
+    if (prevIsAnyConvertingRef.current && !isAnyConverting) {
+      const { jobs: freshJobs, jobOperationTypes: freshTypes } = useQueueStore.getState();
+      const convertDoneJobs = freshJobs.filter(
+        (j) => j.status === 'done' && !!j.output_filepath && freshTypes[j.id] === 'convert',
+      );
+      if (convertDoneJobs.length > 0) {
+        addToast(
+          `${convertDoneJobs.length} file${convertDoneJobs.length > 1 ? 's' : ''} converted`,
+          'success',
+          {
+            label: 'Download All',
+            onClick: () => void triggerConvertDownloadAll(convertDoneJobs),
+          },
+          8000,
+        );
+      }
+    }
+    prevIsAnyConvertingRef.current = isAnyConverting;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isAnyConverting]);
 
   async function runSequentially(
     ids: string[],
@@ -185,9 +215,42 @@ export default function QueueToolbar(): JSX.Element {
 
   async function handleConvert(): Promise<void> {
     if (!canConvert) return;
-    setIsConverting(true);
-    try { await runSequentially(pendingIds, (id) => invokeConvertFiles([id], filenameTemplate)); }
-    finally { setIsConverting(false); }
+    abortProcessRef.current = false;
+    const { setStatus, setJobOperationMode } = useQueueStore.getState();
+    log.info(`Convert All: queuing ${pendingIds.length} job(s)`);
+    for (const id of pendingIds) {
+      setJobOperationMode(id, 'convert');
+      setStatus(id, 'queued');
+      await invokeSetJobStatus(id, 'queued');
+    }
+    const freshJobs = useQueueStore.getState().jobs;
+    const isAnyProcessing = freshJobs.some((j) => j.status === 'processing');
+    if (!isAnyProcessing) {
+      const nextQueuedJob = freshJobs.find((j) => j.status === 'queued');
+      if (nextQueuedJob) {
+        invokeConvertFiles([nextQueuedJob.id], filenameTemplate).catch((err) => {
+          console.error('Failed to auto-start convert job', err);
+        });
+      }
+    }
+  }
+
+  async function triggerConvertDownloadAll(doneJobs: QueueJob[]): Promise<void> {
+    const folder = await openDialog({ directory: true, multiple: false, title: 'Select Download Folder' });
+    if (typeof folder !== 'string' || !folder) return;
+    const sep = folder.includes('\\') ? '\\' : '/';
+    let count = 0;
+    for (const job of doneJobs) {
+      if (!job.output_filepath) continue;
+      const filename = job.output_filepath.replace(/\\/g, '/').split('/').pop() ?? job.filename;
+      const destPath = `${folder}${sep}${filename}`;
+      const res = await invokeCopyEnhancedFile(job.id, job.output_filepath, destPath);
+      if (res.success) {
+        useQueueStore.getState().setDownloadPath(job.id, destPath);
+        count++;
+      }
+    }
+    addToast(`Downloaded ${count} converted file${count !== 1 ? 's' : ''} to ${folder}`, 'success');
   }
 
   async function handleApplyFormat(): Promise<void> {
@@ -234,20 +297,20 @@ export default function QueueToolbar(): JSX.Element {
           {isAnyEnhancing ? 'Enhancing…' : 'Enhance All'}
         </button>
         <button
+          onClick={handleConvert}
+          disabled={!canConvert}
+          title="Convert format [C]"
+          className={`${ghostBtn} h-[28px]`}
+        >
+          {isAnyConverting ? 'Converting…' : 'Convert All'}
+        </button>
+        <button
           onClick={handleSeparate}
           disabled={!canSeparate}
           title="Separate stems [S]"
           className={`${ghostBtn} h-[28px]`}
         >
           {isSeparating ? 'Separating…' : 'Separate'}
-        </button>
-        <button
-          onClick={handleConvert}
-          disabled={!canConvert}
-          title="Convert format [C]"
-          className={`${ghostBtn} h-[28px]`}
-        >
-          {isConverting ? 'Converting…' : 'Convert All'}
         </button>
         {activeTab === 'audio' && <RecordButton />}
       </div>
