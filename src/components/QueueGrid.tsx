@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { listen } from '@tauri-apps/api/event';
 import { motion, AnimatePresence } from 'framer-motion';
 import { clsx } from 'clsx';
-import { GripVertical, Play, Lock, ChevronRight, Trash2, Wand2, Download } from 'lucide-react';
+import { GripVertical, Play, Lock, ChevronRight, Trash2, Wand2, Download, RefreshCw } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { save as saveDialog } from '@tauri-apps/plugin-dialog';
 import ProcessingTimer from '@/components/ProcessingTimer';
@@ -30,7 +30,7 @@ import { useQueueStore } from '@/stores/useQueueStore';
 import { useUIStore } from '@/stores/useUIStore';
 import { useSettingsStore } from '@/stores/useSettingsStore';
 
-import { invokeSetOutputFormat, invokeSetBitrate, invokeSetSampleRate, invokeArchiveJobs, invokeProcessQueue, invokeCancelJobs, invokeSetJobStatus, invokeCopyEnhancedFile } from '@/lib/ipc';
+import { invokeSetOutputFormat, invokeSetBitrate, invokeSetSampleRate, invokeArchiveJobs, invokeProcessQueue, invokeCancelJobs, invokeSetJobStatus, invokeCopyEnhancedFile, invokeConvertFiles } from '@/lib/ipc';
 import { useToastStore } from '@/stores/useToastStore';
 import { logError } from '@/lib/errorLogger';
 import type { QueueJob, JobStatus } from '@/types/queue';
@@ -183,6 +183,29 @@ function getSourceDir(filepath: string): string {
   return lastSep > 0 ? filepath.substring(0, lastSep) : filepath;
 }
 
+// ─── Per-row tool mode selector ───────────────────────────────────────────────
+
+function ToolModeSelect({ jobId }: { jobId: string }): JSX.Element {
+  const mode = useQueueStore((s) => s.jobOperationTypes[jobId] ?? 'enhance');
+  const setJobOperationMode = useQueueStore((s) => s.setJobOperationMode);
+
+  return (
+    <select
+      value={mode}
+      onChange={(e) => {
+        e.stopPropagation();
+        setJobOperationMode(jobId, e.target.value as 'enhance' | 'convert');
+      }}
+      onClick={(e) => e.stopPropagation()}
+      title="Toggle action mode for this row"
+      className="bg-slate-100 dark:bg-white/[0.07] text-slate-700 dark:text-white text-[10px] rounded px-1 py-0.5 outline-none focus:ring-1 focus:ring-violet-500 border border-slate-200 dark:border-white/[0.06] cursor-pointer"
+    >
+      <option value="enhance" className="bg-white dark:bg-[#111827]">Enh</option>
+      <option value="convert" className="bg-white dark:bg-[#111827]">Conv</option>
+    </select>
+  );
+}
+
 // ─── Per-row enhance button ────────────────────────────────────────────────────
 
 function EnhanceRowButton({ job }: { job: QueueJob }): JSX.Element | null {
@@ -241,6 +264,61 @@ function EnhanceRowButton({ job }: { job: QueueJob }): JSX.Element | null {
     >
       {canCancel ? <Trash2 size={10} /> : <Wand2 size={10} />}
       {canCancel ? 'Cancel' : job.status === 'error' ? 'Retry' : 'Enhance'}
+    </button>
+  );
+}
+
+// ─── Per-row convert button ────────────────────────────────────────────────────
+
+function ConvertRowButton({ job }: { job: QueueJob }): JSX.Element | null {
+  const filenameTemplate = useSettingsStore((s) => s.filenameTemplate);
+  const { addToast } = useToastStore();
+  const isProcessing = job.status === 'processing';
+  const isQueued = job.status === 'queued';
+  const canCancel = isProcessing || isQueued;
+
+  if (job.status === 'done') return null;
+
+  async function handleClick(e: React.MouseEvent): Promise<void> {
+    e.stopPropagation();
+    if (canCancel) {
+      try {
+        await invokeCancelJobs([job.id]);
+        addToast(`Cancelled "${job.filename}"`, 'info');
+      } catch (err) {
+        console.error('Failed to cancel', err);
+      }
+      return;
+    }
+    const { jobs } = useQueueStore.getState();
+    const hasActive = jobs.some((j) => j.status === 'processing');
+    if (hasActive) {
+      const { setStatus, setJobOperationMode } = useQueueStore.getState();
+      setJobOperationMode(job.id, 'convert');
+      setStatus(job.id, 'queued');
+      await invokeSetJobStatus(job.id, 'queued');
+      addToast(`Queued "${job.filename}" for conversion`, 'info');
+    } else {
+      useQueueStore.getState().setJobOperationMode(job.id, 'convert');
+      await invokeConvertFiles([job.id], filenameTemplate);
+    }
+  }
+
+  return (
+    <button
+      onClick={handleClick}
+      title={canCancel ? 'Cancel' : job.status === 'error' ? 'Retry conversion' : 'Convert this file'}
+      className={clsx(
+        'flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-medium transition-all duration-150',
+        canCancel
+          ? 'bg-red-500/10 text-red-600 dark:text-red-400 hover:bg-red-500/20'
+          : job.status === 'error'
+          ? 'bg-amber-500/10 text-amber-600 dark:text-amber-400 hover:bg-amber-500/20'
+          : 'bg-blue-500/10 text-blue-600 dark:text-blue-400 hover:bg-blue-500/20',
+      )}
+    >
+      {canCancel ? <Trash2 size={10} /> : <RefreshCw size={10} />}
+      {canCancel ? 'Cancel' : job.status === 'error' ? 'Retry' : 'Convert'}
     </button>
   );
 }
@@ -305,6 +383,7 @@ function SortableJobRow({ job, index, isSelected, onSelect, isImporting, activeD
 }): JSX.Element {
   const [filenameExpanded, setFilenameExpanded] = useState(false);
   const [destExpanded, setDestExpanded] = useState(false);
+  const rowToolMode = useQueueStore((s) => s.jobOperationTypes[job.id] ?? 'enhance');
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: job.id });
   const selectedJobIds = useQueueStore((s) => s.selectedJobIds);
   // Only treat as a group drag when the DRAGGED item is itself selected.
@@ -434,9 +513,14 @@ function SortableJobRow({ job, index, isSelected, onSelect, isImporting, activeD
           }}
         />
       </td>
-      <td className="px-3 py-2 w-28">
-        <div className="flex items-center gap-1.5">
-          <EnhanceRowButton job={job} />
+      <td className="px-3 py-2 w-40">
+        <div className="flex items-center gap-1.5 flex-wrap">
+          {job.status !== 'done' && job.status !== 'processing' && job.status !== 'queued' && (
+            <ToolModeSelect jobId={job.id} />
+          )}
+          {rowToolMode === 'enhance'
+            ? <EnhanceRowButton job={job} />
+            : <ConvertRowButton job={job} />}
           <DownloadJobButton job={job} />
         </div>
       </td>
@@ -840,15 +924,22 @@ export default function QueueGrid(): JSX.Element {
         // Auto-run next queued job if active one settles
         if (status === 'done' || status === 'error' || status === 'pending') {
           setTimeout(() => {
-            const { jobs } = useQueueStore.getState();
+            const { jobs, jobOperationTypes } = useQueueStore.getState();
             const isAnyProcessing = jobs.some((j) => j.status === 'processing');
             if (!isAnyProcessing) {
               const nextQueuedJob = jobs.find((j) => j.status === 'queued');
               if (nextQueuedJob) {
-                const { aiModel, enhancementStrength } = useSettingsStore.getState();
-                invokeProcessQueue([nextQueuedJob.id], enhancementStrength, aiModel).catch((err) => {
-                  console.error('Failed to auto-start queued job', err);
-                });
+                const opType = jobOperationTypes[nextQueuedJob.id] ?? 'enhance';
+                const { aiModel, enhancementStrength, filenameTemplate } = useSettingsStore.getState();
+                if (opType === 'enhance') {
+                  invokeProcessQueue([nextQueuedJob.id], enhancementStrength, aiModel).catch((err) => {
+                    console.error('Failed to auto-start queued enhance job', err);
+                  });
+                } else {
+                  invokeConvertFiles([nextQueuedJob.id], filenameTemplate).catch((err) => {
+                    console.error('Failed to auto-start queued convert job', err);
+                  });
+                }
               }
             }
           }, 100);
@@ -1030,7 +1121,7 @@ export default function QueueGrid(): JSX.Element {
         <th className="px-4 py-2.5 w-24">{t('queue.col.bitrate')}</th>
         <th className="px-4 py-2.5 w-28 whitespace-nowrap">{t('queue.col.sampleHz')}</th>
         <th className="px-4 py-2.5 w-32 whitespace-nowrap">{t('queue.col.status')}</th>
-        <th className="px-3 py-2.5 w-28">TOOLS</th>
+        <th className="px-3 py-2.5 w-40">TOOLS</th>
         <th className="px-2 py-2.5 w-8 text-center">
           <button
             onClick={(e) => {
