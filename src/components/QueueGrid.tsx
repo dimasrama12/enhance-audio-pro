@@ -37,39 +37,21 @@ import type { QueueJob, JobStatus } from '@/types/queue';
 
 // ─── Resize handle ────────────────────────────────────────────────────────────
 
-// Per-column minimum widths (px) for free-form calibration resize.
-const MIN_COL_WIDTHS: Record<string, number> = {
-  grip: 20,
-  index: 20,
-  filename: 120,
-  destination: 80,
-  size: 50,
-  format: 60,
-  bitrate: 60,
-  sampleRate: 70,
+// Fixed queue table column widths (px) — total 955px. Columns are not resizable.
+const COL_WIDTHS = {
+  grip: 28,
+  index: 34,
+  filename: 208,
+  destination: 124,
+  size: 65,
+  format: 75,
+  bitrate: 72,
+  sampleRate: 80,
   status: 70,
-  tools: 90,
-  lock: 36,
-  clear: 44,
-};
-
-interface ResizeHandleProps { onDelta: (delta: number) => void; }
-
-function ResizeHandle({ onDelta }: ResizeHandleProps): JSX.Element {
-  function onMouseDown(e: React.MouseEvent): void {
-    e.preventDefault();
-    e.stopPropagation();
-    let lastX = e.clientX;
-    const onMove = (ev: MouseEvent): void => { onDelta(ev.clientX - lastX); lastX = ev.clientX; };
-    const onUp = (): void => {
-      window.removeEventListener('mousemove', onMove);
-      window.removeEventListener('mouseup', onUp);
-    };
-    window.addEventListener('mousemove', onMove);
-    window.addEventListener('mouseup', onUp);
-  }
-  return <div className="resize-handle" onMouseDown={onMouseDown} />;
-}
+  tools: 112,
+  lock: 41,
+  clear: 46,
+} as const;
 
 // ─── Status badge ─────────────────────────────────────────────────────────────
 
@@ -742,20 +724,7 @@ export default function QueueGrid(): JSX.Element {
   const groupByFormat = useQueueStore((s) => s.groupByFormat);
   const clearSelection = useQueueStore((s) => s.clearSelection);
   const { t } = useTranslation();
-  const [colWidths, setColWidths] = useState({
-    grip: 28,
-    index: 34,
-    filename: 208,
-    destination: 124,
-    size: 65,
-    format: 75,
-    bitrate: 72,
-    sampleRate: 80,
-    status: 70,
-    tools: 112,
-    lock: 41,
-    clear: 46
-  });
+  const colWidths = COL_WIDTHS;
   const tableContainerRef = useRef<HTMLDivElement>(null);
 
   const importingJobIds = useQueueStore((s) => s.importingJobIds);
@@ -884,15 +853,6 @@ export default function QueueGrid(): JSX.Element {
     window.addEventListener('mouseup', onMouseUp);
   }
 
-  // Each column resizes fully independently (grow + shrink) down to its own
-  // minimum. No coupling between columns — the table grows past the container
-  // and the container scrolls horizontally during calibration.
-  const adjustWidth = (col: keyof typeof colWidths, delta: number): void => {
-    setColWidths((p) => ({
-      ...p,
-      [col]: Math.max(MIN_COL_WIDTHS[col], p[col] + delta),
-    }));
-  };
   const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set());
   const toggleGroup = (label: string): void =>
     setCollapsedGroups((prev) => {
@@ -1116,46 +1076,36 @@ export default function QueueGrid(): JSX.Element {
   const tableHeader = (
     <thead>
       <tr className="text-slate-500 dark:text-zinc-100 font-semibold text-[10px] uppercase tracking-wider sticky top-0 bg-slate-50 dark:bg-[#090E1B] border-b-2 border-slate-200 dark:border-white/[0.08]">
-        <th className="resizable-th px-1 py-2.5 text-center" style={{ width: colWidths.grip }}>
-          <ResizeHandle onDelta={(d) => adjustWidth('grip', d)} />
+        <th className="px-1 py-2.5 text-center" style={{ width: colWidths.grip }}>
         </th>
-        <th className="resizable-th px-1 py-2.5 text-center" style={{ width: colWidths.index }}>
+        <th className="px-1 py-2.5 text-center" style={{ width: colWidths.index }}>
           #
-          <ResizeHandle onDelta={(d) => adjustWidth('index', d)} />
         </th>
-        <th className="resizable-th px-2 py-2.5 text-left" style={{ width: colWidths.filename }}>
+        <th className="px-2 py-2.5 text-left" style={{ width: colWidths.filename }}>
           <span className="px-2">{t('queue.col.filename')}</span>
-          <ResizeHandle onDelta={(d) => adjustWidth('filename', d)} />
         </th>
-        <th className="resizable-th px-2 py-2.5 text-left" style={{ width: colWidths.destination }}>
+        <th className="px-2 py-2.5 text-left" style={{ width: colWidths.destination }}>
           <span className="px-2">{t('queue.col.destination')}</span>
-          <ResizeHandle onDelta={(d) => adjustWidth('destination', d)} />
         </th>
-        <th className="resizable-th px-2 py-2.5 text-left" style={{ width: colWidths.size }}>
+        <th className="px-2 py-2.5 text-left" style={{ width: colWidths.size }}>
           <span className="px-2">{t('queue.col.size')}</span>
-          <ResizeHandle onDelta={(d) => adjustWidth('size', d)} />
         </th>
-        <th className="resizable-th px-1 py-2.5 text-center" style={{ width: colWidths.format }}>
+        <th className="px-1 py-2.5 text-center" style={{ width: colWidths.format }}>
           <span>{t('queue.col.output')}</span>
-          <ResizeHandle onDelta={(d) => adjustWidth('format', d)} />
         </th>
-        <th className="resizable-th px-1 py-2.5 text-center" style={{ width: colWidths.bitrate }}>
+        <th className="px-1 py-2.5 text-center" style={{ width: colWidths.bitrate }}>
           <span>{t('queue.col.bitrate')}</span>
-          <ResizeHandle onDelta={(d) => adjustWidth('bitrate', d)} />
         </th>
-        <th className="resizable-th px-1.5 py-2.5 text-center whitespace-nowrap" style={{ width: colWidths.sampleRate }}>
+        <th className="px-1.5 py-2.5 text-center whitespace-nowrap" style={{ width: colWidths.sampleRate }}>
           <span>{t('queue.col.sampleHz')}</span>
-          <ResizeHandle onDelta={(d) => adjustWidth('sampleRate', d)} />
         </th>
-        <th className="resizable-th px-1.5 py-2.5 text-center whitespace-nowrap" style={{ width: colWidths.status }}>
+        <th className="px-1.5 py-2.5 text-center whitespace-nowrap" style={{ width: colWidths.status }}>
           <span>{t('queue.col.status')}</span>
-          <ResizeHandle onDelta={(d) => adjustWidth('status', d)} />
         </th>
-        <th className="resizable-th px-1.5 py-2.5 text-center" style={{ width: colWidths.tools }}>
+        <th className="px-1.5 py-2.5 text-center" style={{ width: colWidths.tools }}>
           <span>TOOLS</span>
-          <ResizeHandle onDelta={(d) => adjustWidth('tools', d)} />
         </th>
-        <th className="resizable-th px-1 py-2.5 text-center" style={{ width: colWidths.lock }}>
+        <th className="px-1 py-2.5 text-center" style={{ width: colWidths.lock }}>
           <button
             onClick={(e) => {
               e.stopPropagation();
@@ -1171,9 +1121,8 @@ export default function QueueGrid(): JSX.Element {
           >
             <Lock size={11} className="mx-auto" />
           </button>
-          <ResizeHandle onDelta={(d) => adjustWidth('lock', d)} />
         </th>
-        <th className="resizable-th px-1 py-2.5 text-center" style={{ width: colWidths.clear }}>
+        <th className="px-1 py-2.5 text-center" style={{ width: colWidths.clear }}>
           <button
             onClick={(e) => {
               e.stopPropagation();
@@ -1194,7 +1143,6 @@ export default function QueueGrid(): JSX.Element {
           >
             Clear
           </button>
-          <ResizeHandle onDelta={(d) => adjustWidth('clear', d)} />
         </th>
       </tr>
     </thead>
