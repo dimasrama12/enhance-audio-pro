@@ -316,6 +316,13 @@ chore    : [configuration changes, tooling, etc.]
 - [x] Verified clean: `npx tsc --noEmit` → 0 errors; no leftover references to removed identifiers.
 - [x] Tauri release binary rebuilt (no-bundle) at D:\cargo_build\enhance-audio-pro\release\enhance-audio-pro.exe (7.76 MB, 2026-06-14 00:24, build finished in 6m07s, exit 0). Two harmless dead-code warnings (`get_job_by_id`, `count_active_jobs_by_type` now unused after the unlimited-queue change in queue.rs).
 
+# Audio Sub-Tab System (2026-06-14)
+- [x] Added `AudioSubTab = 'enhance' | 'convert' | 'separate'` type + `audioSubTab` field (default `'enhance'`) + `setAudioSubTab` to `useUIStore`.
+- [x] QueueToolbar left pill group restructured into: persistent 3-tab nav strip [Enhance All | Convert All | Separate] (clicking sets sub-tab) + one conditional action button per active tab + Record button; batch `→ WAV ↻` format control hidden in Enhance tab. Label map uses `Record<AudioSubTab, string>` for type-safety.
+- [x] QueueGrid: FORMAT column hidden in Enhance tab, shown in Convert tab (header = "Save to") and Separate tab; BITRATE and SAMPLE HZ columns hidden in Enhance and Convert tabs, shown in Separate tab only.
+- [x] SortableJobRow Tools cell: ToolModeSelect dropdown hidden in Enhance and Convert tabs (visible only in Separate when not done/processing/queued); Enhance tab shows only EnhanceRowButton; Convert tab shows only ConvertRowButton; Separate tab retains mode-driven behaviour.
+- [x] Tauri release binary rebuilt (no-bundle) at D:\cargo_build\enhance-audio-pro\release\enhance-audio-pro.exe (2026-06-14).
+
 # Test Coverage (final)
 - 38/38 Vitest (frontend)
 - 65/65 Pytest (backend)
