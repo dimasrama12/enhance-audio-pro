@@ -1,5 +1,6 @@
 import { open as openDialog } from '@tauri-apps/plugin-dialog';
 import { useQueueStore } from '@/stores/useQueueStore';
+import { useUIStore } from '@/stores/useUIStore';
 import { useToastStore } from '@/stores/useToastStore';
 import { invokeCopyEnhancedFile } from '@/lib/ipc';
 import type { QueueJob } from '@/types/queue';
@@ -24,8 +25,9 @@ async function downloadFilesToFolder(jobs: QueueJob[], addToast: (msg: string, t
 }
 
 export default function QueueStatusBar(): JSX.Element {
-  const jobs = useQueueStore((s) => s.jobs);
-  const selectedJobIds = useQueueStore((s) => s.selectedJobIds);
+  const audioSubTab = useUIStore((s) => s.audioSubTab);
+  const jobs = useQueueStore((s) => s.tabQueues[audioSubTab]);
+  const selectedJobIds = useQueueStore((s) => s.tabSelectedIds[audioSubTab]);
   const { addToast } = useToastStore();
 
   const total = jobs.length;

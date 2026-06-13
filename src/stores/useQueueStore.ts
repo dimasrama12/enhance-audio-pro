@@ -1,286 +1,464 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import type { QueueJob, JobStatus } from '@/types/queue';
+import type { AudioSubTab } from '@/stores/useUIStore';
+import { useUIStore } from '@/stores/useUIStore';
 
 export type ViewMode = 'table' | 'grid';
 
 export interface JobGroup { label: string; jobs: QueueJob[]; }
 
+const ALL_TABS: AudioSubTab[] = ['enhance', 'convert', 'separate'];
+
+function emptyPerTab<T>(factory: () => T): Record<AudioSubTab, T> {
+  return { enhance: factory(), convert: factory(), separate: factory() };
+}
+
+function getActiveSubTab(tab?: AudioSubTab): AudioSubTab {
+  return tab ?? useUIStore.getState().audioSubTab;
+}
+
+// Update a job by ID searching across all tab queues
+function updateJobById(
+  tabQueues: Record<AudioSubTab, QueueJob[]>,
+  id: string,
+  updater: (j: QueueJob) => QueueJob,
+): Record<AudioSubTab, QueueJob[]> {
+  for (const tab of ALL_TABS) {
+    const idx = tabQueues[tab].findIndex((j) => j.id === id);
+    if (idx !== -1) {
+      const arr = [...tabQueues[tab]];
+      arr[idx] = updater(arr[idx]);
+      return { ...tabQueues, [tab]: arr };
+    }
+  }
+  return tabQueues;
+}
+
+// Update a job field in all tab queues matching the id
+function patchJobById<K extends keyof QueueJob>(
+  tabQueues: Record<AudioSubTab, QueueJob[]>,
+  id: string,
+  patch: Pick<QueueJob, K>,
+): Record<AudioSubTab, QueueJob[]> {
+  return updateJobById(tabQueues, id, (j) => ({ ...j, ...patch }));
+}
+
 interface QueueState {
-  jobs: QueueJob[];
-  filter: string;
-  searchQuery: string;
-  selectedJobIds: string[];
-  lockedJobIds: string[];
-  importingJobIds: string[];
-  viewMode: ViewMode;
-  groupByFormat: boolean;
-  setJobs: (jobs: QueueJob[]) => void;
-  addJobs: (jobs: QueueJob[]) => void;
-  setFilter: (filter: string) => void;
-  setSearchQuery: (query: string) => void;
-  clearQueue: () => void;
-  filteredJobs: (activeTab?: 'audio' | 'video') => QueueJob[];
-  groupedFilteredJobs: (activeTab?: 'audio' | 'video') => JobGroup[];
+  // ── Per-tab queues ─────────────────────────────────────────────────────────
+  tabQueues: Record<AudioSubTab, QueueJob[]>;
+  tabFilters: Record<AudioSubTab, string>;
+  tabSearches: Record<AudioSubTab, string>;
+  tabSelectedIds: Record<AudioSubTab, string[]>;
+  tabLockedIds: Record<AudioSubTab, string[]>;
+  tabImportingIds: Record<AudioSubTab, string[]>;
+  tabViewModes: Record<AudioSubTab, ViewMode>;
+  tabGroupByFormat: Record<AudioSubTab, boolean>;
+  tabJobOpTypes: Record<AudioSubTab, Record<string, 'enhance' | 'convert'>>;
+
+  // ── Helpers ────────────────────────────────────────────────────────────────
+  findJobTab: (id: string) => AudioSubTab | null;
+  getJobById: (id: string) => QueueJob | undefined;
+
+  // ── Job add/set ────────────────────────────────────────────────────────────
+  setJobs: (jobs: QueueJob[], tab?: AudioSubTab) => void;
+  addJobs: (jobs: QueueJob[], tab?: AudioSubTab) => void;
+
+  // ── Job mutations (search all tabs by ID) ──────────────────────────────────
   setProgress: (id: string, percent: number) => void;
   setStatus: (id: string, status: JobStatus, errorMessage?: string) => void;
   setOutputFormat: (id: string, format: string) => void;
   setBitrate: (id: string, bitrate: string) => void;
   setOutputFilepath: (id: string, filepath: string) => void;
   setAbMode: (id: string, mode: 'enhanced' | 'original') => void;
-  // Selection
-  setSelectedJob: (id: string | null) => void;
-  toggleSelectJob: (id: string) => void;
-  rangeSelectJobs: (targetId: string) => void;
-  selectAllJobs: () => void;
-  clearSelection: () => void;
-  primarySelectedId: () => string | null;
   setSampleRate: (id: string, rate: string) => void;
-  // Lock
-  lockJobs: (ids: string[]) => void;
-  unlockJobs: (ids: string[]) => void;
-  lockAllJobs: () => void;
-  unlockAllJobs: () => void;
-  // Destination
   setDestination: (id: string, dest: string) => void;
   setDestinationBatch: (ids: string[], dest: string) => void;
-  // Reorder
-  reorderJobs: (activeId: string, overId: string) => void;
-  // View
-  setViewMode: (mode: ViewMode) => void;
-  setGroupByFormat: (v: boolean) => void;
-  deleteJobs: (ids: string[]) => void;
   setDownloadPath: (id: string, path: string) => void;
-  // Operation type tracking (not persisted — UI only)
-  jobOperationTypes: Record<string, 'enhance' | 'convert'>;
-  setJobOperationMode: (id: string, mode: 'enhance' | 'convert') => void;
+
+  // ── Per-tab UI state ───────────────────────────────────────────────────────
+  setFilter: (filter: string, tab?: AudioSubTab) => void;
+  setSearchQuery: (query: string, tab?: AudioSubTab) => void;
+  clearQueue: (tab?: AudioSubTab) => void;
+  setViewMode: (mode: ViewMode, tab?: AudioSubTab) => void;
+  setGroupByFormat: (v: boolean, tab?: AudioSubTab) => void;
+  setJobOperationMode: (id: string, mode: 'enhance' | 'convert', tab?: AudioSubTab) => void;
+
+  // ── Selection (scoped to active/specified tab) ─────────────────────────────
+  setSelectedJob: (id: string | null, tab?: AudioSubTab) => void;
+  toggleSelectJob: (id: string, tab?: AudioSubTab) => void;
+  rangeSelectJobs: (targetId: string, tab?: AudioSubTab) => void;
+  selectAllJobs: (tab?: AudioSubTab) => void;
+  clearSelection: (tab?: AudioSubTab) => void;
+  primarySelectedId: (tab?: AudioSubTab) => string | null;
+
+  // ── Lock ───────────────────────────────────────────────────────────────────
+  lockJobs: (ids: string[], tab?: AudioSubTab) => void;
+  unlockJobs: (ids: string[], tab?: AudioSubTab) => void;
+  lockAllJobs: (tab?: AudioSubTab) => void;
+  unlockAllJobs: (tab?: AudioSubTab) => void;
+
+  // ── Reorder ────────────────────────────────────────────────────────────────
+  reorderJobs: (activeId: string, overId: string, tab?: AudioSubTab) => void;
+
+  // ── Delete ─────────────────────────────────────────────────────────────────
+  deleteJobs: (ids: string[], tab?: AudioSubTab) => void;
+
+  // ── Filtered views ─────────────────────────────────────────────────────────
+  filteredJobs: (subTab: AudioSubTab, mediaTab?: 'audio' | 'video') => QueueJob[];
+  groupedFilteredJobs: (subTab: AudioSubTab, mediaTab?: 'audio' | 'video') => JobGroup[];
 }
 
 export const useQueueStore = create<QueueState>()(
   persist(
     (set, get) => ({
-  jobs: [],
-  filter: 'all',
-  searchQuery: '',
-  selectedJobIds: [],
-  lockedJobIds: [],
-  importingJobIds: [],
-  viewMode: 'table',
-  groupByFormat: false,
-  jobOperationTypes: {},
+      tabQueues: emptyPerTab(() => [] as QueueJob[]),
+      tabFilters: emptyPerTab(() => 'all'),
+      tabSearches: emptyPerTab(() => ''),
+      tabSelectedIds: emptyPerTab(() => [] as string[]),
+      tabLockedIds: emptyPerTab(() => [] as string[]),
+      tabImportingIds: emptyPerTab(() => [] as string[]),
+      tabViewModes: emptyPerTab(() => 'table' as ViewMode),
+      tabGroupByFormat: emptyPerTab(() => false),
+      tabJobOpTypes: emptyPerTab(() => ({} as Record<string, 'enhance' | 'convert'>)),
 
-  setJobs: (jobs) => set({ jobs }),
-  addJobs: (newJobs) => set((s) => {
-    const existing = new Set(s.jobs.map((j) => j.id));
-    const unique = newJobs.filter((j) => !existing.has(j.id));
-    if (!unique.length) return s;
-    const newIds = unique.map((j) => j.id);
-    setTimeout(() => {
-      useQueueStore.setState((prev) => ({
-        importingJobIds: prev.importingJobIds.filter((id) => !newIds.includes(id)),
-      }));
-    }, 1500);
-    return {
-      jobs: [...s.jobs, ...unique],
-      importingJobIds: [...new Set([...s.importingJobIds, ...newIds])],
-    };
-  }),
-  setFilter: (filter) => set({ filter }),
-  setSearchQuery: (searchQuery) => set({ searchQuery }),
-  clearQueue: () => set((s) => ({ jobs: s.jobs.filter(j => s.lockedJobIds.includes(j.id)), selectedJobIds: s.selectedJobIds.filter(id => s.lockedJobIds.includes(id)) })),
-
-  filteredJobs: (activeTab) => {
-    const { jobs, filter, searchQuery } = get();
-    return jobs
-      .filter((j) => filter === 'all' || j.status === filter)
-      .filter((j) => !searchQuery || j.filename.toLowerCase().includes(searchQuery.toLowerCase()))
-      .filter((j) => !activeTab || j.media_type === activeTab);
-  },
-
-  groupedFilteredJobs: (activeTab) => {
-    const filtered = get().filteredJobs(activeTab);
-    const map = new Map<string, QueueJob[]>();
-    for (const job of filtered) {
-      const ext = job.filename.includes('.') ? job.filename.split('.').pop()!.toUpperCase() : 'UNKNOWN';
-      if (!map.has(ext)) map.set(ext, []);
-      map.get(ext)!.push(job);
-    }
-    return Array.from(map.entries())
-      .sort(([a], [b]) => a.localeCompare(b))
-      .map(([label, jobs]) => ({ label, jobs }));
-  },
-
-  setProgress: (id, percent) =>
-    set((s) => ({
-      jobs: s.jobs.map((j) => (j.id === id ? { ...j, progress: percent } : j)),
-    })),
-
-  setStatus: (id, status, errorMessage) =>
-    set((s) => ({
-      jobs: s.jobs.map((j) => {
-        if (j.id !== id) return j;
-        let completed_duration = j.completed_duration;
-        if (status === 'done' && j.status === 'processing' && j.startedAt) {
-          completed_duration = Math.floor((Date.now() - j.startedAt) / 1000);
-        } else if (status === 'processing') {
-          completed_duration = undefined;
+      // ── Helpers ──────────────────────────────────────────────────────────────
+      findJobTab: (id) => {
+        const { tabQueues } = get();
+        for (const tab of ALL_TABS) {
+          if (tabQueues[tab].some((j) => j.id === id)) return tab;
         }
-        const newStartedAt = status === 'processing' && j.status !== 'processing' 
-          ? Date.now() 
-          : (status === 'done' || status === 'error' || status === 'pending') 
-            ? undefined 
-            : j.startedAt;
-        return { ...j, status, error_message: errorMessage ?? j.error_message, startedAt: newStartedAt, completed_duration };
-      }),
-    })),
+        return null;
+      },
 
-  setOutputFormat: (id, format) =>
-    set((s) => ({
-      jobs: s.jobs.map((j) => (j.id === id ? { ...j, output_format: format } : j)),
-    })),
+      getJobById: (id) => {
+        const { tabQueues } = get();
+        for (const tab of ALL_TABS) {
+          const j = tabQueues[tab].find((j) => j.id === id);
+          if (j) return j;
+        }
+        return undefined;
+      },
 
-  setBitrate: (id, bitrate) =>
-    set((s) => ({
-      jobs: s.jobs.map((j) => (j.id === id ? { ...j, bitrate } : j)),
-    })),
+      // ── Job add/set ──────────────────────────────────────────────────────────
+      setJobs: (jobs, tab) =>
+        set((s) => {
+          const t = getActiveSubTab(tab);
+          return { tabQueues: { ...s.tabQueues, [t]: jobs } };
+        }),
 
-  setOutputFilepath: (id, filepath) =>
-    set((s) => ({
-      jobs: s.jobs.map((j) => (j.id === id ? { ...j, output_filepath: filepath } : j)),
-    })),
+      addJobs: (newJobs, tab) =>
+        set((s) => {
+          const t = getActiveSubTab(tab);
+          const existing = new Set(s.tabQueues[t].map((j) => j.id));
+          const unique = newJobs.filter((j) => !existing.has(j.id));
+          if (!unique.length) return s;
+          const newIds = unique.map((j) => j.id);
+          setTimeout(() => {
+            useQueueStore.setState((prev) => ({
+              tabImportingIds: {
+                ...prev.tabImportingIds,
+                [t]: prev.tabImportingIds[t].filter((id) => !newIds.includes(id)),
+              },
+            }));
+          }, 1500);
+          return {
+            tabQueues: { ...s.tabQueues, [t]: [...s.tabQueues[t], ...unique] },
+            tabImportingIds: {
+              ...s.tabImportingIds,
+              [t]: [...new Set([...s.tabImportingIds[t], ...newIds])],
+            },
+          };
+        }),
 
-  setAbMode: (id, mode) =>
-    set((s) => ({
-      jobs: s.jobs.map((j) => (j.id === id ? { ...j, ab_mode: mode } : j)),
-    })),
+      // ── Job mutations ────────────────────────────────────────────────────────
+      setProgress: (id, percent) =>
+        set((s) => ({
+          tabQueues: updateJobById(s.tabQueues, id, (j) => ({ ...j, progress: percent })),
+        })),
 
-  // Exclusive single select (backward-compat for row click without modifier)
-  setSelectedJob: (id) =>
-    set({ selectedJobIds: id ? [id] : [] }),
+      setStatus: (id, status, errorMessage) =>
+        set((s) => ({
+          tabQueues: updateJobById(s.tabQueues, id, (j) => {
+            let completed_duration = j.completed_duration;
+            if (status === 'done' && j.status === 'processing' && j.startedAt) {
+              completed_duration = Math.floor((Date.now() - j.startedAt) / 1000);
+            } else if (status === 'processing') {
+              completed_duration = undefined;
+            }
+            const newStartedAt =
+              status === 'processing' && j.status !== 'processing'
+                ? Date.now()
+                : status === 'done' || status === 'error' || status === 'pending'
+                ? undefined
+                : j.startedAt;
+            return {
+              ...j,
+              status,
+              error_message: errorMessage ?? j.error_message,
+              startedAt: newStartedAt,
+              completed_duration,
+            };
+          }),
+        })),
 
-  toggleSelectJob: (id) =>
-    set((s) => ({
-      selectedJobIds: s.selectedJobIds.includes(id)
-        ? s.selectedJobIds.filter((x) => x !== id)
-        : [...s.selectedJobIds, id],
-    })),
+      setOutputFormat: (id, format) =>
+        set((s) => ({ tabQueues: patchJobById(s.tabQueues, id, { output_format: format }) })),
 
-  rangeSelectJobs: (targetId) => {
-    const { jobs, selectedJobIds } = get();
-    const anchor = selectedJobIds[selectedJobIds.length - 1];
-    if (!anchor) {
-      set({ selectedJobIds: [targetId] });
-      return;
-    }
-    const ids = jobs.map((j) => j.id);
-    const aIdx = ids.indexOf(anchor);
-    const tIdx = ids.indexOf(targetId);
-    if (aIdx === -1 || tIdx === -1) {
-      set({ selectedJobIds: [targetId] });
-      return;
-    }
-    const [lo, hi] = aIdx < tIdx ? [aIdx, tIdx] : [tIdx, aIdx];
-    const rangeIds = ids.slice(lo, hi + 1);
-    const merged = [...new Set([...selectedJobIds, ...rangeIds])];
-    set({ selectedJobIds: merged });
-  },
+      setBitrate: (id, bitrate) =>
+        set((s) => ({ tabQueues: patchJobById(s.tabQueues, id, { bitrate }) })),
 
-  selectAllJobs: () => set((s) => ({ selectedJobIds: s.jobs.map((j) => j.id) })),
+      setOutputFilepath: (id, filepath) =>
+        set((s) => ({ tabQueues: patchJobById(s.tabQueues, id, { output_filepath: filepath }) })),
 
-  clearSelection: () => set({ selectedJobIds: [] }),
+      setAbMode: (id, mode) =>
+        set((s) => ({ tabQueues: patchJobById(s.tabQueues, id, { ab_mode: mode }) })),
 
-  primarySelectedId: () => {
-    const { selectedJobIds } = get();
-    return selectedJobIds[0] ?? null;
-  },
+      setSampleRate: (id, rate) =>
+        set((s) => ({ tabQueues: patchJobById(s.tabQueues, id, { sample_rate: rate }) })),
 
-  setSampleRate: (id, rate) =>
-    set((s) => ({
-      jobs: s.jobs.map((j) => (j.id === id ? { ...j, sample_rate: rate } : j)),
-    })),
+      setDestination: (id, dest) =>
+        set((s) => ({ tabQueues: patchJobById(s.tabQueues, id, { destination: dest }) })),
 
-  lockJobs: (ids) =>
-    set((s) => ({ lockedJobIds: [...new Set([...s.lockedJobIds, ...ids])] })),
+      setDestinationBatch: (ids, dest) =>
+        set((s) => {
+          let tq = s.tabQueues;
+          for (const id of ids) {
+            tq = patchJobById(tq, id, { destination: dest });
+          }
+          return { tabQueues: tq };
+        }),
 
-  unlockJobs: (ids) =>
-    set((s) => ({ lockedJobIds: s.lockedJobIds.filter((id) => !ids.includes(id)) })),
+      setDownloadPath: (id, path) =>
+        set((s) => ({ tabQueues: patchJobById(s.tabQueues, id, { download_path: path }) })),
 
-  lockAllJobs: () =>
-    set((s) => ({ lockedJobIds: s.jobs.map((j) => j.id) })),
+      // ── Per-tab UI state ─────────────────────────────────────────────────────
+      setFilter: (filter, tab) =>
+        set((s) => ({ tabFilters: { ...s.tabFilters, [getActiveSubTab(tab)]: filter } })),
 
-  unlockAllJobs: () => set({ lockedJobIds: [] }),
+      setSearchQuery: (query, tab) =>
+        set((s) => ({ tabSearches: { ...s.tabSearches, [getActiveSubTab(tab)]: query } })),
 
-  setDestination: (id, dest) =>
-    set((s) => ({
-      jobs: s.jobs.map((j) => (j.id === id ? { ...j, destination: dest } : j)),
-    })),
+      clearQueue: (tab) =>
+        set((s) => {
+          const t = getActiveSubTab(tab);
+          const locked = s.tabLockedIds[t];
+          return {
+            tabQueues: { ...s.tabQueues, [t]: s.tabQueues[t].filter((j) => locked.includes(j.id)) },
+            tabSelectedIds: {
+              ...s.tabSelectedIds,
+              [t]: s.tabSelectedIds[t].filter((id) => locked.includes(id)),
+            },
+            tabImportingIds: { ...s.tabImportingIds, [t]: [] },
+          };
+        }),
 
-  setDestinationBatch: (ids, dest) =>
-    set((s) => ({
-      jobs: s.jobs.map((j) => (ids.includes(j.id) ? { ...j, destination: dest } : j)),
-    })),
+      setViewMode: (mode, tab) =>
+        set((s) => ({ tabViewModes: { ...s.tabViewModes, [getActiveSubTab(tab)]: mode } })),
 
-  reorderJobs: (activeId, overId) =>
-    set((s) => {
-      const isMulti = s.selectedJobIds.includes(activeId) && s.selectedJobIds.length > 1;
-      if (!isMulti) {
-        const oldIndex = s.jobs.findIndex((j) => j.id === activeId);
-        const newIndex = s.jobs.findIndex((j) => j.id === overId);
-        if (oldIndex === -1 || newIndex === -1) return s;
-        const newJobs = [...s.jobs];
-        const [item] = newJobs.splice(oldIndex, 1);
-        newJobs.splice(newIndex, 0, item);
-        return { jobs: newJobs };
-      }
+      setGroupByFormat: (v, tab) =>
+        set((s) => ({ tabGroupByFormat: { ...s.tabGroupByFormat, [getActiveSubTab(tab)]: v } })),
 
-      const selected = s.selectedJobIds;
-      const movingJobs = s.jobs.filter((j) => selected.includes(j.id));
-      const remainingJobs = s.jobs.filter((j) => !selected.includes(j.id));
+      setJobOperationMode: (id, mode, tab) =>
+        set((s) => {
+          const t = getActiveSubTab(tab);
+          return {
+            tabJobOpTypes: {
+              ...s.tabJobOpTypes,
+              [t]: { ...s.tabJobOpTypes[t], [id]: mode },
+            },
+          };
+        }),
 
-      let targetIdx = remainingJobs.findIndex((j) => j.id === overId);
-      if (targetIdx === -1) {
-        // overId is also a selected (moving) item — compute insertion point
-        // by counting how many remaining (non-selected) jobs precede overId
-        // in the original jobs array.
-        const overOrigIdx = s.jobs.findIndex((j) => j.id === overId);
-        targetIdx = remainingJobs.filter((j) =>
-          s.jobs.findIndex((jj) => jj.id === j.id) < overOrigIdx
-        ).length;
-      }
+      // ── Selection ────────────────────────────────────────────────────────────
+      setSelectedJob: (id, tab) =>
+        set((s) => {
+          const t = getActiveSubTab(tab);
+          return { tabSelectedIds: { ...s.tabSelectedIds, [t]: id ? [id] : [] } };
+        }),
 
-      const oldActiveIdx = s.jobs.findIndex((j) => j.id === activeId);
-      const oldOverIdx = s.jobs.findIndex((j) => j.id === overId);
-      if (oldActiveIdx <= oldOverIdx) {
-        targetIdx += 1;
-      }
+      toggleSelectJob: (id, tab) =>
+        set((s) => {
+          const t = getActiveSubTab(tab);
+          const cur = s.tabSelectedIds[t];
+          return {
+            tabSelectedIds: {
+              ...s.tabSelectedIds,
+              [t]: cur.includes(id) ? cur.filter((x) => x !== id) : [...cur, id],
+            },
+          };
+        }),
 
-      const newJobs = [...remainingJobs];
-      newJobs.splice(targetIdx, 0, ...movingJobs);
-      return { jobs: newJobs };
-    }),
+      rangeSelectJobs: (targetId, tab) => {
+        const t = getActiveSubTab(tab);
+        const { tabQueues, tabSelectedIds } = get();
+        const jobs = tabQueues[t];
+        const selectedIds = tabSelectedIds[t];
+        const anchor = selectedIds[selectedIds.length - 1];
+        if (!anchor) {
+          set((s) => ({ tabSelectedIds: { ...s.tabSelectedIds, [t]: [targetId] } }));
+          return;
+        }
+        const ids = jobs.map((j) => j.id);
+        const aIdx = ids.indexOf(anchor);
+        const tIdx = ids.indexOf(targetId);
+        if (aIdx === -1 || tIdx === -1) {
+          set((s) => ({ tabSelectedIds: { ...s.tabSelectedIds, [t]: [targetId] } }));
+          return;
+        }
+        const [lo, hi] = aIdx < tIdx ? [aIdx, tIdx] : [tIdx, aIdx];
+        const rangeIds = ids.slice(lo, hi + 1);
+        const merged = [...new Set([...selectedIds, ...rangeIds])];
+        set((s) => ({ tabSelectedIds: { ...s.tabSelectedIds, [t]: merged } }));
+      },
 
-  setViewMode: (viewMode) => set({ viewMode }),
+      selectAllJobs: (tab) =>
+        set((s) => {
+          const t = getActiveSubTab(tab);
+          return {
+            tabSelectedIds: {
+              ...s.tabSelectedIds,
+              [t]: s.tabQueues[t].map((j) => j.id),
+            },
+          };
+        }),
 
-  setGroupByFormat: (groupByFormat) => set({ groupByFormat }),
+      clearSelection: (tab) =>
+        set((s) => ({ tabSelectedIds: { ...s.tabSelectedIds, [getActiveSubTab(tab)]: [] } })),
 
-  deleteJobs: (ids) =>
-    set((s) => ({
-      jobs: s.jobs.filter((j) => !ids.includes(j.id)),
-      selectedJobIds: s.selectedJobIds.filter((id) => !ids.includes(id)),
-      lockedJobIds: s.lockedJobIds.filter((id) => !ids.includes(id)),
-    })),
+      primarySelectedId: (tab) => {
+        const t = getActiveSubTab(tab);
+        return get().tabSelectedIds[t][0] ?? null;
+      },
 
-  setDownloadPath: (id, path) =>
-    set((s) => ({
-      jobs: s.jobs.map((j) => (j.id === id ? { ...j, download_path: path } : j)),
-    })),
+      // ── Lock ─────────────────────────────────────────────────────────────────
+      lockJobs: (ids, tab) =>
+        set((s) => {
+          const t = getActiveSubTab(tab);
+          return {
+            tabLockedIds: {
+              ...s.tabLockedIds,
+              [t]: [...new Set([...s.tabLockedIds[t], ...ids])],
+            },
+          };
+        }),
 
-  setJobOperationMode: (id, mode) =>
-    set((s) => ({ jobOperationTypes: { ...s.jobOperationTypes, [id]: mode } })),
+      unlockJobs: (ids, tab) =>
+        set((s) => {
+          const t = getActiveSubTab(tab);
+          return {
+            tabLockedIds: {
+              ...s.tabLockedIds,
+              [t]: s.tabLockedIds[t].filter((id) => !ids.includes(id)),
+            },
+          };
+        }),
+
+      lockAllJobs: (tab) =>
+        set((s) => {
+          const t = getActiveSubTab(tab);
+          return {
+            tabLockedIds: {
+              ...s.tabLockedIds,
+              [t]: s.tabQueues[t].map((j) => j.id),
+            },
+          };
+        }),
+
+      unlockAllJobs: (tab) =>
+        set((s) => ({ tabLockedIds: { ...s.tabLockedIds, [getActiveSubTab(tab)]: [] } })),
+
+      // ── Reorder ──────────────────────────────────────────────────────────────
+      reorderJobs: (activeId, overId, tab) =>
+        set((s) => {
+          const t = getActiveSubTab(tab);
+          const jobs = s.tabQueues[t];
+          const selected = s.tabSelectedIds[t];
+          const isMulti = selected.includes(activeId) && selected.length > 1;
+
+          if (!isMulti) {
+            const oldIndex = jobs.findIndex((j) => j.id === activeId);
+            const newIndex = jobs.findIndex((j) => j.id === overId);
+            if (oldIndex === -1 || newIndex === -1) return s;
+            const newJobs = [...jobs];
+            const [item] = newJobs.splice(oldIndex, 1);
+            newJobs.splice(newIndex, 0, item);
+            return { tabQueues: { ...s.tabQueues, [t]: newJobs } };
+          }
+
+          const movingJobs = jobs.filter((j) => selected.includes(j.id));
+          const remainingJobs = jobs.filter((j) => !selected.includes(j.id));
+
+          let targetIdx = remainingJobs.findIndex((j) => j.id === overId);
+          if (targetIdx === -1) {
+            const overOrigIdx = jobs.findIndex((j) => j.id === overId);
+            targetIdx = remainingJobs.filter(
+              (j) => jobs.findIndex((jj) => jj.id === j.id) < overOrigIdx,
+            ).length;
+          }
+
+          const oldActiveIdx = jobs.findIndex((j) => j.id === activeId);
+          const oldOverIdx = jobs.findIndex((j) => j.id === overId);
+          if (oldActiveIdx <= oldOverIdx) targetIdx += 1;
+
+          const newJobs = [...remainingJobs];
+          newJobs.splice(targetIdx, 0, ...movingJobs);
+          return { tabQueues: { ...s.tabQueues, [t]: newJobs } };
+        }),
+
+      // ── Delete ───────────────────────────────────────────────────────────────
+      deleteJobs: (ids, tab) =>
+        set((s) => {
+          const t = getActiveSubTab(tab);
+          return {
+            tabQueues: { ...s.tabQueues, [t]: s.tabQueues[t].filter((j) => !ids.includes(j.id)) },
+            tabSelectedIds: {
+              ...s.tabSelectedIds,
+              [t]: s.tabSelectedIds[t].filter((id) => !ids.includes(id)),
+            },
+            tabLockedIds: {
+              ...s.tabLockedIds,
+              [t]: s.tabLockedIds[t].filter((id) => !ids.includes(id)),
+            },
+          };
+        }),
+
+      // ── Filtered views ───────────────────────────────────────────────────────
+      filteredJobs: (subTab, mediaTab) => {
+        const { tabQueues, tabFilters, tabSearches } = get();
+        const jobs = tabQueues[subTab];
+        const filter = tabFilters[subTab];
+        const search = tabSearches[subTab];
+        return jobs
+          .filter((j) => filter === 'all' || j.status === filter)
+          .filter((j) => !search || j.filename.toLowerCase().includes(search.toLowerCase()))
+          .filter((j) => !mediaTab || j.media_type === mediaTab);
+      },
+
+      groupedFilteredJobs: (subTab, mediaTab) => {
+        const filtered = get().filteredJobs(subTab, mediaTab);
+        const map = new Map<string, QueueJob[]>();
+        for (const job of filtered) {
+          const ext = job.filename.includes('.')
+            ? job.filename.split('.').pop()!.toUpperCase()
+            : 'UNKNOWN';
+          if (!map.has(ext)) map.set(ext, []);
+          map.get(ext)!.push(job);
+        }
+        return Array.from(map.entries())
+          .sort(([a], [b]) => a.localeCompare(b))
+          .map(([label, jobs]) => ({ label, jobs }));
+      },
     }),
     {
-      name: 'queue-ui-prefs',
-      partialize: (state) => ({ filter: state.filter, viewMode: state.viewMode, groupByFormat: state.groupByFormat }),
-    }
-  )
+      name: 'queue-ui-prefs-v2',
+      partialize: (state) => ({
+        tabQueues: state.tabQueues,
+        tabFilters: state.tabFilters,
+        tabViewModes: state.tabViewModes,
+        tabGroupByFormat: state.tabGroupByFormat,
+        tabLockedIds: state.tabLockedIds,
+      }),
+    },
+  ),
 );

@@ -1,8 +1,8 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { listen } from '@tauri-apps/api/event';
 import { motion, AnimatePresence } from 'framer-motion';
 import { clsx } from 'clsx';
-import { GripVertical, Play, Lock, ChevronRight, Trash2, Wand2, Download, RefreshCw } from 'lucide-react';
+import { GripVertical, Play, Lock, ChevronRight, Trash2, Wand2, Download, RefreshCw, Copy } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { save as saveDialog } from '@tauri-apps/plugin-dialog';
 import ProcessingTimer from '@/components/ProcessingTimer';
@@ -29,16 +29,16 @@ import { CSS } from '@dnd-kit/utilities';
 import { useQueueStore } from '@/stores/useQueueStore';
 import { useUIStore } from '@/stores/useUIStore';
 import { useSettingsStore } from '@/stores/useSettingsStore';
-
 import { invokeSetOutputFormat, invokeSetBitrate, invokeSetSampleRate, invokeArchiveJobs, invokeProcessQueue, invokeCancelJobs, invokeSetJobStatus, invokeCopyEnhancedFile, invokeConvertFiles } from '@/lib/ipc';
 import { useToastStore } from '@/stores/useToastStore';
 import { logError } from '@/lib/errorLogger';
 import type { QueueJob, JobStatus } from '@/types/queue';
 
-// ─── Resize handle ────────────────────────────────────────────────────────────
+// ─── Column widths ────────────────────────────────────────────────────────────
 
-// Fixed queue table column widths (px) — total 955px. Columns are not resizable.
-const COL_WIDTHS = {
+type ColKey = 'grip' | 'index' | 'filename' | 'destination' | 'size' | 'format' | 'bitrate' | 'sampleRate' | 'status' | 'tools' | 'lock' | 'clear';
+
+const DEFAULT_COL_WIDTHS: Record<ColKey, number> = {
   grip: 28,
   index: 34,
   filename: 208,
@@ -51,7 +51,52 @@ const COL_WIDTHS = {
   tools: 112,
   lock: 41,
   clear: 46,
-} as const;
+};
+
+const MIN_COL_WIDTHS: Record<ColKey, number> = {
+  grip: 24, index: 28, filename: 120, destination: 80, size: 48,
+  format: 52, bitrate: 52, sampleRate: 56, status: 52, tools: 80, lock: 32, clear: 36,
+};
+
+// ─── Resize handle ────────────────────────────────────────────────────────────
+
+function ResizeHandle({
+  colKey,
+  onResize,
+}: {
+  colKey: ColKey;
+  onResize: (key: ColKey, delta: number) => void;
+}): JSX.Element {
+  const startXRef = useRef(0);
+
+  const onMouseDown = useCallback(
+    (e: React.MouseEvent) => {
+      e.preventDefault();
+      e.stopPropagation();
+      startXRef.current = e.clientX;
+
+      const onMouseMove = (ev: MouseEvent): void => {
+        const delta = ev.clientX - startXRef.current;
+        startXRef.current = ev.clientX;
+        onResize(colKey, delta);
+      };
+      const onMouseUp = (): void => {
+        window.removeEventListener('mousemove', onMouseMove);
+        window.removeEventListener('mouseup', onMouseUp);
+      };
+      window.addEventListener('mousemove', onMouseMove);
+      window.addEventListener('mouseup', onMouseUp);
+    },
+    [colKey, onResize],
+  );
+
+  return (
+    <div
+      onMouseDown={onMouseDown}
+      className="absolute right-0 top-0 h-full w-1.5 cursor-col-resize select-none hover:bg-violet-500/40 active:bg-violet-500/60 transition-colors z-10"
+    />
+  );
+}
 
 // ─── Status badge ─────────────────────────────────────────────────────────────
 
@@ -76,7 +121,7 @@ function StatusBadge({ status, progress, errorMessage, onErrorClick }: {
         className={clsx(
           'inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium capitalize mx-auto',
           STATUS_BADGE_CLS[status],
-          status === 'error' && 'cursor-pointer hover:bg-red-500/20 active:scale-95 transition-all'
+          status === 'error' && 'cursor-pointer hover:bg-red-500/20 active:scale-95 transition-all',
         )}
         title={status === 'error' ? (errorMessage ?? undefined) : undefined}
       >
@@ -111,18 +156,17 @@ function formatBytes(n: number): string {
   return `${(n / 1048576).toFixed(1)} MB`;
 }
 
-const selectCls = 'bg-slate-100 dark:bg-white/[0.07] text-slate-800 dark:text-white text-[10px] rounded px-1 py-0.5 outline-none focus:ring-1 focus:ring-violet-500 disabled:opacity-40 transition border border-slate-200 dark:border-white/[0.06] w-full text-center';
+const selectCls =
+  'bg-slate-100 dark:bg-white/[0.07] text-slate-800 dark:text-white text-[10px] rounded px-1 py-0.5 outline-none focus:ring-1 focus:ring-violet-500 disabled:opacity-40 transition border border-slate-200 dark:border-white/[0.06] w-full text-center';
 
 function FormatSelect({ job }: { job: QueueJob }): JSX.Element {
   const setOutputFormat = useQueueStore((s) => s.setOutputFormat);
-
   async function handleChange(e: React.ChangeEvent<HTMLSelectElement>): Promise<void> {
     e.stopPropagation();
     const fmt = e.target.value;
     setOutputFormat(job.id, fmt);
     await invokeSetOutputFormat(job.id, fmt);
   }
-
   return (
     <select value={job.output_format} onChange={handleChange} onClick={(e) => e.stopPropagation()}
       disabled={job.status !== 'pending'} className={selectCls}>
@@ -135,14 +179,12 @@ function FormatSelect({ job }: { job: QueueJob }): JSX.Element {
 
 function BitrateSelect({ job }: { job: QueueJob }): JSX.Element {
   const setBitrate = useQueueStore((s) => s.setBitrate);
-
   async function handleChange(e: React.ChangeEvent<HTMLSelectElement>): Promise<void> {
     e.stopPropagation();
     const br = e.target.value;
     setBitrate(job.id, br);
     await invokeSetBitrate(job.id, br);
   }
-
   return (
     <select value={job.bitrate || ''} onChange={handleChange} onClick={(e) => e.stopPropagation()}
       disabled={job.status !== 'pending'} className={selectCls}>
@@ -155,14 +197,12 @@ function BitrateSelect({ job }: { job: QueueJob }): JSX.Element {
 
 function SampleRateSelect({ job }: { job: QueueJob }): JSX.Element {
   const setSampleRate = useQueueStore((s) => s.setSampleRate);
-
   async function handleChange(e: React.ChangeEvent<HTMLSelectElement>): Promise<void> {
     e.stopPropagation();
     const sr = e.target.value;
     setSampleRate(job.id, sr);
     await invokeSetSampleRate(job.id, sr);
   }
-
   return (
     <select value={job.sample_rate || ''} onChange={handleChange} onClick={(e) => e.stopPropagation()}
       disabled={job.status !== 'pending'} className={selectCls}>
@@ -175,27 +215,20 @@ function SampleRateSelect({ job }: { job: QueueJob }): JSX.Element {
 
 function getSourceDir(filepath: string): string {
   if (!filepath) return '';
-  const lastBackslash = filepath.lastIndexOf('\\');
-  const lastSlash = filepath.lastIndexOf('/');
-  const lastSep = Math.max(lastBackslash, lastSlash);
+  const lastSep = Math.max(filepath.lastIndexOf('\\'), filepath.lastIndexOf('/'));
   return lastSep > 0 ? filepath.substring(0, lastSep) : filepath;
 }
 
 // ─── Per-row tool mode selector ───────────────────────────────────────────────
 
-function ToolModeSelect({ jobId }: { jobId: string }): JSX.Element {
-  const mode = useQueueStore((s) => s.jobOperationTypes[jobId] ?? 'enhance');
+function ToolModeSelect({ jobId, audioSubTab }: { jobId: string; audioSubTab: string }): JSX.Element {
+  const mode = useQueueStore((s) => s.tabJobOpTypes[audioSubTab as 'enhance'|'convert'|'separate'][jobId] ?? 'enhance');
   const setJobOperationMode = useQueueStore((s) => s.setJobOperationMode);
-
   return (
     <select
       value={mode}
-      onChange={(e) => {
-        e.stopPropagation();
-        setJobOperationMode(jobId, e.target.value as 'enhance' | 'convert');
-      }}
+      onChange={(e) => { e.stopPropagation(); setJobOperationMode(jobId, e.target.value as 'enhance' | 'convert'); }}
       onClick={(e) => e.stopPropagation()}
-      title="Toggle action mode for this row"
       className="bg-slate-100 dark:bg-white/[0.07] text-slate-700 dark:text-white text-[10px] rounded px-1 py-0.5 outline-none focus:ring-1 focus:ring-violet-500 border border-slate-200 dark:border-white/[0.06] cursor-pointer"
     >
       <option value="enhance" className="bg-white dark:bg-[#111827]">Enh</option>
@@ -213,53 +246,39 @@ function EnhanceRowButton({ job }: { job: QueueJob }): JSX.Element | null {
   const isQueued = job.status === 'queued';
   const canCancel = isProcessing || isQueued;
 
-  // Hide entirely when done — status badge is enough feedback
   if (job.status === 'done') return null;
 
   async function handleEnhance(e: React.MouseEvent): Promise<void> {
     e.stopPropagation();
     if (canCancel) {
-      try {
-        await invokeCancelJobs([job.id]);
-        addToast(`Cancelled "${job.filename}"`, 'info');
-      } catch (err) {
-        console.error('Failed to cancel', err);
-      }
+      try { await invokeCancelJobs([job.id]); addToast(`Cancelled "${job.filename}"`, 'info'); }
+      catch (err) { console.error('Failed to cancel', err); }
       return;
     }
-    
-    // Check if any job is already processing
-    const { jobs } = useQueueStore.getState();
-    const hasActive = jobs.some((j) => j.status === 'processing');
+    const tab = useUIStore.getState().audioSubTab;
+    const tabJobs = useQueueStore.getState().tabQueues[tab];
+    const hasActive = tabJobs.some((j) => j.status === 'processing');
     const { aiModel } = useSettingsStore.getState();
-
     if (hasActive) {
       try {
-        const { setStatus } = useQueueStore.getState();
-        setStatus(job.id, 'queued');
+        useQueueStore.getState().setStatus(job.id, 'queued');
         await invokeSetJobStatus(job.id, 'queued');
         addToast(`Queued "${job.filename}"`, 'info');
-      } catch (err) {
-        console.error('Failed to queue job', err);
-      }
+      } catch (err) { console.error('Failed to queue job', err); }
     } else {
       await invokeProcessQueue([job.id], enhancementStrength, aiModel);
     }
   }
 
   return (
-    <button
-      onClick={handleEnhance}
+    <button onClick={handleEnhance}
       title={canCancel ? 'Cancel processing' : job.status === 'error' ? 'Retry enhancement' : 'Enhance this file'}
       className={clsx(
         'flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-medium transition-all duration-150',
-        canCancel
-          ? 'bg-red-500/10 text-red-600 dark:text-red-400 hover:bg-red-500/20'
-          : job.status === 'error'
-          ? 'bg-amber-500/10 text-amber-600 dark:text-amber-400 hover:bg-amber-500/20'
+        canCancel ? 'bg-red-500/10 text-red-600 dark:text-red-400 hover:bg-red-500/20'
+          : job.status === 'error' ? 'bg-amber-500/10 text-amber-600 dark:text-amber-400 hover:bg-amber-500/20'
           : 'bg-violet-500/10 text-violet-600 dark:text-violet-400 hover:bg-violet-500/20',
-      )}
-    >
+      )}>
       {canCancel ? <Trash2 size={10} /> : <Wand2 size={10} />}
       {canCancel ? 'Cancel' : job.status === 'error' ? 'Retry' : 'Enhance'}
     </button>
@@ -271,50 +290,41 @@ function EnhanceRowButton({ job }: { job: QueueJob }): JSX.Element | null {
 function ConvertRowButton({ job }: { job: QueueJob }): JSX.Element | null {
   const filenameTemplate = useSettingsStore((s) => s.filenameTemplate);
   const { addToast } = useToastStore();
-  const isProcessing = job.status === 'processing';
-  const isQueued = job.status === 'queued';
-  const canCancel = isProcessing || isQueued;
+  const canCancel = job.status === 'processing' || job.status === 'queued';
 
   if (job.status === 'done') return null;
 
   async function handleClick(e: React.MouseEvent): Promise<void> {
     e.stopPropagation();
     if (canCancel) {
-      try {
-        await invokeCancelJobs([job.id]);
-        addToast(`Cancelled "${job.filename}"`, 'info');
-      } catch (err) {
-        console.error('Failed to cancel', err);
-      }
+      try { await invokeCancelJobs([job.id]); addToast(`Cancelled "${job.filename}"`, 'info'); }
+      catch (err) { console.error('Failed to cancel', err); }
       return;
     }
-    const { jobs } = useQueueStore.getState();
-    const hasActive = jobs.some((j) => j.status === 'processing');
+    const tab = useUIStore.getState().audioSubTab;
+    const tabJobs = useQueueStore.getState().tabQueues[tab];
+    const hasActive = tabJobs.some((j) => j.status === 'processing');
     if (hasActive) {
       const { setStatus, setJobOperationMode } = useQueueStore.getState();
-      setJobOperationMode(job.id, 'convert');
+      setJobOperationMode(job.id, 'convert', tab);
       setStatus(job.id, 'queued');
       await invokeSetJobStatus(job.id, 'queued');
       addToast(`Queued "${job.filename}" for conversion`, 'info');
     } else {
-      useQueueStore.getState().setJobOperationMode(job.id, 'convert');
+      useQueueStore.getState().setJobOperationMode(job.id, 'convert', tab);
       await invokeConvertFiles([job.id], filenameTemplate);
     }
   }
 
   return (
-    <button
-      onClick={handleClick}
+    <button onClick={handleClick}
       title={canCancel ? 'Cancel' : job.status === 'error' ? 'Retry conversion' : 'Convert this file'}
       className={clsx(
         'flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-medium transition-all duration-150',
-        canCancel
-          ? 'bg-red-500/10 text-red-600 dark:text-red-400 hover:bg-red-500/20'
-          : job.status === 'error'
-          ? 'bg-amber-500/10 text-amber-600 dark:text-amber-400 hover:bg-amber-500/20'
+        canCancel ? 'bg-red-500/10 text-red-600 dark:text-red-400 hover:bg-red-500/20'
+          : job.status === 'error' ? 'bg-amber-500/10 text-amber-600 dark:text-amber-400 hover:bg-amber-500/20'
           : 'bg-blue-500/10 text-blue-600 dark:text-blue-400 hover:bg-blue-500/20',
-      )}
-    >
+      )}>
       {canCancel ? <Trash2 size={10} /> : <RefreshCw size={10} />}
       {canCancel ? 'Cancel' : job.status === 'error' ? 'Retry' : 'Convert'}
     </button>
@@ -331,16 +341,10 @@ function DownloadJobButton({ job }: { job: QueueJob }): JSX.Element | null {
   async function handleDownload(e: React.MouseEvent): Promise<void> {
     e.stopPropagation();
     if (!canDownload || !job.output_filepath) return;
-
     const srcPath = job.output_filepath;
     const filename = srcPath.replace(/\\/g, '/').split('/').pop() ?? job.filename;
-
-    const destPath = await saveDialog({
-      defaultPath: filename,
-      title: 'Save Enhanced File As',
-    });
+    const destPath = await saveDialog({ defaultPath: filename, title: 'Save Enhanced File As' });
     if (!destPath) return;
-
     const res = await invokeCopyEnhancedFile(job.id, srcPath, destPath);
     if (res.success) {
       useQueueStore.getState().setDownloadPath(job.id, destPath);
@@ -351,25 +355,80 @@ function DownloadJobButton({ job }: { job: QueueJob }): JSX.Element | null {
   }
 
   return (
-    <button
-      onClick={handleDownload}
-      disabled={!canDownload}
+    <button onClick={handleDownload} disabled={!canDownload}
       title={canDownload ? 'Download enhanced file' : 'File not enhanced yet'}
       className={clsx(
         'transition-all duration-150',
         canDownload
           ? 'text-emerald-600 hover:text-emerald-500 dark:text-emerald-400 dark:hover:text-emerald-300 active:scale-95'
           : 'text-slate-300 dark:text-white/15 cursor-not-allowed',
-      )}
-    >
+      )}>
       <Download size={12} />
     </button>
   );
 }
 
+// ─── Bottom action bar ────────────────────────────────────────────────────────
+
+function QueueActionBar(): JSX.Element {
+  const audioSubTab = useUIStore((s) => s.audioSubTab);
+  const jobs = useQueueStore((s) => s.tabQueues[audioSubTab]);
+  const jobOpTypes = useQueueStore((s) => s.tabJobOpTypes[audioSubTab]);
+  const isSeparating = useUIStore((s) => s.isSeparating);
+
+  const activeJobs = jobs.filter((j) => j.status === 'processing' || j.status === 'queued');
+  const isAnyActive = activeJobs.length > 0;
+  const isAnyConverting = activeJobs.some((j) => jobOpTypes[j.id] === 'convert');
+  const isAnyEnhancing = activeJobs.some((j) => jobOpTypes[j.id] !== 'convert');
+
+  const canEnhance =
+    jobs.filter((j) => j.status === 'pending' || j.status === 'error').length > 0 && !isAnyActive;
+  const canConvert =
+    jobs.filter((j) => j.status === 'pending').length > 0 && !isAnyActive;
+  const canSeparate =
+    jobs.filter((j) => j.status === 'pending').length > 0 && !isSeparating && !isAnyActive;
+
+  const ghostBtn =
+    'flex items-center justify-center gap-1.5 px-5 py-2 rounded-lg text-sm font-medium transition-all duration-150 bg-slate-200 dark:bg-white/[0.06] text-slate-700 dark:text-slate-300 hover:bg-slate-300 dark:hover:bg-white/[0.10] disabled:opacity-40 disabled:cursor-not-allowed';
+
+  return (
+    <div className="flex justify-end items-center px-4 py-3 border-t border-slate-200 dark:border-white/[0.06] bg-white/90 dark:bg-[#0C1120]/90 backdrop-blur-sm shrink-0">
+      {audioSubTab === 'enhance' && (
+        <button
+          onClick={() => window.dispatchEvent(new CustomEvent('action:enhance'))}
+          disabled={!canEnhance}
+          className="flex items-center justify-center gap-1.5 px-5 py-2 rounded-lg text-sm font-medium transition-all duration-150 bg-violet-600 hover:bg-violet-500 text-white shadow-sm disabled:opacity-40 disabled:cursor-not-allowed"
+        >
+          {isAnyEnhancing ? 'Enhancing…' : 'Enhance All'}
+        </button>
+      )}
+      {audioSubTab === 'convert' && (
+        <button
+          onClick={() => window.dispatchEvent(new CustomEvent('action:convert'))}
+          disabled={!canConvert}
+          className={ghostBtn}
+        >
+          {isAnyConverting ? 'Converting…' : 'Convert All'}
+        </button>
+      )}
+      {audioSubTab === 'separate' && (
+        <button
+          onClick={() => window.dispatchEvent(new CustomEvent('action:separate'))}
+          disabled={!canSeparate}
+          className={ghostBtn}
+        >
+          {isSeparating ? 'Separating…' : 'Separate All'}
+        </button>
+      )}
+    </div>
+  );
+}
+
 // ─── Sortable row ─────────────────────────────────────────────────────────────
 
-function SortableJobRow({ job, index, isSelected, onSelect, isImporting, activeDragId, onErrorClick, colWidths }: {
+function SortableJobRow({
+  job, index, isSelected, onSelect, isImporting, activeDragId, onErrorClick, colWidths, onResize, audioSubTab,
+}: {
   job: QueueJob;
   index: number;
   isSelected: boolean;
@@ -377,24 +436,21 @@ function SortableJobRow({ job, index, isSelected, onSelect, isImporting, activeD
   isImporting?: boolean;
   activeDragId: string | null;
   onErrorClick?: (filename: string, errorMessage: string) => void;
-  colWidths: Record<string, number>;
+  colWidths: Record<ColKey, number>;
+  onResize: (key: ColKey, delta: number) => void;
+  audioSubTab: string;
 }): JSX.Element {
   const [filenameExpanded, setFilenameExpanded] = useState(false);
   const [destExpanded, setDestExpanded] = useState(false);
-  const audioSubTab = useUIStore((s) => s.audioSubTab);
-  const rowToolMode = useQueueStore((s) => s.jobOperationTypes[job.id] ?? 'enhance');
+  const rowToolMode = useQueueStore((s) => s.tabJobOpTypes[audioSubTab as 'enhance'|'convert'|'separate'][job.id] ?? 'enhance');
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: job.id });
-  const selectedJobIds = useQueueStore((s) => s.selectedJobIds);
-  // Only treat as a group drag when the DRAGGED item is itself selected.
-  // Without this guard, dragging an unselected row hides all selected rows.
+  const selectedJobIds = useQueueStore((s) => s.tabSelectedIds[audioSubTab as 'enhance'|'convert'|'separate']);
   const isDragOfSelectedItem = !!(activeDragId && selectedJobIds.includes(activeDragId));
   const isDraggingAnySelected = isDragOfSelectedItem && selectedJobIds.includes(job.id);
-  const isLocked = useQueueStore((s) => s.lockedJobIds.includes(job.id));
+  const isLocked = useQueueStore((s) => s.tabLockedIds[audioSubTab as 'enhance'|'convert'|'separate'].includes(job.id));
   const unlockJobs = useQueueStore((s) => s.unlockJobs);
 
   const isEnhanced = job.ab_mode === 'enhanced';
-  // Primary drag item stays in DOM (opacity 0) so DnD kit can measure it for
-  // correct sibling transforms. Only secondary selected items are display:none.
   const isSecondaryDrag = isDraggingAnySelected && !isDragging;
 
   const rowStyle = {
@@ -419,152 +475,107 @@ function SortableJobRow({ job, index, isSelected, onSelect, isImporting, activeD
               isSelected
                 ? 'bg-violet-50 dark:bg-violet-500/[0.08] border-l-2 border-l-violet-500'
                 : isEnhanced
-                  ? 'bg-emerald-50/40 dark:bg-emerald-500/[0.05] hover:bg-emerald-50 dark:hover:bg-emerald-500/[0.08]'
-                  : 'hover:bg-slate-50 dark:hover:bg-white/[0.03]',
+                ? 'bg-emerald-50/40 dark:bg-emerald-500/[0.05] hover:bg-emerald-50 dark:hover:bg-emerald-500/[0.08]'
+                : 'hover:bg-slate-50 dark:hover:bg-white/[0.03]',
             ),
       )}
     >
-      <td className="px-1 py-2 text-center" style={{ width: colWidths.grip }}>
-        <button
-          {...listeners}
-          {...attributes}
-          onClick={(e) => e.stopPropagation()}
+      <td className="px-1 py-2 text-center relative" style={{ width: colWidths.grip }}>
+        <button {...listeners} {...attributes} onClick={(e) => e.stopPropagation()}
           className="text-slate-300 dark:text-white/20 hover:text-slate-500 dark:hover:text-white/50 transition-colors cursor-grab active:cursor-grabbing mx-auto block"
-          tabIndex={-1}
-          aria-label="Drag to reorder"
-        >
+          tabIndex={-1} aria-label="Drag to reorder">
           <GripVertical size={14} />
         </button>
       </td>
-      <td className="px-1 py-2 text-slate-400 dark:text-zinc-100 text-xs text-center tabular-nums" style={{ width: colWidths.index }}>{index + 1}</td>
-      <td
-        className={clsx('px-4 py-2 text-sm text-slate-800 dark:text-zinc-100 font-medium', !filenameExpanded && 'overflow-hidden')}
-        style={{ width: colWidths.filename }}
-      >
+      <td className="px-1 py-2 text-slate-400 dark:text-zinc-100 text-xs text-center tabular-nums relative" style={{ width: colWidths.index }}>
+        {index + 1}
+        <ResizeHandle colKey="index" onResize={onResize} />
+      </td>
+      <td className={clsx('px-4 py-2 text-sm text-slate-800 dark:text-zinc-100 font-medium relative', !filenameExpanded && 'overflow-hidden')}
+        style={{ width: colWidths.filename }}>
         <div className="flex items-center gap-2 min-w-0">
-          <button
-            onClick={(e) => {
-              e.stopPropagation();
-              useUIStore.getState().setActivePlayerJobId(job.id);
-              useUIStore.getState().setPlayerOpen(true);
-            }}
+          <button onClick={(e) => { e.stopPropagation(); useUIStore.getState().setActivePlayerJobId(job.id); useUIStore.getState().setPlayerOpen(true); }}
             className="p-1 rounded bg-violet-500/10 hover:bg-violet-500/20 text-violet-600 dark:text-violet-400 transition shrink-0"
-            title="Open in Waveform Player"
-          >
+            title="Open in Waveform Player">
             <Play size={10} fill="currentColor" />
           </button>
-          <span
-            onClick={(e) => { e.stopPropagation(); setFilenameExpanded((v) => !v); }}
-            className={clsx(
-              'flex-1 cursor-pointer hover:text-violet-600 dark:hover:text-violet-400 transition-colors',
-              filenameExpanded ? 'break-all whitespace-normal' : 'truncate',
-            )}
-            title={filenameExpanded ? undefined : job.filename}
-          >
+          <span onClick={(e) => { e.stopPropagation(); setFilenameExpanded((v) => !v); }}
+            className={clsx('flex-1 cursor-pointer hover:text-violet-600 dark:hover:text-violet-400 transition-colors',
+              filenameExpanded ? 'break-all whitespace-normal' : 'truncate')}
+            title={filenameExpanded ? undefined : job.filename}>
             {job.filename}
           </span>
-          {job.status === 'processing' && (
-            <span className="ml-auto shrink-0">
-              <ProcessingTimer startedAt={job.startedAt} />
-            </span>
-          )}
+          {job.status === 'processing' && <span className="ml-auto shrink-0"><ProcessingTimer startedAt={job.startedAt} /></span>}
           {job.status === 'done' && job.completed_duration !== undefined && (
             <span className="text-xs text-yellow-600/85 bg-yellow-500/10 dark:text-yellow-400/90 dark:bg-yellow-500/10 px-2 py-0.5 rounded whitespace-nowrap font-medium tabular-nums ml-auto shrink-0">
               {Math.floor(job.completed_duration / 60).toString().padStart(2, '0')}:{(job.completed_duration % 60).toString().padStart(2, '0')}
             </span>
           )}
         </div>
+        <ResizeHandle colKey="filename" onResize={onResize} />
       </td>
-      <td
-        className="px-2 py-2 text-xs text-slate-400 dark:text-zinc-100 overflow-hidden"
-        style={{ width: colWidths.destination }}
-      >
-        <span
-          onClick={(e) => { e.stopPropagation(); setDestExpanded((v) => !v); }}
-          className={clsx(
-            'cursor-pointer hover:text-slate-600 dark:hover:text-white/70 transition-colors',
-            destExpanded ? 'break-all whitespace-normal block' : 'truncate block',
-          )}
-          title={destExpanded ? undefined : (getSourceDir(job.filepath) || undefined)}
-        >
+      <td className="px-2 py-2 text-xs text-slate-400 dark:text-zinc-100 overflow-hidden relative" style={{ width: colWidths.destination }}>
+        <span onClick={(e) => { e.stopPropagation(); setDestExpanded((v) => !v); }}
+          className={clsx('cursor-pointer hover:text-slate-600 dark:hover:text-white/70 transition-colors',
+            destExpanded ? 'break-all whitespace-normal block' : 'truncate block')}
+          title={destExpanded ? undefined : (getSourceDir(job.filepath) || undefined)}>
           {getSourceDir(job.filepath) || '—'}
         </span>
+        <ResizeHandle colKey="destination" onResize={onResize} />
       </td>
-      <td
-        className="px-2 py-2 text-xs text-slate-400 dark:text-zinc-100 truncate tabular-nums"
-        style={{ width: colWidths.size }}
-        title={formatBytes(job.size_bytes)}
-      >
+      <td className="px-2 py-2 text-xs text-slate-400 dark:text-zinc-100 truncate tabular-nums relative"
+        style={{ width: colWidths.size }} title={formatBytes(job.size_bytes)}>
         {formatBytes(job.size_bytes)}
+        <ResizeHandle colKey="size" onResize={onResize} />
       </td>
       {audioSubTab !== 'enhance' && (
-        <td className="px-1 py-2" style={{ width: colWidths.format }}>
+        <td className="px-1 py-2 relative" style={{ width: colWidths.format }}>
           <FormatSelect job={job} />
+          <ResizeHandle colKey="format" onResize={onResize} />
         </td>
       )}
       {audioSubTab === 'separate' && (
-        <td className="px-1 py-2" style={{ width: colWidths.bitrate }}>
+        <td className="px-1 py-2 relative" style={{ width: colWidths.bitrate }}>
           <BitrateSelect job={job} />
+          <ResizeHandle colKey="bitrate" onResize={onResize} />
         </td>
       )}
       {audioSubTab === 'separate' && (
-        <td className="px-1.5 py-2" style={{ width: colWidths.sampleRate }}>
+        <td className="px-1.5 py-2 relative" style={{ width: colWidths.sampleRate }}>
           <SampleRateSelect job={job} />
+          <ResizeHandle colKey="sampleRate" onResize={onResize} />
         </td>
       )}
-      <td className="px-1.5 py-2 text-xs font-medium whitespace-nowrap text-center" style={{ width: colWidths.status }}>
-        <StatusBadge
-          status={job.status}
-          progress={job.progress}
-          errorMessage={job.error_message}
-          onErrorClick={() => {
-            if (job.error_message && onErrorClick) {
-              onErrorClick(job.filename, job.error_message);
-            }
-          }}
-        />
+      <td className="px-1.5 py-2 text-xs font-medium whitespace-nowrap text-center relative" style={{ width: colWidths.status }}>
+        <StatusBadge status={job.status} progress={job.progress} errorMessage={job.error_message}
+          onErrorClick={() => { if (job.error_message && onErrorClick) onErrorClick(job.filename, job.error_message); }} />
+        <ResizeHandle colKey="status" onResize={onResize} />
       </td>
-      <td className="px-1.5 py-2" style={{ width: colWidths.tools }}>
+      <td className="px-1.5 py-2 relative" style={{ width: colWidths.tools }}>
         <div className="flex items-center flex-nowrap gap-1 justify-center">
-          {/* ToolModeSelect dropdown only in Separate tab */}
-          {audioSubTab === 'separate' &&
-            job.status !== 'done' &&
-            job.status !== 'processing' &&
-            job.status !== 'queued' && (
-              <ToolModeSelect jobId={job.id} />
+          {audioSubTab === 'separate' && job.status !== 'done' && job.status !== 'processing' && job.status !== 'queued' && (
+            <ToolModeSelect jobId={job.id} audioSubTab={audioSubTab} />
           )}
-          {/* Enhance tab: static EnhanceRowButton */}
           {audioSubTab === 'enhance' && <EnhanceRowButton job={job} />}
-          {/* Convert tab: static ConvertRowButton */}
           {audioSubTab === 'convert' && <ConvertRowButton job={job} />}
-          {/* Separate tab: mode-driven (current behaviour) */}
           {audioSubTab === 'separate' && (
-            rowToolMode === 'enhance'
-              ? <EnhanceRowButton job={job} />
-              : <ConvertRowButton job={job} />
+            rowToolMode === 'enhance' ? <EnhanceRowButton job={job} /> : <ConvertRowButton job={job} />
           )}
           <DownloadJobButton job={job} />
         </div>
+        <ResizeHandle colKey="tools" onResize={onResize} />
       </td>
-      <td className="px-1 py-2 text-center group/lock" style={{ width: colWidths.lock }}>
+      <td className="px-1 py-2 text-center group/lock relative" style={{ width: colWidths.lock }}>
         <button
-          onClick={(e) => {
-            e.stopPropagation();
-            if (isLocked) unlockJobs([job.id]);
-            else useQueueStore.getState().lockJobs([job.id]);
-          }}
+          onClick={(e) => { e.stopPropagation(); if (isLocked) unlockJobs([job.id]); else useQueueStore.getState().lockJobs([job.id]); }}
           title={isLocked ? 'Locked — click to unlock' : 'Click to lock'}
-          className={clsx(
-            'block mx-auto transition-all duration-150 opacity-100',
-            isLocked
-              ? 'text-blue-500 dark:text-blue-400'
-              : 'text-slate-400 dark:text-white/25 hover:text-slate-600 dark:hover:text-white/50',
-          )}
-        >
+          className={clsx('block mx-auto transition-all duration-150 opacity-100',
+            isLocked ? 'text-blue-500 dark:text-blue-400' : 'text-slate-400 dark:text-white/25 hover:text-slate-600 dark:hover:text-white/50')}>
           <Lock size={12} />
         </button>
+        <ResizeHandle colKey="lock" onResize={onResize} />
       </td>
-      <td className="px-1 py-2 text-center group/trash" style={{ width: colWidths.clear }}>
+      <td className="px-1 py-2 text-center group/trash relative" style={{ width: colWidths.clear }}>
         <button
           onClick={(e) => {
             e.stopPropagation();
@@ -572,27 +583,22 @@ function SortableJobRow({ job, index, isSelected, onSelect, isImporting, activeD
             if (job.status === 'processing' || job.status === 'queued') {
               const isIndonesian = useSettingsStore.getState().language === 'id';
               const msg = isIndonesian
-                ? "Apakah Anda yakin ingin menghapus file ini? File ini sedang proses."
-                : `Are you sure you want to delete this file? The file is currently being processed.`;
+                ? 'Apakah Anda yakin ingin menghapus file ini? File ini sedang proses.'
+                : 'Are you sure you want to delete this file? The file is currently being processed.';
               if (!window.confirm(msg)) return;
             }
-            const { deleteJobs } = useQueueStore.getState();
+            const tab = useUIStore.getState().audioSubTab;
+            useQueueStore.getState().deleteJobs([job.id], tab);
             const activePlayerJobId = useUIStore.getState().activePlayerJobId;
-            if (activePlayerJobId === job.id) {
-              useUIStore.setState({ activePlayerJobId: null, playerOpen: false });
-            }
-            deleteJobs([job.id]);
+            if (activePlayerJobId === job.id) useUIStore.setState({ activePlayerJobId: null, playerOpen: false });
             void invokeArchiveJobs([job.id]);
           }}
           disabled={isLocked}
-          title={isLocked ? "Cannot delete locked item" : "Delete item"}
-          className={clsx(
-            "block mx-auto transition-all duration-150",
+          title={isLocked ? 'Cannot delete locked item' : 'Delete item'}
+          className={clsx('block mx-auto transition-all duration-150',
             isLocked
-              ? "text-slate-300 dark:text-white/10 cursor-not-allowed opacity-20"
-              : "text-red-500 hover:text-red-400 dark:text-red-500 dark:hover:text-red-400 opacity-100"
-          )}
-        >
+              ? 'text-slate-300 dark:text-white/10 cursor-not-allowed opacity-20'
+              : 'text-red-500 hover:text-red-400 dark:text-red-500 dark:hover:text-red-400 opacity-100')}>
           <Trash2 size={12} />
         </button>
       </td>
@@ -602,23 +608,22 @@ function SortableJobRow({ job, index, isSelected, onSelect, isImporting, activeD
 
 // ─── Sortable card (grid view) ────────────────────────────────────────────────
 
-function SortableJobCard({ job, isSelected, onSelect, isImporting, activeDragId, onErrorClick }: {
+function SortableJobCard({ job, isSelected, onSelect, isImporting, activeDragId, onErrorClick, audioSubTab }: {
   job: QueueJob;
   isSelected: boolean;
   onSelect: (e: React.MouseEvent) => void;
   isImporting?: boolean;
   activeDragId: string | null;
   onErrorClick?: (filename: string, errorMessage: string) => void;
+  audioSubTab: string;
 }): JSX.Element {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: job.id });
-  const selectedJobIds = useQueueStore((s) => s.selectedJobIds);
+  const selectedJobIds = useQueueStore((s) => s.tabSelectedIds[audioSubTab as 'enhance'|'convert'|'separate']);
   const isDragOfSelectedItem = !!(activeDragId && selectedJobIds.includes(activeDragId));
   const isDraggingAnySelected = isDragOfSelectedItem && selectedJobIds.includes(job.id);
-  const isLocked = useQueueStore((s) => s.lockedJobIds.includes(job.id));
+  const isLocked = useQueueStore((s) => s.tabLockedIds[audioSubTab as 'enhance'|'convert'|'separate'].includes(job.id));
   const unlockJobs = useQueueStore((s) => s.unlockJobs);
-
   const isEnhanced = job.ab_mode === 'enhanced';
-
   const isSecondaryDrag = isDraggingAnySelected && !isDragging;
 
   const cardStyle = {
@@ -629,83 +634,36 @@ function SortableJobCard({ job, isSelected, onSelect, isImporting, activeDragId,
   };
 
   return (
-    <div
-      ref={setNodeRef}
-      style={cardStyle}
-      onClick={isImporting ? undefined : onSelect}
-      data-job-id={job.id}
-      className={clsx(
-        'rounded-xl p-3 border transition-all duration-150 select-none',
+    <div ref={setNodeRef} style={cardStyle} onClick={isImporting ? undefined : onSelect} data-job-id={job.id}
+      className={clsx('rounded-xl p-3 border transition-all duration-150 select-none',
         isImporting
           ? 'opacity-40 pointer-events-none cursor-default bg-slate-50 dark:bg-white/[0.02] border-slate-100 dark:border-white/[0.04]'
-          : clsx(
-              'cursor-pointer',
-              isDragging ? 'scale-[0.98]' : '',
-              isSelected
-                ? 'bg-violet-50 dark:bg-violet-500/[0.08] border-violet-300 dark:border-violet-500/40'
-                : isEnhanced
-                  ? 'bg-emerald-50/40 dark:bg-emerald-500/[0.05] border-emerald-200 dark:border-emerald-500/15 hover:bg-emerald-50 dark:hover:bg-emerald-500/[0.08]'
-                  : 'bg-white dark:bg-white/[0.04] border-slate-200 dark:border-white/[0.07] hover:bg-slate-50 dark:hover:bg-white/[0.06] hover:border-slate-300 dark:hover:border-white/[0.10]',
-            ),
-      )}
-    >
+          : clsx('cursor-pointer', isDragging ? 'scale-[0.98]' : '',
+              isSelected ? 'bg-violet-50 dark:bg-violet-500/[0.08] border-violet-300 dark:border-violet-500/40'
+                : isEnhanced ? 'bg-emerald-50/40 dark:bg-emerald-500/[0.05] border-emerald-200 dark:border-emerald-500/15 hover:bg-emerald-50 dark:hover:bg-emerald-500/[0.08]'
+                : 'bg-white dark:bg-white/[0.04] border-slate-200 dark:border-white/[0.07] hover:bg-slate-50 dark:hover:bg-white/[0.06] hover:border-slate-300 dark:hover:border-white/[0.10]'))}>
       <div className="flex items-start justify-between gap-2 mb-2">
-        <button
-          {...listeners}
-          {...attributes}
-          onClick={(e) => e.stopPropagation()}
-          className="text-slate-300 dark:text-white/20 hover:text-slate-500 dark:hover:text-white/50 transition-colors cursor-grab active:cursor-grabbing shrink-0 mt-0.5"
-          tabIndex={-1}
-          aria-label="Drag to reorder"
-        >
+        <button {...listeners} {...attributes} onClick={(e) => e.stopPropagation()}
+          className="text-slate-300 dark:text-white/20 hover:text-slate-500 dark:hover:text-white/50 transition-colors cursor-grab active:cursor-grabbing shrink-0 mt-0.5" tabIndex={-1}>
           <GripVertical size={14} />
         </button>
         <div className="flex items-center gap-1.5 min-w-0 flex-grow">
-          <button
-            onClick={(e) => {
-              e.stopPropagation();
-              useUIStore.getState().setActivePlayerJobId(job.id);
-              useUIStore.getState().setPlayerOpen(true);
-            }}
-            className="p-1 rounded bg-violet-500/10 hover:bg-violet-500/20 text-violet-600 dark:text-violet-400 transition shrink-0"
-            title="Open in Waveform Player"
-          >
+          <button onClick={(e) => { e.stopPropagation(); useUIStore.getState().setActivePlayerJobId(job.id); useUIStore.getState().setPlayerOpen(true); }}
+            className="p-1 rounded bg-violet-500/10 hover:bg-violet-500/20 text-violet-600 dark:text-violet-400 transition shrink-0">
             <Play size={10} fill="currentColor" />
           </button>
           <span className="text-sm text-slate-800 dark:text-slate-100 font-medium truncate flex-1">{job.filename}</span>
         </div>
         <div className="flex items-center gap-1.5 shrink-0">
-          <div className="group/lock">
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                if (isLocked) unlockJobs([job.id]);
-                else useQueueStore.getState().lockJobs([job.id]);
-              }}
-              title={isLocked ? 'Locked — click to unlock' : 'Click to lock'}
-              className={clsx(
-                'transition-all duration-150 opacity-100',
-                isLocked
-                  ? 'text-blue-500 dark:text-blue-400'
-                  : 'text-slate-400 dark:text-white/25 hover:text-slate-600 dark:hover:text-white/50',
-              )}
-            >
-              <Lock size={12} />
-            </button>
-          </div>
-          <span
-            onClick={() => {
-              if (job.status === 'error' && job.error_message && onErrorClick) {
-                onErrorClick(job.filename, job.error_message);
-              }
-            }}
-            className={clsx(
-              'inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[10px] font-medium capitalize',
-              STATUS_BADGE_CLS[job.status],
-              job.status === 'error' && 'cursor-pointer hover:bg-red-500/20 active:scale-95 transition-all'
-            )}
-            title={job.status === 'error' ? (job.error_message ?? undefined) : undefined}
-          >
+          <button onClick={(e) => { e.stopPropagation(); if (isLocked) unlockJobs([job.id]); else useQueueStore.getState().lockJobs([job.id]); }}
+            title={isLocked ? 'Locked — click to unlock' : 'Click to lock'}
+            className={clsx('transition-all duration-150 opacity-100',
+              isLocked ? 'text-blue-500 dark:text-blue-400' : 'text-slate-400 dark:text-white/25 hover:text-slate-600 dark:hover:text-white/50')}>
+            <Lock size={12} />
+          </button>
+          <span onClick={() => { if (job.status === 'error' && job.error_message && onErrorClick) onErrorClick(job.filename, job.error_message); }}
+            className={clsx('inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[10px] font-medium capitalize',
+              STATUS_BADGE_CLS[job.status], job.status === 'error' && 'cursor-pointer hover:bg-red-500/20 active:scale-95 transition-all')}>
             {job.status === 'processing' && <span className="w-1 h-1 rounded-full bg-amber-400 status-processing-dot" />}
             {job.status}
           </span>
@@ -719,12 +677,8 @@ function SortableJobCard({ job, isSelected, onSelect, isImporting, activeDragId,
       </div>
       {job.status === 'processing' && (
         <div className="mt-2 h-[3px] w-full rounded-full bg-slate-100 dark:bg-white/[0.08] overflow-hidden">
-          <motion.div
-            className="h-full rounded-full bg-violet-500"
-            initial={{ width: 0 }}
-            animate={{ width: `${job.progress}%` }}
-            transition={{ duration: 0.3, ease: 'easeOut' }}
-          />
+          <motion.div className="h-full rounded-full bg-violet-500" initial={{ width: 0 }}
+            animate={{ width: `${job.progress}%` }} transition={{ duration: 0.3, ease: 'easeOut' }} />
         </div>
       )}
     </div>
@@ -736,29 +690,44 @@ function SortableJobCard({ job, isSelected, onSelect, isImporting, activeDragId,
 export default function QueueGrid(): JSX.Element {
   const activeTab = useUIStore((s) => s.activeTab);
   const audioSubTab = useUIStore((s) => s.audioSubTab);
-  const jobs = useQueueStore((s) => s.filteredJobs(activeTab));
-  const groups = useQueueStore((s) => s.groupedFilteredJobs(activeTab));
+  const jobs = useQueueStore((s) => s.filteredJobs(audioSubTab, activeTab));
+  const groups = useQueueStore((s) => s.groupedFilteredJobs(audioSubTab, activeTab));
   const setProgress = useQueueStore((s) => s.setProgress);
   const setStatus = useQueueStore((s) => s.setStatus);
   const setOutputFilepath = useQueueStore((s) => s.setOutputFilepath);
   const setAbMode = useQueueStore((s) => s.setAbMode);
   const reorderJobs = useQueueStore((s) => s.reorderJobs);
-  const selectedJobIds = useQueueStore((s) => s.selectedJobIds);
+  const selectedJobIds = useQueueStore((s) => s.tabSelectedIds[audioSubTab]);
   const { setSelectedJob, toggleSelectJob, rangeSelectJobs } = useQueueStore();
-  const viewMode = useQueueStore((s) => s.viewMode);
-  const groupByFormat = useQueueStore((s) => s.groupByFormat);
+  const viewMode = useQueueStore((s) => s.tabViewModes[audioSubTab]);
+  const groupByFormat = useQueueStore((s) => s.tabGroupByFormat[audioSubTab]);
   const clearSelection = useQueueStore((s) => s.clearSelection);
   const { t } = useTranslation();
-  const colWidths = COL_WIDTHS;
-  const tableContainerRef = useRef<HTMLDivElement>(null);
 
-  const importingJobIds = useQueueStore((s) => s.importingJobIds);
+  // ── Resizable columns ──────────────────────────────────────────────────────
+  const [colWidths, setColWidths] = useState<Record<ColKey, number>>({ ...DEFAULT_COL_WIDTHS });
+
+  const handleResize = useCallback((key: ColKey, delta: number) => {
+    setColWidths((prev) => {
+      const next = Math.max(MIN_COL_WIDTHS[key], (prev[key] ?? DEFAULT_COL_WIDTHS[key]) + delta);
+      return { ...prev, [key]: next };
+    });
+  }, []);
+
+  function copyWidthLog(): void {
+    const total = Object.values(colWidths).reduce((a, b) => a + b, 0);
+    const log = JSON.stringify({ ...colWidths, total }, null, 2);
+    void navigator.clipboard.writeText(log);
+  }
+
+  const tableContainerRef = useRef<HTMLDivElement>(null);
+  const importingJobIds = useQueueStore((s) => s.tabImportingIds[audioSubTab]);
   const [selectionBox, setSelectionBox] = useState<{ left: number; top: number; width: number; height: number } | null>(null);
   const [showClearConfirm, setShowClearConfirm] = useState(false);
   const [activeDragId, setActiveDragId] = useState<string | null>(null);
   const [errorDetailModal, setErrorDetailModal] = useState<{ filename: string; errorMessage: string } | null>(null);
 
-  const handleErrorClick = (filename: string, errorMessage: string) => {
+  const handleErrorClick = (filename: string, errorMessage: string): void => {
     setErrorDetailModal({ filename, errorMessage });
   };
 
@@ -774,10 +743,9 @@ export default function QueueGrid(): JSX.Element {
 
   const visibleGroups = useMemo(() => {
     if (!activeDragId || dragSelectedIds.length <= 1) return groups;
-    return groups.map((g) => ({
-      ...g,
-      jobs: g.jobs.filter((j) => j.id === activeDragId || !dragSelectedIds.includes(j.id)),
-    })).filter((g) => g.jobs.length > 0);
+    return groups
+      .map((g) => ({ ...g, jobs: g.jobs.filter((j) => j.id === activeDragId || !dragSelectedIds.includes(j.id)) }))
+      .filter((g) => g.jobs.length > 0);
   }, [groups, activeDragId, dragSelectedIds]);
 
   const draggingJobs = useMemo((): QueueJob[] => {
@@ -787,42 +755,33 @@ export default function QueueGrid(): JSX.Element {
   }, [activeDragId, selectedJobIds, jobs]);
 
   async function handleClearQueue(): Promise<void> {
-    const { jobs, lockedJobIds, clearQueue } = useQueueStore.getState();
-    const idsToArchive = jobs.filter((j) => !lockedJobIds.includes(j.id)).map((j) => j.id);
+    const tab = useUIStore.getState().audioSubTab;
+    const { tabQueues, tabLockedIds, clearQueue } = useQueueStore.getState();
+    const tabJobs = tabQueues[tab];
+    const lockedIds = tabLockedIds[tab];
+    const idsToArchive = tabJobs.filter((j) => !lockedIds.includes(j.id)).map((j) => j.id);
     const activePlayerJobId = useUIStore.getState().activePlayerJobId;
     if (activePlayerJobId && idsToArchive.includes(activePlayerJobId)) {
       useUIStore.setState({ activePlayerJobId: null, playerOpen: false });
     }
-    clearQueue();
-    if (idsToArchive.length > 0) {
-      void invokeArchiveJobs(idsToArchive);
-    }
+    clearQueue(tab);
+    if (idsToArchive.length > 0) void invokeArchiveJobs(idsToArchive);
   }
 
   function handleContainerMouseDown(e: React.MouseEvent): void {
     if (e.button !== 0) return;
     const target = e.target as HTMLElement;
-    // Only block interactive elements — allow starting drag on rows
-    if (
-      target.closest('button') ||
-      target.closest('select') ||
-      target.closest('input')
-    ) {
-      return;
-    }
+    if (target.closest('button') || target.closest('select') || target.closest('input')) return;
 
     e.preventDefault();
     const startX = e.clientX;
     const startY = e.clientY;
-    // Capture container bounds so visual marquee stays within the queue area
     const containerRect = (e.currentTarget as HTMLElement).getBoundingClientRect();
     let dragStarted = false;
 
-    const onMouseMove = (ev: MouseEvent) => {
-      // Clamp cursor to container bounds for the visual selection box
+    const onMouseMove = (ev: MouseEvent): void => {
       const clampedX = Math.max(containerRect.left, Math.min(containerRect.right, ev.clientX));
       const clampedY = Math.max(containerRect.top, Math.min(containerRect.bottom, ev.clientY));
-
       const left = Math.min(startX, clampedX);
       const top = Math.min(startY, clampedY);
       const width = Math.abs(startX - clampedX);
@@ -834,37 +793,34 @@ export default function QueueGrid(): JSX.Element {
 
       if (dragStarted) {
         setSelectionBox({ left, top, width, height });
-
         const elements = document.querySelectorAll('[data-job-id]');
         const intersectedIds: string[] = [];
         elements.forEach((el) => {
           const jobId = el.getAttribute('data-job-id');
           if (!jobId) return;
           const box = el.getBoundingClientRect();
-          const intersects = (
-            left < box.right &&
-            left + width > box.left &&
-            top < box.bottom &&
-            top + height > box.top
-          );
+          const intersects = left < box.right && left + width > box.left && top < box.bottom && top + height > box.top;
           if (intersects) intersectedIds.push(jobId);
         });
-
-        const { selectedJobIds } = useQueueStore.getState();
+        const { tabSelectedIds } = useQueueStore.getState();
+        const curTab = useUIStore.getState().audioSubTab;
+        const curSelected = tabSelectedIds[curTab];
         if (ev.shiftKey || ev.ctrlKey || ev.metaKey) {
-          const merged = [...new Set([...selectedJobIds, ...intersectedIds])];
-          useQueueStore.setState({ selectedJobIds: merged });
+          useQueueStore.setState((s) => ({
+            tabSelectedIds: { ...s.tabSelectedIds, [curTab]: [...new Set([...curSelected, ...intersectedIds])] },
+          }));
         } else {
-          useQueueStore.setState({ selectedJobIds: intersectedIds });
+          useQueueStore.setState((s) => ({
+            tabSelectedIds: { ...s.tabSelectedIds, [curTab]: intersectedIds },
+          }));
         }
       }
     };
 
-    const onMouseUp = () => {
+    const onMouseUp = (): void => {
       setSelectionBox(null);
       window.removeEventListener('mousemove', onMouseMove);
       window.removeEventListener('mouseup', onMouseUp);
-      // If a drag occurred, cancel the next click so the row's onClick doesn't fire
       if (dragStarted) {
         const cancelClick = (ev: Event): void => {
           ev.stopPropagation();
@@ -891,12 +847,10 @@ export default function QueueGrid(): JSX.Element {
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
   );
 
-
-
   useEffect(() => {
     const unlistenProgress = listen<{ jobId: string; percent: number }>(
       'queue://progress',
-      (e) => setProgress(e.payload.jobId, e.payload.percent)
+      (e) => setProgress(e.payload.jobId, e.payload.percent),
     );
     const unlistenStatus = listen<{ jobId: string; status: string; error_message?: string; outputFilepath?: string }>(
       'queue://status-change',
@@ -908,41 +862,41 @@ export default function QueueGrid(): JSX.Element {
           if (status === 'done') setAbMode(jobId, 'enhanced');
         }
 
-        // Toast notification
-        const filename = useQueueStore.getState().jobs.find((j) => j.id === jobId)?.filename ?? jobId;
+        // Toast
+        const job = useQueueStore.getState().getJobById(jobId);
+        const filename = job?.filename ?? jobId;
         const { addToast } = useToastStore.getState();
         if (status === 'done') {
           addToast(`"${filename}" enhanced successfully`, 'success');
         } else if (status === 'error') {
           console.error(`Error enhancing "${filename}":`, error_message);
-          addToast(`Error: ${error_message || "Failed to enhance " + filename}`, 'error');
+          addToast(`Error: ${error_message || 'Failed to enhance ' + filename}`, 'error');
           logError('Enhancement', `Failed to enhance "${filename}"`, error_message ?? undefined);
         }
 
-        // Auto-run next queued job if active one settles
+        // Auto-advance within the same tab
         if (status === 'done' || status === 'error' || status === 'pending') {
           setTimeout(() => {
-            const { jobs, jobOperationTypes } = useQueueStore.getState();
-            const isAnyProcessing = jobs.some((j) => j.status === 'processing');
+            const jobTab = useQueueStore.getState().findJobTab(jobId);
+            if (!jobTab) return;
+            const { tabQueues, tabJobOpTypes } = useQueueStore.getState();
+            const tabJobs = tabQueues[jobTab];
+            const isAnyProcessing = tabJobs.some((j) => j.status === 'processing');
             if (!isAnyProcessing) {
-              const nextQueuedJob = jobs.find((j) => j.status === 'queued');
-              if (nextQueuedJob) {
-                const opType = jobOperationTypes[nextQueuedJob.id] ?? 'enhance';
+              const nextQueued = tabJobs.find((j) => j.status === 'queued');
+              if (nextQueued) {
+                const opType = tabJobOpTypes[jobTab][nextQueued.id] ?? 'enhance';
                 const { aiModel, enhancementStrength, filenameTemplate } = useSettingsStore.getState();
                 if (opType === 'enhance') {
-                  invokeProcessQueue([nextQueuedJob.id], enhancementStrength, aiModel).catch((err) => {
-                    console.error('Failed to auto-start queued enhance job', err);
-                  });
+                  invokeProcessQueue([nextQueued.id], enhancementStrength, aiModel).catch(console.error);
                 } else {
-                  invokeConvertFiles([nextQueuedJob.id], filenameTemplate).catch((err) => {
-                    console.error('Failed to auto-start queued convert job', err);
-                  });
+                  invokeConvertFiles([nextQueued.id], filenameTemplate).catch(console.error);
                 }
               }
             }
           }, 100);
         }
-      }
+      },
     );
     return () => {
       unlistenProgress.then((fn) => fn());
@@ -952,11 +906,14 @@ export default function QueueGrid(): JSX.Element {
 
   function handleRowClick(e: React.MouseEvent, jobId: string): void {
     if (e.shiftKey) {
-      rangeSelectJobs(jobId);
+      rangeSelectJobs(jobId, audioSubTab);
     } else if (e.ctrlKey || e.metaKey) {
-      toggleSelectJob(jobId);
+      toggleSelectJob(jobId, audioSubTab);
     } else {
-      setSelectedJob(selectedJobIds.length === 1 && selectedJobIds[0] === jobId ? null : jobId);
+      setSelectedJob(
+        selectedJobIds.length === 1 && selectedJobIds[0] === jobId ? null : jobId,
+        audioSubTab,
+      );
     }
   }
 
@@ -968,7 +925,7 @@ export default function QueueGrid(): JSX.Element {
     setActiveDragId(null);
     const { active, over } = event;
     if (over && active.id !== over.id) {
-      reorderJobs(String(active.id), String(over.id));
+      reorderJobs(String(active.id), String(over.id), audioSubTab);
     }
   }
 
@@ -978,178 +935,167 @@ export default function QueueGrid(): JSX.Element {
     </div>
   );
 
+  const dragOverlayContent = activeDragId && draggingJobs.length > 0 && (
+    <div className="relative select-none" style={{ width: 340 }}>
+      {draggingJobs.length > 1 && (
+        <div className="absolute left-1.5 top-1.5 right-0 h-10 rounded-lg bg-violet-400/10 border border-violet-300/20" />
+      )}
+      <div className="flex items-center gap-3 px-3 py-2.5 rounded-lg bg-white dark:bg-[#0D1525] border border-violet-400/50 shadow-xl shadow-violet-500/15">
+        <GripVertical size={13} className="text-violet-400/50 shrink-0" />
+        <span className="text-sm font-medium text-slate-800 dark:text-slate-100 truncate flex-1">{draggingJobs[0].filename}</span>
+        {draggingJobs.length > 1 && (
+          <span className="px-2 py-0.5 rounded-full bg-violet-600 text-white text-[10px] font-semibold shrink-0">+{draggingJobs.length - 1}</span>
+        )}
+      </div>
+    </div>
+  );
+
   if (viewMode === 'grid') {
     return (
       <>
-        <div
-          className="flex-1 overflow-auto scrollbar-thin"
-          onMouseDown={handleContainerMouseDown}
-          onClick={(e) => { if (e.target === e.currentTarget) clearSelection(); }}
-        >
-          {jobs.length === 0 ? emptyState : groupByFormat ? (
-            <div className="flex flex-col gap-4 p-1">
-              {visibleGroups.map((group) => (
-                <div key={group.label}>
-                  <button
-                    onClick={() => toggleGroup(group.label)}
-                    className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wider text-slate-500 dark:text-white/35 px-1 pb-2 border-b border-slate-200 dark:border-white/[0.07] mb-2 w-full hover:text-slate-700 dark:hover:text-white/60 transition-colors"
-                  >
-                    <ChevronRight size={11} className={`transition-transform shrink-0 ${collapsedGroups.has(group.label) ? '' : 'rotate-90'}`} />
-                    {group.label}
-                    <span className="text-slate-300 dark:text-white/20 font-normal ml-0.5">({group.jobs.length})</span>
-                  </button>
-                  {!collapsedGroups.has(group.label) && (
-                    <DndContext sensors={sensors} collisionDetection={closestCenter} onDragStart={handleDragStart} onDragEnd={handleDragEnd} modifiers={[restrictToFirstScrollableAncestor]}>
-                      <SortableContext items={group.jobs.map((j) => j.id)} strategy={rectSortingStrategy}>
-                        <div
-                          className="grid grid-cols-3 gap-2"
-                          onClick={(e) => { if (e.target === e.currentTarget) clearSelection(); }}
-                        >
-                          {group.jobs.map((job) => (
-                            <SortableJobCard
-                              key={job.id}
-                              job={job}
-                              isSelected={selectedJobIds.includes(job.id)}
-                              onSelect={(e) => handleRowClick(e, job.id)}
-                              isImporting={importingJobIds.includes(job.id)}
-                              activeDragId={activeDragId}
-                              onErrorClick={handleErrorClick}
-                            />
-                          ))}
-                        </div>
-                      </SortableContext>
-                      <DragOverlay dropAnimation={null}>
-                        {activeDragId && draggingJobs.length > 0 && (
-                          <div className="relative select-none w-[220px]">
-                            {draggingJobs.length > 1 && (
-                              <div className="absolute left-2 top-2 w-full h-full rounded-xl bg-violet-400/15 border border-violet-300/25" />
-                            )}
-                            <div className="relative rounded-xl p-3 bg-white dark:bg-[#0D1525] border border-violet-400/50 shadow-xl shadow-violet-500/15">
-                              <span className="text-sm font-medium text-slate-800 dark:text-slate-100 truncate block">{draggingJobs[0].filename}</span>
-                              <span className="text-[10px] text-slate-400 dark:text-white/35 mt-1 block">{formatBytes(draggingJobs[0].size_bytes)}</span>
-                              {draggingJobs.length > 1 && (
-                                <span className="absolute -top-2 -right-2 w-5 h-5 rounded-full bg-violet-600 text-white text-[10px] font-bold flex items-center justify-center shadow-md">
-                                  {draggingJobs.length}
-                                </span>
-                              )}
-                            </div>
+        <div className="flex flex-col flex-1 min-h-0">
+          <div className="flex-1 overflow-auto scrollbar-thin" onMouseDown={handleContainerMouseDown}
+            onClick={(e) => { if (e.target === e.currentTarget) clearSelection(audioSubTab); }}>
+            {jobs.length === 0 ? emptyState : groupByFormat ? (
+              <div className="flex flex-col gap-4 p-1">
+                {visibleGroups.map((group) => (
+                  <div key={group.label}>
+                    <button onClick={() => toggleGroup(group.label)}
+                      className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wider text-slate-500 dark:text-white/35 px-1 pb-2 border-b border-slate-200 dark:border-white/[0.07] mb-2 w-full hover:text-slate-700 dark:hover:text-white/60 transition-colors">
+                      <ChevronRight size={11} className={`transition-transform shrink-0 ${collapsedGroups.has(group.label) ? '' : 'rotate-90'}`} />
+                      {group.label}
+                      <span className="text-slate-300 dark:text-white/20 font-normal ml-0.5">({group.jobs.length})</span>
+                    </button>
+                    {!collapsedGroups.has(group.label) && (
+                      <DndContext sensors={sensors} collisionDetection={closestCenter} onDragStart={handleDragStart} onDragEnd={handleDragEnd} modifiers={[restrictToFirstScrollableAncestor]}>
+                        <SortableContext items={group.jobs.map((j) => j.id)} strategy={rectSortingStrategy}>
+                          <div className="grid grid-cols-3 gap-2" onClick={(e) => { if (e.target === e.currentTarget) clearSelection(audioSubTab); }}>
+                            {group.jobs.map((job) => (
+                              <SortableJobCard key={job.id} job={job} isSelected={selectedJobIds.includes(job.id)}
+                                onSelect={(e) => handleRowClick(e, job.id)} isImporting={importingJobIds.includes(job.id)}
+                                activeDragId={activeDragId} onErrorClick={handleErrorClick} audioSubTab={audioSubTab} />
+                            ))}
                           </div>
-                        )}
-                      </DragOverlay>
-                    </DndContext>
-                  )}
-                </div>
-              ))}
-            </div>
-          ) : (
-            <DndContext sensors={sensors} collisionDetection={closestCenter} onDragStart={handleDragStart} onDragEnd={handleDragEnd} modifiers={[restrictToFirstScrollableAncestor]}>
-              <SortableContext items={visibleJobs.map((j) => j.id)} strategy={rectSortingStrategy}>
-                <div
-                  className="grid grid-cols-3 gap-2 p-1"
-                  onClick={(e) => { if (e.target === e.currentTarget) clearSelection(); }}
-                >
-                  {visibleJobs.map((job) => (
-                    <SortableJobCard
-                      key={job.id}
-                      job={job}
-                      isSelected={selectedJobIds.includes(job.id)}
-                      onSelect={(e) => handleRowClick(e, job.id)}
-                      isImporting={importingJobIds.includes(job.id)}
-                      activeDragId={activeDragId}
-                      onErrorClick={handleErrorClick}
-                    />
-                  ))}
-                </div>
-              </SortableContext>
-              <DragOverlay dropAnimation={null}>
-                {activeDragId && draggingJobs.length > 0 && (
-                  <div className="relative select-none w-[220px]">
-                    {draggingJobs.length > 1 && (
-                      <div className="absolute left-2 top-2 w-full h-full rounded-xl bg-violet-400/15 border border-violet-300/25" />
+                        </SortableContext>
+                        <DragOverlay dropAnimation={null}>
+                          {activeDragId && draggingJobs.length > 0 && (
+                            <div className="relative select-none w-[220px]">
+                              {draggingJobs.length > 1 && <div className="absolute left-2 top-2 w-full h-full rounded-xl bg-violet-400/15 border border-violet-300/25" />}
+                              <div className="relative rounded-xl p-3 bg-white dark:bg-[#0D1525] border border-violet-400/50 shadow-xl shadow-violet-500/15">
+                                <span className="text-sm font-medium text-slate-800 dark:text-slate-100 truncate block">{draggingJobs[0].filename}</span>
+                                <span className="text-[10px] text-slate-400 dark:text-white/35 mt-1 block">{formatBytes(draggingJobs[0].size_bytes)}</span>
+                                {draggingJobs.length > 1 && <span className="absolute -top-2 -right-2 w-5 h-5 rounded-full bg-violet-600 text-white text-[10px] font-bold flex items-center justify-center shadow-md">{draggingJobs.length}</span>}
+                              </div>
+                            </div>
+                          )}
+                        </DragOverlay>
+                      </DndContext>
                     )}
-                    <div className="relative rounded-xl p-3 bg-white dark:bg-[#0D1525] border border-violet-400/50 shadow-xl shadow-violet-500/15">
-                      <span className="text-sm font-medium text-slate-800 dark:text-slate-100 truncate block">{draggingJobs[0].filename}</span>
-                      <span className="text-[10px] text-slate-400 dark:text-white/35 mt-1 block">{formatBytes(draggingJobs[0].size_bytes)}</span>
-                      {draggingJobs.length > 1 && (
-                        <span className="absolute -top-2 -right-2 w-5 h-5 rounded-full bg-violet-600 text-white text-[10px] font-bold flex items-center justify-center shadow-md">
-                          {draggingJobs.length}
-                        </span>
-                      )}
-                    </div>
                   </div>
-                )}
-              </DragOverlay>
-            </DndContext>
-          )}
+                ))}
+              </div>
+            ) : (
+              <DndContext sensors={sensors} collisionDetection={closestCenter} onDragStart={handleDragStart} onDragEnd={handleDragEnd} modifiers={[restrictToFirstScrollableAncestor]}>
+                <SortableContext items={visibleJobs.map((j) => j.id)} strategy={rectSortingStrategy}>
+                  <div className="grid grid-cols-3 gap-2 p-1" onClick={(e) => { if (e.target === e.currentTarget) clearSelection(audioSubTab); }}>
+                    {visibleJobs.map((job) => (
+                      <SortableJobCard key={job.id} job={job} isSelected={selectedJobIds.includes(job.id)}
+                        onSelect={(e) => handleRowClick(e, job.id)} isImporting={importingJobIds.includes(job.id)}
+                        activeDragId={activeDragId} onErrorClick={handleErrorClick} audioSubTab={audioSubTab} />
+                    ))}
+                  </div>
+                </SortableContext>
+                <DragOverlay dropAnimation={null}>
+                  {activeDragId && draggingJobs.length > 0 && (
+                    <div className="relative select-none w-[220px]">
+                      {draggingJobs.length > 1 && <div className="absolute left-2 top-2 w-full h-full rounded-xl bg-violet-400/15 border border-violet-300/25" />}
+                      <div className="relative rounded-xl p-3 bg-white dark:bg-[#0D1525] border border-violet-400/50 shadow-xl shadow-violet-500/15">
+                        <span className="text-sm font-medium text-slate-800 dark:text-slate-100 truncate block">{draggingJobs[0].filename}</span>
+                        <span className="text-[10px] text-slate-400 dark:text-white/35 mt-1 block">{formatBytes(draggingJobs[0].size_bytes)}</span>
+                        {draggingJobs.length > 1 && <span className="absolute -top-2 -right-2 w-5 h-5 rounded-full bg-violet-600 text-white text-[10px] font-bold flex items-center justify-center shadow-md">{draggingJobs.length}</span>}
+                      </div>
+                    </div>
+                  )}
+                </DragOverlay>
+              </DndContext>
+            )}
+          </div>
+          <QueueActionBar />
         </div>
-
         {selectionBox && (
-          <div
-            className="fixed z-50 pointer-events-none border border-violet-500 bg-violet-500/10 rounded"
-            style={{
-              left: selectionBox.left,
-              top: selectionBox.top,
-              width: selectionBox.width,
-              height: selectionBox.height,
-            }}
-          />
+          <div className="fixed z-50 pointer-events-none border border-violet-500 bg-violet-500/10 rounded"
+            style={{ left: selectionBox.left, top: selectionBox.top, width: selectionBox.width, height: selectionBox.height }} />
         )}
       </>
     );
   }
 
+  // ── Table header ──────────────────────────────────────────────────────────
+
   const tableHeader = (
     <thead>
-      <tr className="text-slate-500 dark:text-zinc-100 font-semibold text-[10px] uppercase tracking-wider sticky top-0 bg-slate-50 dark:bg-[#090E1B] border-b-2 border-slate-200 dark:border-white/[0.08]">
-        <th className="px-1 py-2.5 text-center" style={{ width: colWidths.grip }}>
-        </th>
-        <th className="px-1 py-2.5 text-center" style={{ width: colWidths.index }}>
+      <tr className="text-slate-500 dark:text-zinc-100 font-semibold text-[10px] uppercase tracking-wider sticky top-0 bg-slate-50 dark:bg-[#090E1B] border-b-2 border-slate-200 dark:border-white/[0.08] z-10">
+        <th className="px-1 py-2.5 text-center relative" style={{ width: colWidths.grip }} />
+        <th className="px-1 py-2.5 text-center relative" style={{ width: colWidths.index }}>
           #
         </th>
-        <th className="px-2 py-2.5 text-left" style={{ width: colWidths.filename }}>
+        <th className="px-2 py-2.5 text-left relative" style={{ width: colWidths.filename }}>
           <span className="px-2">{t('queue.col.filename')}</span>
+          <ResizeHandle colKey="filename" onResize={handleResize} />
         </th>
-        <th className="px-2 py-2.5 text-left" style={{ width: colWidths.destination }}>
+        <th className="px-2 py-2.5 text-left relative" style={{ width: colWidths.destination }}>
           <span className="px-2">{t('queue.col.destination')}</span>
+          <ResizeHandle colKey="destination" onResize={handleResize} />
         </th>
-        <th className="px-2 py-2.5 text-left" style={{ width: colWidths.size }}>
+        <th className="px-2 py-2.5 text-left relative" style={{ width: colWidths.size }}>
           <span className="px-2">{t('queue.col.size')}</span>
+          <ResizeHandle colKey="size" onResize={handleResize} />
         </th>
         {audioSubTab !== 'enhance' && (
-          <th className="px-1 py-2.5 text-center" style={{ width: colWidths.format }}>
+          <th className="px-1 py-2.5 text-center relative" style={{ width: colWidths.format }}>
             <span>{audioSubTab === 'convert' ? 'Save to' : t('queue.col.output')}</span>
+            <ResizeHandle colKey="format" onResize={handleResize} />
           </th>
         )}
         {audioSubTab === 'separate' && (
-          <th className="px-1 py-2.5 text-center" style={{ width: colWidths.bitrate }}>
+          <th className="px-1 py-2.5 text-center relative" style={{ width: colWidths.bitrate }}>
             <span>{t('queue.col.bitrate')}</span>
+            <ResizeHandle colKey="bitrate" onResize={handleResize} />
           </th>
         )}
         {audioSubTab === 'separate' && (
-          <th className="px-1.5 py-2.5 text-center whitespace-nowrap" style={{ width: colWidths.sampleRate }}>
+          <th className="px-1.5 py-2.5 text-center whitespace-nowrap relative" style={{ width: colWidths.sampleRate }}>
             <span>{t('queue.col.sampleHz')}</span>
+            <ResizeHandle colKey="sampleRate" onResize={handleResize} />
           </th>
         )}
-        <th className="px-1.5 py-2.5 text-center whitespace-nowrap" style={{ width: colWidths.status }}>
+        <th className="px-1.5 py-2.5 text-center whitespace-nowrap relative" style={{ width: colWidths.status }}>
           <span>{t('queue.col.status')}</span>
+          <ResizeHandle colKey="status" onResize={handleResize} />
         </th>
-        <th className="px-1.5 py-2.5 text-center" style={{ width: colWidths.tools }}>
-          <span>TOOLS</span>
+        <th className="px-1.5 py-2.5 text-center relative" style={{ width: colWidths.tools }}>
+          <div className="flex items-center justify-center gap-2">
+            <span>TOOLS</span>
+            <button onClick={copyWidthLog} title="Copy column width log to clipboard"
+              className="text-slate-300 dark:text-white/20 hover:text-violet-500 dark:hover:text-violet-400 transition-colors">
+              <Copy size={9} />
+            </button>
+          </div>
+          <ResizeHandle colKey="tools" onResize={handleResize} />
         </th>
-        <th className="px-1 py-2.5 text-center" style={{ width: colWidths.lock }}>
+        <th className="px-1 py-2.5 text-center relative" style={{ width: colWidths.lock }}>
           <button
             onClick={(e) => {
               e.stopPropagation();
-              const { jobs, lockedJobIds, lockAllJobs, unlockAllJobs } = useQueueStore.getState();
-              if (lockedJobIds.length === jobs.length) {
-                unlockAllJobs();
-              } else {
-                lockAllJobs();
-              }
+              const tab = useUIStore.getState().audioSubTab;
+              const { tabQueues, tabLockedIds, lockAllJobs, unlockAllJobs } = useQueueStore.getState();
+              const tabJobs = tabQueues[tab];
+              const lockedIds = tabLockedIds[tab];
+              if (lockedIds.length === tabJobs.length && tabJobs.length > 0) unlockAllJobs(tab);
+              else lockAllJobs(tab);
             }}
             title="Lock / Unlock all items"
-            className="text-slate-400 dark:text-zinc-100 hover:text-violet-500 dark:hover:text-violet-400 transition-colors"
-          >
+            className="text-slate-400 dark:text-zinc-100 hover:text-violet-500 dark:hover:text-violet-400 transition-colors">
             <Lock size={11} className="mx-auto" />
           </button>
         </th>
@@ -1157,21 +1103,21 @@ export default function QueueGrid(): JSX.Element {
           <button
             onClick={(e) => {
               e.stopPropagation();
-              const { jobs: allJobs, lockedJobIds } = useQueueStore.getState();
-              const nonLocked = allJobs.filter((j) => !lockedJobIds.includes(j.id));
+              const tab = useUIStore.getState().audioSubTab;
+              const { tabQueues, tabLockedIds } = useQueueStore.getState();
+              const nonLocked = tabQueues[tab].filter((j) => !tabLockedIds[tab].includes(j.id));
               const hasProcessing = nonLocked.some((j) => j.status === 'processing' || j.status === 'queued');
               if (hasProcessing) {
                 const isIndonesian = useSettingsStore.getState().language === 'id';
                 const msg = isIndonesian
-                  ? "Apakah Anda yakin ingin menghapus? File sedang diproses."
-                  : "Are you sure you want to delete? File is currently being processed.";
+                  ? 'Apakah Anda yakin ingin menghapus? File sedang diproses.'
+                  : 'Are you sure you want to delete? File is currently being processed.';
                 if (!window.confirm(msg)) return;
               }
               setShowClearConfirm(true);
             }}
             className="text-red-500 hover:text-red-400 font-semibold text-[10px] uppercase tracking-wider transition-colors"
-            title="Clear all non-locked items"
-          >
+            title="Clear all non-locked items">
             Clear
           </button>
         </th>
@@ -1181,133 +1127,83 @@ export default function QueueGrid(): JSX.Element {
 
   return (
     <>
-      <div
-        ref={tableContainerRef}
-        className="flex-1 overflow-y-auto overflow-x-auto rounded-xl bg-white dark:bg-[#0C1120] shadow-sm border border-slate-200 dark:border-white/[0.06] scrollbar-thin"
-        onMouseDown={handleContainerMouseDown}
-        onClick={(e) => { if ((e.target as HTMLElement).closest('tr') === null) clearSelection(); }}
-      >
-        <table className="w-full text-left queue-table table-fixed">
-          {tableHeader}
-          <tbody>
-            {jobs.length === 0 ? (
-              <tr>
-                <td colSpan={12} className="px-4 py-16 text-center text-slate-400 dark:text-white/25 text-sm">
-                  {t('queue.empty')}
-                </td>
-              </tr>
-            ) : groupByFormat ? (
-              <>
-                {visibleGroups.map((group, gi) => (
-                  <React.Fragment key={`group-${gi}`}>
-                    <tr>
-                      <td colSpan={12} className="px-4 pt-3 pb-1">
-                        <button
-                          onClick={() => toggleGroup(group.label)}
-                          className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wider text-violet-600 dark:text-violet-400/80 hover:text-violet-700 dark:hover:text-violet-300 transition-colors"
-                        >
-                          <ChevronRight size={11} className={`transition-transform shrink-0 ${collapsedGroups.has(group.label) ? '' : 'rotate-90'}`} />
-                          {group.label}
-                          <span className="text-slate-300 dark:text-white/20 font-normal ml-0.5">({group.jobs.length})</span>
-                        </button>
-                      </td>
-                    </tr>
-                    {!collapsedGroups.has(group.label) && (
-                      <DndContext key={`dnd-${gi}`} sensors={sensors} collisionDetection={closestCenter} onDragStart={handleDragStart} onDragEnd={handleDragEnd} modifiers={[restrictToVerticalAxis, restrictToFirstScrollableAncestor]}>
-                        <SortableContext items={group.jobs.map((j) => j.id)} strategy={verticalListSortingStrategy}>
-                          <AnimatePresence>
-                            {group.jobs.map((job, i) => (
-                              <SortableJobRow
-                                key={job.id}
-                                job={job}
-                                index={groups.find((g) => g.label === group.label)?.jobs.findIndex((j) => j.id === job.id) ?? i}
-                                isSelected={selectedJobIds.includes(job.id)}
-                                onSelect={(e) => handleRowClick(e, job.id)}
-                                isImporting={importingJobIds.includes(job.id)}
-                                activeDragId={activeDragId}
-                                onErrorClick={handleErrorClick}
-                                colWidths={colWidths}
-                              />
-                            ))}
-                          </AnimatePresence>
-                        </SortableContext>
-                        <DragOverlay dropAnimation={null}>
-                          {activeDragId && draggingJobs.length > 0 && (
-                            <div className="relative select-none" style={{ width: 340 }}>
-                              {draggingJobs.length > 1 && (
-                                <div className="absolute left-1.5 top-1.5 right-0 h-10 rounded-lg bg-violet-400/10 border border-violet-300/20" />
-                              )}
-                              <div className="flex items-center gap-3 px-3 py-2.5 rounded-lg bg-white dark:bg-[#0D1525] border border-violet-400/50 shadow-xl shadow-violet-500/15">
-                                <GripVertical size={13} className="text-violet-400/50 shrink-0" />
-                                <span className="text-sm font-medium text-slate-800 dark:text-slate-100 truncate flex-1">{draggingJobs[0].filename}</span>
-                                {draggingJobs.length > 1 && (
-                                  <span className="px-2 py-0.5 rounded-full bg-violet-600 text-white text-[10px] font-semibold shrink-0">+{draggingJobs.length - 1}</span>
-                                )}
-                              </div>
-                            </div>
-                          )}
-                        </DragOverlay>
-                      </DndContext>
-                    )}
-                  </React.Fragment>
-                ))}
-              </>
-            ) : (
-              <DndContext sensors={sensors} collisionDetection={closestCenter} onDragStart={handleDragStart} onDragEnd={handleDragEnd} modifiers={[restrictToVerticalAxis, restrictToFirstScrollableAncestor]}>
-                <SortableContext items={visibleJobs.map((j) => j.id)} strategy={verticalListSortingStrategy}>
-                  <AnimatePresence>
-                    {visibleJobs.map((job) => (
-                      <SortableJobRow
-                        key={job.id}
-                        job={job}
-                        index={jobs.findIndex((j) => j.id === job.id)}
-                        isSelected={selectedJobIds.includes(job.id)}
-                        onSelect={(e) => handleRowClick(e, job.id)}
-                        isImporting={importingJobIds.includes(job.id)}
-                        activeDragId={activeDragId}
-                        onErrorClick={handleErrorClick}
-                        colWidths={colWidths}
-                      />
-                    ))}
-                  </AnimatePresence>
-                </SortableContext>
-                <DragOverlay dropAnimation={null}>
-                  {activeDragId && draggingJobs.length > 0 && (
-                    <div className="relative select-none" style={{ width: 340 }}>
-                      {draggingJobs.length > 1 && (
-                        <div className="absolute left-1.5 top-1.5 right-0 h-10 rounded-lg bg-violet-400/10 border border-violet-300/20" />
+      <div className="flex flex-col flex-1 min-h-0">
+        <div ref={tableContainerRef}
+          className="flex-1 overflow-y-auto overflow-x-auto rounded-xl bg-white dark:bg-[#0C1120] shadow-sm border border-slate-200 dark:border-white/[0.06] scrollbar-thin"
+          onMouseDown={handleContainerMouseDown}
+          onClick={(e) => { if ((e.target as HTMLElement).closest('tr') === null) clearSelection(audioSubTab); }}>
+          <table className="w-full text-left queue-table table-fixed">
+            {tableHeader}
+            <tbody>
+              {jobs.length === 0 ? (
+                <tr>
+                  <td colSpan={12} className="px-4 py-16 text-center text-slate-400 dark:text-white/25 text-sm">
+                    {t('queue.empty')}
+                  </td>
+                </tr>
+              ) : groupByFormat ? (
+                <>
+                  {visibleGroups.map((group, gi) => (
+                    <React.Fragment key={`group-${gi}`}>
+                      <tr>
+                        <td colSpan={12} className="px-4 pt-3 pb-1">
+                          <button onClick={() => toggleGroup(group.label)}
+                            className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wider text-violet-600 dark:text-violet-400/80 hover:text-violet-700 dark:hover:text-violet-300 transition-colors">
+                            <ChevronRight size={11} className={`transition-transform shrink-0 ${collapsedGroups.has(group.label) ? '' : 'rotate-90'}`} />
+                            {group.label}
+                            <span className="text-slate-300 dark:text-white/20 font-normal ml-0.5">({group.jobs.length})</span>
+                          </button>
+                        </td>
+                      </tr>
+                      {!collapsedGroups.has(group.label) && (
+                        <DndContext key={`dnd-${gi}`} sensors={sensors} collisionDetection={closestCenter} onDragStart={handleDragStart} onDragEnd={handleDragEnd} modifiers={[restrictToVerticalAxis, restrictToFirstScrollableAncestor]}>
+                          <SortableContext items={group.jobs.map((j) => j.id)} strategy={verticalListSortingStrategy}>
+                            <AnimatePresence>
+                              {group.jobs.map((job, i) => (
+                                <SortableJobRow key={job.id} job={job}
+                                  index={groups.find((g) => g.label === group.label)?.jobs.findIndex((j) => j.id === job.id) ?? i}
+                                  isSelected={selectedJobIds.includes(job.id)} onSelect={(e) => handleRowClick(e, job.id)}
+                                  isImporting={importingJobIds.includes(job.id)} activeDragId={activeDragId}
+                                  onErrorClick={handleErrorClick} colWidths={colWidths} onResize={handleResize} audioSubTab={audioSubTab} />
+                              ))}
+                            </AnimatePresence>
+                          </SortableContext>
+                          <DragOverlay dropAnimation={null}>{dragOverlayContent}</DragOverlay>
+                        </DndContext>
                       )}
-                      <div className="flex items-center gap-3 px-3 py-2.5 rounded-lg bg-white dark:bg-[#0D1525] border border-violet-400/50 shadow-xl shadow-violet-500/15">
-                        <GripVertical size={13} className="text-violet-400/50 shrink-0" />
-                        <span className="text-sm font-medium text-slate-800 dark:text-slate-100 truncate flex-1">{draggingJobs[0].filename}</span>
-                        {draggingJobs.length > 1 && (
-                          <span className="px-2 py-0.5 rounded-full bg-violet-600 text-white text-[10px] font-semibold shrink-0">+{draggingJobs.length - 1}</span>
-                        )}
-                      </div>
-                    </div>
-                  )}
-                </DragOverlay>
-              </DndContext>
-            )}
-          </tbody>
-        </table>
+                    </React.Fragment>
+                  ))}
+                </>
+              ) : (
+                <DndContext sensors={sensors} collisionDetection={closestCenter} onDragStart={handleDragStart} onDragEnd={handleDragEnd} modifiers={[restrictToVerticalAxis, restrictToFirstScrollableAncestor]}>
+                  <SortableContext items={visibleJobs.map((j) => j.id)} strategy={verticalListSortingStrategy}>
+                    <AnimatePresence>
+                      {visibleJobs.map((job) => (
+                        <SortableJobRow key={job.id} job={job} index={jobs.findIndex((j) => j.id === job.id)}
+                          isSelected={selectedJobIds.includes(job.id)} onSelect={(e) => handleRowClick(e, job.id)}
+                          isImporting={importingJobIds.includes(job.id)} activeDragId={activeDragId}
+                          onErrorClick={handleErrorClick} colWidths={colWidths} onResize={handleResize} audioSubTab={audioSubTab} />
+                      ))}
+                    </AnimatePresence>
+                  </SortableContext>
+                  <DragOverlay dropAnimation={null}>{dragOverlayContent}</DragOverlay>
+                </DndContext>
+              )}
+            </tbody>
+          </table>
+        </div>
+        <QueueActionBar />
       </div>
 
       {selectionBox && (
-        <div
-          className="fixed z-50 pointer-events-none border border-violet-500 bg-violet-500/10 rounded"
-          style={{
-            left: selectionBox.left,
-            top: selectionBox.top,
-            width: selectionBox.width,
-            height: selectionBox.height,
-          }}
-        />
+        <div className="fixed z-50 pointer-events-none border border-violet-500 bg-violet-500/10 rounded"
+          style={{ left: selectionBox.left, top: selectionBox.top, width: selectionBox.width, height: selectionBox.height }} />
       )}
 
       {showClearConfirm && (() => {
-        const { jobs: allJobs, lockedJobIds } = useQueueStore.getState();
-        const nonLocked = allJobs.filter((j) => !lockedJobIds.includes(j.id));
+        const tab = useUIStore.getState().audioSubTab;
+        const { tabQueues, tabLockedIds } = useQueueStore.getState();
+        const nonLocked = tabQueues[tab].filter((j) => !tabLockedIds[tab].includes(j.id));
         const hasProcessing = nonLocked.some((j) => j.status === 'processing' || j.status === 'queued');
         const isIndonesian = useSettingsStore.getState().language === 'id';
         return (
@@ -1316,30 +1212,21 @@ export default function QueueGrid(): JSX.Element {
               <h3 className="text-sm font-semibold text-white uppercase tracking-wider">Confirm Clear Queue</h3>
               <p className="text-xs text-white/60 leading-relaxed">
                 {isIndonesian
-                  ? "Apakah Anda yakin ingin menghapus seluruh antrean? File yang terkunci tidak akan dihapus. Tindakan ini tidak dapat dibatalkan."
-                  : "Are you sure you want to clear the entire queue? Locked files will not be deleted. This action cannot be undone."}
+                  ? 'Apakah Anda yakin ingin menghapus seluruh antrean? File yang terkunci tidak akan dihapus.'
+                  : 'Are you sure you want to clear the entire queue? Locked files will not be deleted.'}
               </p>
               {hasProcessing && (
                 <p className="text-xs text-red-400 font-semibold leading-relaxed">
-                  {isIndonesian
-                    ? "Peringatan: Beberapa file dalam antrean sedang diproses!"
-                    : "Warning: Some files in the queue are currently being processed!"}
+                  {isIndonesian ? 'Peringatan: Beberapa file sedang diproses!' : 'Warning: Some files are currently being processed!'}
                 </p>
               )}
               <div className="flex justify-end gap-2 mt-2">
-                <button
-                  onClick={() => setShowClearConfirm(false)}
-                  className="px-3 py-1.5 rounded-lg text-xs font-medium bg-white/5 hover:bg-white/10 text-white transition-colors"
-                >
+                <button onClick={() => setShowClearConfirm(false)}
+                  className="px-3 py-1.5 rounded-lg text-xs font-medium bg-white/5 hover:bg-white/10 text-white transition-colors">
                   Cancel
                 </button>
-                <button
-                  onClick={async () => {
-                    setShowClearConfirm(false);
-                    await handleClearQueue();
-                  }}
-                  className="px-3 py-1.5 rounded-lg text-xs font-medium bg-red-600 hover:bg-red-500 text-white transition-colors"
-                >
+                <button onClick={async () => { setShowClearConfirm(false); await handleClearQueue(); }}
+                  className="px-3 py-1.5 rounded-lg text-xs font-medium bg-red-600 hover:bg-red-500 text-white transition-colors">
                   Yes, Clear All
                 </button>
               </div>
@@ -1363,10 +1250,8 @@ export default function QueueGrid(): JSX.Element {
               </div>
             </div>
             <div className="flex justify-end gap-2 mt-2">
-              <button
-                onClick={() => setErrorDetailModal(null)}
-                className="px-4 py-1.5 rounded-lg text-xs font-medium bg-white/5 hover:bg-white/10 text-white transition-colors"
-              >
+              <button onClick={() => setErrorDetailModal(null)}
+                className="px-4 py-1.5 rounded-lg text-xs font-medium bg-white/5 hover:bg-white/10 text-white transition-colors">
                 Close
               </button>
             </div>

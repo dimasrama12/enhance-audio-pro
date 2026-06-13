@@ -19,8 +19,10 @@ export default function DropZone(): JSX.Element {
   const setDuplicatePending = useUIStore((s) => s.setDuplicatePending);
   const playerOpen = useUIStore((s) => s.playerOpen);
   const activePlayerJobId = useUIStore((s) => s.activePlayerJobId);
-  const jobs = useQueueStore((s) => s.jobs);
-  const activeJobExists = jobs.some((j) => j.id === activePlayerJobId);
+  const tabQueues = useQueueStore((s) => s.tabQueues);
+  const activeJobExists = Object.values(tabQueues).some((jobs) =>
+    jobs.some((j) => j.id === activePlayerJobId),
+  );
   const isHidden = playerOpen && activeJobExists;
   const { activeTab } = useUIStore();
   const dragCounterRef = useRef(0);

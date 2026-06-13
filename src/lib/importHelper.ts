@@ -5,7 +5,6 @@ import { useSettingsStore } from '@/stores/useSettingsStore';
 import { useUIStore } from '@/stores/useUIStore';
 import { prewarmAudio } from '@/lib/audioPreload';
 
-// Normalization function to handle Windows case-insensitivity and backslash differences
 export function normalizePath(p: string): string {
   return p.replace(/\\/g, '/').toLowerCase();
 }
@@ -24,13 +23,17 @@ export async function handleImportFiles(paths: string[]): Promise<void> {
       return;
     }
 
-    // No queue capacity limit — accept all valid files
     const capped = valid;
 
-    // Duplicate detection: compare against current queue by normalized filepath
-    const existingPaths = new Set(useQueueStore.getState().jobs.map((j) => normalizePath(j.filepath)));
+    // Duplicate detection against the ACTIVE tab's queue only
+    const tab = ui.audioSubTab;
+    const existingPaths = new Set(
+      useQueueStore.getState().tabQueues[tab].map((j) => normalizePath(j.filepath)),
+    );
     const uniquePaths = capped.filter((p) => !existingPaths.has(normalizePath(p)));
-    const duplicateNames = capped.filter((p) => existingPaths.has(normalizePath(p))).map((p) => getFilename(p));
+    const duplicateNames = capped
+      .filter((p) => existingPaths.has(normalizePath(p)))
+      .map((p) => getFilename(p));
 
     if (duplicateNames.length > 0) {
       ui.setDuplicatePending({
@@ -52,26 +55,24 @@ export async function handleImportFiles(paths: string[]): Promise<void> {
 
 export async function submitAddFilesDirect(
   paths: string[],
-  skippedInvalid: number
+  skippedInvalid: number,
 ): Promise<void> {
   const ui = useUIStore.getState();
   ui.setIsImporting(true);
   try {
-    // No queue capacity limit — accept all provided paths
     const capped = paths;
-
     if (capped.length === 0) return;
 
     const res = await invokeAddFiles(capped);
     if (res.success && res.data) {
-      useQueueStore.getState().addJobs(res.data);
-      // Pre-warm audio blob URLs in the background. Serves two purposes:
-      // 1. Gives the PyInstaller sidecar extra startup time on cold launch.
-      // 2. Caches blob URLs so WaveformPlayer opens without re-reading from disk.
+      // Route to the currently active sub-tab
+      const tab = useUIStore.getState().audioSubTab;
+      useQueueStore.getState().addJobs(res.data, tab);
+
       for (const job of res.data) {
         prewarmAudio(job.filepath);
       }
-      // Auto-apply settings default output folder to new jobs that have no destination
+
       const outputFolder = useSettingsStore.getState().outputFolder;
       if (outputFolder) {
         const emptyDestIds = res.data.filter((j) => !j.destination).map((j) => j.id);

@@ -962,6 +962,73 @@
 
 ---
 
+## Task 11 — Remove Rust queue limit and constrain column resizing to screen boundaries ✅
+
+**Files:** `src-tauri/src/commands/queue.rs`, `src/components/QueueGrid.tsx`
+
+- [x] **Step 1 — Remove queue limit check in Rust `add_files` command**
+  Removed the limits check and error warning in `src-tauri/src/commands/queue.rs`.
+
+- [x] **Step 2 — Set table layout to fixed**
+  Add `table-fixed` class to the main `<table>` in `src/components/QueueGrid.tsx` to prevent the columns from expanding the table width.
+
+- [x] **Step 3 — Update `adjustWidth` function to keep table width within screen boundaries**
+  Balance column resize width changes (delta) against the destination column width so that the total width stays constant.
+
+---
+
+## Task 12 — Narrow STATUS and TOOLS columns, disable horizontal scrolling, and adjust initial column calculation 🚀 [NEW] ✅
+
+**Files:** `src/components/QueueGrid.tsx`
+
+- [x] **Step 1 — Update column widths in table header (`thead`)**
+  Change the column widths to tighten up column allocation:
+  - `FORMAT` (output): change from `w-24` (96px) to `w-18` (72px)
+  - `BITRATE`: change from `w-24` (96px) to `w-18` (72px)
+  - `SAMPLE HZ`: change from `w-28` (112px) to `w-20` (80px)
+  - `STATUS`: change from `w-32` (128px) to `w-20` (80px)
+  - `TOOLS`: change from `w-40` (160px) to `w-32` (128px)
+
+- [x] **Step 2 — Align cell widths in table rows (`SortableJobRow`)**
+  Ensure the cells match the header column widths:
+  - FormatSelect td: change from `w-24` to `w-18`
+  - BitrateSelect td: change from `w-24` to `w-18`
+  - SampleRateSelect td: change from `w-24` to `w-20` (also update the wrapper class to `w-20`)
+  - Status td: change from `w-32` to `w-20`
+  - Tools td: change from `w-40` to `w-32` and set flex container to `flex-nowrap gap-1`
+
+- [x] **Step 3 — Update `ResizeObserver` fixed columns calculation**
+  Update `FIXED_COLS` constant in the observer from `600` to `568` (sum of new fixed column widths) to avoid over-allocating initial filename/destination/size widths.
+
+- [x] **Step 4 — Disable horizontal scrolling on table container**
+  Change the table container wrapper `div` classes from `overflow-auto` to `overflow-y-auto overflow-x-hidden` so that the user never has a horizontal scrollbar.
+
+---
+
+## Task 13 — Dynamic scaling of flexible columns on window resize and precise column locking 🚀 [NEW]
+
+**Files:** `src/components/QueueGrid.tsx`
+
+- [x] **Step 1 — Keep `ResizeObserver` active to scale flexible columns dynamically**
+  Update the `ResizeObserver` inside `QueueGrid.tsx` to not disconnect after the first trigger. Implement proportional scaling of `filename`, `destination`, and `size` whenever `container.clientWidth` changes.
+
+- [x] **Step 2 — Lock column widths and cell horizontal paddings**
+  Update header `thead` and cell `SortableJobRow` styles for:
+  - Grip handle (`w-6` / 24px)
+  - `#` index (`w-6` / 24px)
+  - `FORMAT` (`w-14` / 56px, `px-1`)
+  - `BITRATE` (`w-14` / 56px, `px-1`)
+  - `SAMPLE HZ` (`w-18` / 72px, `px-1.5`)
+  - `STATUS` (`w-18` / 72px, `px-1.5`)
+  - `TOOLS` (`w-28` / 112px, `px-1.5`)
+  - `Lock` column (`w-8` / 32px, `px-1`)
+  - `Clear` column (`w-10` / 40px, `px-1`)
+
+- [x] **Step 3 — Set `FIXED_COLS` to 488**
+  Update the `FIXED_COLS` constant in the `ResizeObserver` to `488px` (the sum of the locked columns).
+
+---
+
 ## Self-Review Checklist
 
 | Requirement | Covered by |
@@ -982,3 +1049,4 @@
 - `jobOperationTypes` field defined in Task 4 → read in Tasks 5, 6, 7 ✓
 - `invokeConvertFiles([id], filenameTemplate)` signature unchanged ✓
 - `QueueJob` type import added to QueueToolbar in Task 7 Step 1 ✓
+

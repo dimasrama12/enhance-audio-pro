@@ -20,6 +20,10 @@ export interface KeyboardShortcutMap {
   // View
   tableView: string;
   gridView: string;
+  // Sub-tab switch
+  tabEnhance: string;
+  tabConvert: string;
+  tabSeparate: string;
   // History
   openHistory: string;
   // Window
@@ -48,8 +52,11 @@ export const DEFAULT_KEYBOARD_SHORTCUTS: KeyboardShortcutMap = {
   toggleSidebar: 'Ctrl+B',
   focusSearch: 'Shift+F',
   browseFolder: 'Ctrl+Shift+O',
-  tableView: '1',
-  gridView: '2',
+  tableView: 'shift+1',
+  gridView: 'shift+2',
+  tabEnhance: '1',
+  tabConvert: '2',
+  tabSeparate: '3',
   openHistory: 'Ctrl+H',
   toggleFullscreen: 'F',
   openSettings: 'Ctrl+,',
@@ -77,6 +84,9 @@ export const SHORTCUT_LABELS: Record<keyof KeyboardShortcutMap, string> = {
   browseFolder: 'Import Files from Folder',
   tableView: 'Switch to Table View',
   gridView: 'Switch to Grid View',
+  tabEnhance: 'Switch to Enhance Tab',
+  tabConvert: 'Switch to Convert Tab',
+  tabSeparate: 'Switch to Separate Tab',
   openHistory: 'Open File History',
   toggleFullscreen: 'Toggle Fullscreen',
   openSettings: 'Open Settings',

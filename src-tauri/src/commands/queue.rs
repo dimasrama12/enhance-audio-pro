@@ -8,13 +8,11 @@ const SUPPORTED_AUDIO_VIDEO_EXTENSIONS: &[&str] = &[
 
 use crate::commands::IpcResponse;
 use crate::db::queue::{
-    count_active_jobs_by_type, get_all_jobs, get_recent_jobs, insert_job, QueueJob,
+    get_all_jobs, get_recent_jobs, insert_job, QueueJob,
     archive_job, archive_all_jobs, delete_job_by_id, delete_all_history as db_delete_all_history,
 };
 use crate::AppState;
 
-const MAX_AUDIO: i64 = 30;
-const MAX_VIDEO: i64 = 10;
 const VIDEO_EXTENSIONS: &[&str] = &["mp4", "mov", "avi", "mkv", "webm", "flv", "wmv", "m4v"];
 
 #[tauri::command]
@@ -24,11 +22,7 @@ pub fn add_files(state: State<AppState>, paths: Vec<String>) -> IpcResponse<Vec<
         Err(e) => return IpcResponse { success: false, data: None, error: Some(e.to_string()) },
     };
 
-    let mut audio_count = count_active_jobs_by_type(&conn, "audio").unwrap_or(0);
-    let mut video_count = count_active_jobs_by_type(&conn, "video").unwrap_or(0);
-
     let mut jobs = Vec::new();
-    let mut rejected: usize = 0;
 
     for path_str in &paths {
         let path = Path::new(path_str);
@@ -49,36 +43,15 @@ pub fn add_files(state: State<AppState>, paths: Vec<String>) -> IpcResponse<Vec<
             })
             .unwrap_or("audio");
 
-        let at_limit = if media_type == "video" {
-            video_count >= MAX_VIDEO
-        } else {
-            audio_count >= MAX_AUDIO
-        };
-
-        if at_limit {
-            rejected += 1;
-            continue;
-        }
-
         match insert_job(&conn, path_str, &filename, size_bytes, media_type) {
             Ok(job) => {
-                if media_type == "video" { video_count += 1; } else { audio_count += 1; }
                 jobs.push(job);
             }
             Err(e) => return IpcResponse { success: false, data: None, error: Some(e.to_string()) },
         }
     }
 
-    let warning = if rejected > 0 {
-        Some(format!(
-            "{} file(s) not added — batch limit reached (max {} audio, {} video active at once).",
-            rejected, MAX_AUDIO, MAX_VIDEO
-        ))
-    } else {
-        None
-    };
-
-    IpcResponse { success: true, data: Some(jobs), error: warning }
+    IpcResponse { success: true, data: Some(jobs), error: None }
 }
 
 /// List all supported audio/video files in a folder (non-recursive, one level deep).

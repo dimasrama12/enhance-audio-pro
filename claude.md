@@ -323,8 +323,19 @@ chore    : [configuration changes, tooling, etc.]
 - [x] SortableJobRow Tools cell: ToolModeSelect dropdown hidden in Enhance and Convert tabs (visible only in Separate when not done/processing/queued); Enhance tab shows only EnhanceRowButton; Convert tab shows only ConvertRowButton; Separate tab retains mode-driven behaviour.
 - [x] Tauri release binary rebuilt (no-bundle) at D:\cargo_build\enhance-audio-pro\release\enhance-audio-pro.exe (2026-06-14).
 
+# UI Overhaul — Per-Tab Queues, Bottom Action Bar, Column Resizing, Shortcuts (2026-06-14)
+- [x] **Per-tab independent queues:** `useQueueStore` refactored. Flat `jobs[]` replaced by `tabQueues: Record<AudioSubTab, QueueJob[]>`. All per-tab state isolated: `tabFilters`, `tabSearches`, `tabSelectedIds`, `tabLockedIds`, `tabImportingIds`, `tabViewModes`, `tabGroupByFormat`, `tabJobOpTypes`. Files added in Enhance tab never appear in Convert/Separate. Persist key `queue-ui-prefs-v2`.
+- [x] **Tab label rename:** Pills now read "Enhance" / "Convert" / "Separate". Action buttons carry "All" suffix (Enhance All, Convert All, Separate All) in the bottom bar.
+- [x] **Bottom action bar (`QueueActionBar`):** Sticky bar at bottom of queue. Enhance All = violet, Convert All / Separate All = neutral gray. Communicates with QueueToolbar handlers via `action:enhance` / `action:convert` / `action:separate` DOM events.
+- [x] **Record button relocated:** Sits left of search bar in toolbar right section. Recorded audio routes to the active tab.
+- [x] **Neutral tab pill style:** Active pill is raised-card white/glass — no violet. Violet reserved for Enhance All button only.
+- [x] **Resizable columns:** `ResizeHandle` drag-to-resize per column. `colWidths` is local `useState`. "Copy Width Log" (📋 in TOOLS header) writes JSON to clipboard.
+- [x] **Keyboard shortcuts:** `Shift+1`/`Shift+2` for table/grid view. `1`/`2`/`3` switch Enhance/Convert/Separate tabs. All added to `KeyboardShortcutMap`.
+- [x] **Full tab isolation:** Search, filter, selection, lock, view mode, group-by, delete, shortcuts — all scoped to `tabQueues[audioSubTab]`.
+- [x] Tauri release binary rebuilt (no-bundle) at `D:\cargo_build\enhance-audio-pro\release\enhance-audio-pro.exe` (2026-06-14, build exit 0).
+
 # Test Coverage (final)
-- 38/38 Vitest (frontend)
+- 38/38 Vitest (frontend) — test file updated for new per-tab store API
 - 65/65 Pytest (backend)
 - cargo check clean
 - TypeScript tsc --noEmit: 0 errors

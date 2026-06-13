@@ -5,12 +5,18 @@ import { useUIStore } from '@/stores/useUIStore';
 import WaveformPlayer from '@/components/WaveformPlayer';
 
 export default function ManipulationPanel(): JSX.Element {
-  const jobs = useQueueStore((s) => s.jobs);
   const playerOpen = useUIStore((s) => s.playerOpen);
   const activePlayerJobId = useUIStore((s) => s.activePlayerJobId);
   const setPlayerOpen = useUIStore((s) => s.setPlayerOpen);
 
-  const activeJob = jobs.find((j) => j.id === activePlayerJobId) ?? null;
+  const activeJob = useQueueStore((s) => {
+    if (!activePlayerJobId) return null;
+    for (const tab of ['enhance', 'convert', 'separate'] as const) {
+      const job = s.tabQueues[tab].find((j) => j.id === activePlayerJobId);
+      if (job) return job;
+    }
+    return null;
+  });
   const showPlayer = playerOpen && activeJob;
 
   return (
