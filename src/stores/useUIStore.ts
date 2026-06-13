@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 
 export type AppTab = 'audio' | 'video';
+export type AudioSubTab = 'enhance' | 'convert' | 'separate';
 
 export interface DuplicatePending {
   newPaths: string[];
@@ -12,6 +13,7 @@ export interface DuplicatePending {
 interface UIState {
   sidebarVisible: boolean;
   activeTab: AppTab;
+  audioSubTab: AudioSubTab;
   settingsOpen: boolean;
   historyOpen: boolean;
   focusSearchTick: number;
@@ -25,6 +27,7 @@ interface UIState {
   toggleSidebar: () => void;
   setSidebarVisible: (v: boolean) => void;
   setActiveTab: (tab: AppTab) => void;
+  setAudioSubTab: (tab: AudioSubTab) => void;
   openSettings: () => void;
   closeSettings: () => void;
   toggleSettings: () => void;
@@ -42,6 +45,7 @@ interface UIState {
 export const useUIStore = create<UIState>((set) => ({
   sidebarVisible: true,
   activeTab: 'audio',
+  audioSubTab: 'enhance',
   settingsOpen: false,
   historyOpen: false,
   focusSearchTick: 0,
@@ -55,6 +59,7 @@ export const useUIStore = create<UIState>((set) => ({
   toggleSidebar: () => set((s) => ({ sidebarVisible: !s.sidebarVisible })),
   setSidebarVisible: (sidebarVisible) => set({ sidebarVisible }),
   setActiveTab: (activeTab) => set({ activeTab }),
+  setAudioSubTab: (audioSubTab) => set({ audioSubTab }),
   openSettings: () => set({ settingsOpen: true }),
   closeSettings: () => set({ settingsOpen: false }),
   toggleSettings: () => set((s) => ({ settingsOpen: !s.settingsOpen })),
