@@ -381,6 +381,7 @@ function SortableJobRow({ job, index, isSelected, onSelect, isImporting, activeD
 }): JSX.Element {
   const [filenameExpanded, setFilenameExpanded] = useState(false);
   const [destExpanded, setDestExpanded] = useState(false);
+  const audioSubTab = useUIStore((s) => s.audioSubTab);
   const rowToolMode = useQueueStore((s) => s.jobOperationTypes[job.id] ?? 'enhance');
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: job.id });
   const selectedJobIds = useQueueStore((s) => s.selectedJobIds);
@@ -496,9 +497,21 @@ function SortableJobRow({ job, index, isSelected, onSelect, isImporting, activeD
       >
         {formatBytes(job.size_bytes)}
       </td>
-      <td className="px-1 py-2" style={{ width: colWidths.format }}><FormatSelect job={job} /></td>
-      <td className="px-1 py-2" style={{ width: colWidths.bitrate }}><BitrateSelect job={job} /></td>
-      <td className="px-1.5 py-2" style={{ width: colWidths.sampleRate }}><SampleRateSelect job={job} /></td>
+      {audioSubTab !== 'enhance' && (
+        <td className="px-1 py-2" style={{ width: colWidths.format }}>
+          <FormatSelect job={job} />
+        </td>
+      )}
+      {audioSubTab === 'separate' && (
+        <td className="px-1 py-2" style={{ width: colWidths.bitrate }}>
+          <BitrateSelect job={job} />
+        </td>
+      )}
+      {audioSubTab === 'separate' && (
+        <td className="px-1.5 py-2" style={{ width: colWidths.sampleRate }}>
+          <SampleRateSelect job={job} />
+        </td>
+      )}
       <td className="px-1.5 py-2 text-xs font-medium whitespace-nowrap text-center" style={{ width: colWidths.status }}>
         <StatusBadge
           status={job.status}
@@ -513,12 +526,23 @@ function SortableJobRow({ job, index, isSelected, onSelect, isImporting, activeD
       </td>
       <td className="px-1.5 py-2" style={{ width: colWidths.tools }}>
         <div className="flex items-center flex-nowrap gap-1 justify-center">
-          {job.status !== 'done' && job.status !== 'processing' && job.status !== 'queued' && (
-            <ToolModeSelect jobId={job.id} />
+          {/* ToolModeSelect dropdown only in Separate tab */}
+          {audioSubTab === 'separate' &&
+            job.status !== 'done' &&
+            job.status !== 'processing' &&
+            job.status !== 'queued' && (
+              <ToolModeSelect jobId={job.id} />
           )}
-          {rowToolMode === 'enhance'
-            ? <EnhanceRowButton job={job} />
-            : <ConvertRowButton job={job} />}
+          {/* Enhance tab: static EnhanceRowButton */}
+          {audioSubTab === 'enhance' && <EnhanceRowButton job={job} />}
+          {/* Convert tab: static ConvertRowButton */}
+          {audioSubTab === 'convert' && <ConvertRowButton job={job} />}
+          {/* Separate tab: mode-driven (current behaviour) */}
+          {audioSubTab === 'separate' && (
+            rowToolMode === 'enhance'
+              ? <EnhanceRowButton job={job} />
+              : <ConvertRowButton job={job} />
+          )}
           <DownloadJobButton job={job} />
         </div>
       </td>
@@ -711,6 +735,7 @@ function SortableJobCard({ job, isSelected, onSelect, isImporting, activeDragId,
 
 export default function QueueGrid(): JSX.Element {
   const activeTab = useUIStore((s) => s.activeTab);
+  const audioSubTab = useUIStore((s) => s.audioSubTab);
   const jobs = useQueueStore((s) => s.filteredJobs(activeTab));
   const groups = useQueueStore((s) => s.groupedFilteredJobs(activeTab));
   const setProgress = useQueueStore((s) => s.setProgress);
@@ -1090,15 +1115,21 @@ export default function QueueGrid(): JSX.Element {
         <th className="px-2 py-2.5 text-left" style={{ width: colWidths.size }}>
           <span className="px-2">{t('queue.col.size')}</span>
         </th>
-        <th className="px-1 py-2.5 text-center" style={{ width: colWidths.format }}>
-          <span>{t('queue.col.output')}</span>
-        </th>
-        <th className="px-1 py-2.5 text-center" style={{ width: colWidths.bitrate }}>
-          <span>{t('queue.col.bitrate')}</span>
-        </th>
-        <th className="px-1.5 py-2.5 text-center whitespace-nowrap" style={{ width: colWidths.sampleRate }}>
-          <span>{t('queue.col.sampleHz')}</span>
-        </th>
+        {audioSubTab !== 'enhance' && (
+          <th className="px-1 py-2.5 text-center" style={{ width: colWidths.format }}>
+            <span>{audioSubTab === 'convert' ? 'Save to' : t('queue.col.output')}</span>
+          </th>
+        )}
+        {audioSubTab === 'separate' && (
+          <th className="px-1 py-2.5 text-center" style={{ width: colWidths.bitrate }}>
+            <span>{t('queue.col.bitrate')}</span>
+          </th>
+        )}
+        {audioSubTab === 'separate' && (
+          <th className="px-1.5 py-2.5 text-center whitespace-nowrap" style={{ width: colWidths.sampleRate }}>
+            <span>{t('queue.col.sampleHz')}</span>
+          </th>
+        )}
         <th className="px-1.5 py-2.5 text-center whitespace-nowrap" style={{ width: colWidths.status }}>
           <span>{t('queue.col.status')}</span>
         </th>
