@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { Search, Trash2, RefreshCw, LayoutList, LayoutGrid, Layers } from 'lucide-react';
-import clsx from 'clsx';
+import { clsx } from 'clsx';
 import { listen } from '@tauri-apps/api/event';
 import { open as openDialog } from '@tauri-apps/plugin-dialog';
 import { useTranslation } from 'react-i18next';
@@ -8,6 +8,7 @@ import RecordButton from '@/components/RecordButton';
 import { useQueueStore } from '@/stores/useQueueStore';
 import { useSettingsStore } from '@/stores/useSettingsStore';
 import { useUIStore } from '@/stores/useUIStore';
+import type { AudioSubTab } from '@/stores/useUIStore';
 import { useToastStore } from '@/stores/useToastStore';
 import {
   invokeProcessQueue,
@@ -286,6 +287,12 @@ export default function QueueToolbar(): JSX.Element {
     'hover:bg-slate-200 dark:hover:bg-white/[0.08]',
   ].join(' ');
 
+  const SUB_TAB_LABELS: Record<AudioSubTab, string> = {
+    enhance: 'Enhance All',
+    convert: 'Convert All',
+    separate: 'Separate',
+  };
+
   return (
     <div className="flex items-center gap-2 shrink-0 flex-wrap">
       {/* ── Left: Sub-tab navigation + action button ── */}
@@ -293,7 +300,7 @@ export default function QueueToolbar(): JSX.Element {
         {/* Sub-tab navigation pills — always 3 visible */}
         <div className="flex items-center gap-0.5 bg-slate-100 dark:bg-white/[0.03] rounded-xl px-1 py-1 border border-slate-200 dark:border-white/[0.06]">
           {(['enhance', 'convert', 'separate'] as const).map((tab) => {
-            const label = tab === 'enhance' ? 'Enhance All' : tab === 'convert' ? 'Convert All' : 'Separate';
+            const label = SUB_TAB_LABELS[tab];
             const isActive = audioSubTab === tab;
             return (
               <button
