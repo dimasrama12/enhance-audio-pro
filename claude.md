@@ -311,6 +311,11 @@ chore    : [configuration changes, tooling, etc.]
 - [x] Build note: orphaned `backend.exe` sidecar processes from prior runs hold a file lock and cause tauri-build "Access is denied" (lib.rs:80 remove_file) — kill `backend`/`enhance-audio-pro` processes before rebuilding. ALSO: build via `npm run tauri build` (NOT plain `cargo build`), else tauri-build compiles with `cfg(dev)` and the webview points at devUrl localhost:1420 → ERR_CONNECTION_REFUSED.
 - [x] Tauri release binary rebuilt (no-bundle) at D:\cargo_build\enhance-audio-pro\release\enhance-audio-pro.exe (2026-06-13).
 
+# Queue Columns Made Permanently Non-Resizable (2026-06-14)
+- [x] Removed the resize system entirely from `src/components/QueueGrid.tsx`: deleted the `ResizeHandle` component, the `adjustWidth` handler, the `MIN_COL_WIDTHS` const, and the `setColWidths` React state. Column widths are now a hardcoded `COL_WIDTHS` const (total 955px, same calibrated values) — columns can no longer be enlarged/shrunk by dragging. `colWidths` now just aliases `COL_WIDTHS`; all `<th>` cells dropped the `resizable-th` class and their `<ResizeHandle>` children.
+- [x] Verified clean: `npx tsc --noEmit` → 0 errors; no leftover references to removed identifiers.
+- [x] Tauri release binary rebuilt (no-bundle) at D:\cargo_build\enhance-audio-pro\release\enhance-audio-pro.exe (7.76 MB, 2026-06-14 00:24, build finished in 6m07s, exit 0). Two harmless dead-code warnings (`get_job_by_id`, `count_active_jobs_by_type` now unused after the unlimited-queue change in queue.rs).
+
 # Test Coverage (final)
 - 38/38 Vitest (frontend)
 - 65/65 Pytest (backend)
