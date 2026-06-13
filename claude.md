@@ -303,6 +303,14 @@ chore    : [configuration changes, tooling, etc.]
 - [x] Task 74.6 — Python `backend/routers/convert.py`: added global `asyncio.Lock` (serialize convert work) + per-job "processing" heartbeat callback.
 - [x] Python sidecar rebuilt via PyInstaller; Tauri release binary rebuilt at D:\cargo_build\enhance-audio-pro\release\enhance-audio-pro.exe.
 
+# Queue Column Width Calibration & Lock-In (2026-06-13)
+- [x] Root-cause fix in `src/components/QueueGrid.tsx`: the per-column `adjustWidth` only had real branches for `filename`/`destination`; all 9 other resize handles fell through to an `else` that secretly modified `size`/`destination`, so those columns could never shrink → right-side overflow. Rewrote `adjustWidth` so each handle resizes ONLY its own column down to a per-column minimum (new `MIN_COL_WIDTHS` const).
+- [x] Calibration workflow: temporary "Column Calibration Mode" readout bar + "Copy Width Log" button + free horizontal-scroll let the user drag every column to taste and copy exact px values.
+- [x] Final locked widths hardcoded as `colWidths` defaults (total 955px): grip 28, index 34, filename 208, destination 124, size 65, format 75, bitrate 72, sampleRate 80, status 70, tools 112, lock 41, clear 46.
+- [x] Reverted table to `w-full table-fixed` (fits container, no horizontal overflow) and removed the temporary calibration bar + Copy Width Log button. Resize handles retained for future tweaks.
+- [x] Build note: orphaned `backend.exe` sidecar processes from prior runs hold a file lock and cause tauri-build "Access is denied" (lib.rs:80 remove_file) — kill `backend`/`enhance-audio-pro` processes before rebuilding. ALSO: build via `npm run tauri build` (NOT plain `cargo build`), else tauri-build compiles with `cfg(dev)` and the webview points at devUrl localhost:1420 → ERR_CONNECTION_REFUSED.
+- [x] Tauri release binary rebuilt (no-bundle) at D:\cargo_build\enhance-audio-pro\release\enhance-audio-pro.exe (2026-06-13).
+
 # Test Coverage (final)
 - 38/38 Vitest (frontend)
 - 65/65 Pytest (backend)
