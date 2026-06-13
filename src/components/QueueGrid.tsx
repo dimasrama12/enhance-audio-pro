@@ -37,6 +37,22 @@ import type { QueueJob, JobStatus } from '@/types/queue';
 
 // ─── Resize handle ────────────────────────────────────────────────────────────
 
+// Per-column minimum widths (px) for free-form calibration resize.
+const MIN_COL_WIDTHS: Record<string, number> = {
+  grip: 20,
+  index: 20,
+  filename: 120,
+  destination: 80,
+  size: 50,
+  format: 60,
+  bitrate: 60,
+  sampleRate: 70,
+  status: 70,
+  tools: 90,
+  lock: 36,
+  clear: 44,
+};
+
 interface ResizeHandleProps { onDelta: (delta: number) => void; }
 
 function ResizeHandle({ onDelta }: ResizeHandleProps): JSX.Element {
@@ -72,11 +88,11 @@ function StatusBadge({ status, progress, errorMessage, onErrorClick }: {
   onErrorClick?: () => void;
 }): JSX.Element {
   return (
-    <div>
+    <div className="flex flex-col items-center justify-center w-full">
       <span
         onClick={status === 'error' ? onErrorClick : undefined}
         className={clsx(
-          'inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium capitalize',
+          'inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium capitalize mx-auto',
           STATUS_BADGE_CLS[status],
           status === 'error' && 'cursor-pointer hover:bg-red-500/20 active:scale-95 transition-all'
         )}
@@ -88,7 +104,7 @@ function StatusBadge({ status, progress, errorMessage, onErrorClick }: {
         {status}
       </span>
       {status === 'processing' && (
-        <div className="mt-1.5 h-[3px] w-full rounded-full bg-slate-200 dark:bg-white/[0.08] overflow-hidden">
+        <div className="mt-1.5 h-[3px] w-full max-w-[100px] mx-auto rounded-full bg-slate-200 dark:bg-white/[0.08] overflow-hidden">
           <motion.div
             className="h-full rounded-full bg-violet-500"
             initial={{ width: 0 }}
@@ -113,7 +129,7 @@ function formatBytes(n: number): string {
   return `${(n / 1048576).toFixed(1)} MB`;
 }
 
-const selectCls = 'bg-slate-100 dark:bg-white/[0.07] text-slate-800 dark:text-white text-xs rounded-lg px-2 py-0.5 outline-none focus:ring-1 focus:ring-violet-500 disabled:opacity-40 transition border border-slate-200 dark:border-white/[0.06]';
+const selectCls = 'bg-slate-100 dark:bg-white/[0.07] text-slate-800 dark:text-white text-[10px] rounded px-1 py-0.5 outline-none focus:ring-1 focus:ring-violet-500 disabled:opacity-40 transition border border-slate-200 dark:border-white/[0.06] w-full text-center';
 
 function FormatSelect({ job }: { job: QueueJob }): JSX.Element {
   const setOutputFormat = useQueueStore((s) => s.setOutputFormat);
@@ -379,7 +395,7 @@ function SortableJobRow({ job, index, isSelected, onSelect, isImporting, activeD
   isImporting?: boolean;
   activeDragId: string | null;
   onErrorClick?: (filename: string, errorMessage: string) => void;
-  colWidths: { filename: number; destination: number; size: number };
+  colWidths: Record<string, number>;
 }): JSX.Element {
   const [filenameExpanded, setFilenameExpanded] = useState(false);
   const [destExpanded, setDestExpanded] = useState(false);
@@ -425,22 +441,22 @@ function SortableJobRow({ job, index, isSelected, onSelect, isImporting, activeD
             ),
       )}
     >
-      <td className="px-2 py-2 w-8">
+      <td className="px-1 py-2 text-center" style={{ width: colWidths.grip }}>
         <button
           {...listeners}
           {...attributes}
           onClick={(e) => e.stopPropagation()}
-          className="text-slate-300 dark:text-white/20 hover:text-slate-500 dark:hover:text-white/50 transition-colors cursor-grab active:cursor-grabbing"
+          className="text-slate-300 dark:text-white/20 hover:text-slate-500 dark:hover:text-white/50 transition-colors cursor-grab active:cursor-grabbing mx-auto block"
           tabIndex={-1}
           aria-label="Drag to reorder"
         >
           <GripVertical size={14} />
         </button>
       </td>
-      <td className="px-4 py-2 text-slate-400 dark:text-zinc-100 text-xs w-10 tabular-nums">{index + 1}</td>
+      <td className="px-1 py-2 text-slate-400 dark:text-zinc-100 text-xs text-center tabular-nums" style={{ width: colWidths.index }}>{index + 1}</td>
       <td
         className={clsx('px-4 py-2 text-sm text-slate-800 dark:text-zinc-100 font-medium', !filenameExpanded && 'overflow-hidden')}
-        style={{ width: colWidths.filename, minWidth: 120 }}
+        style={{ width: colWidths.filename }}
       >
         <div className="flex items-center gap-2 min-w-0">
           <button
@@ -478,7 +494,7 @@ function SortableJobRow({ job, index, isSelected, onSelect, isImporting, activeD
       </td>
       <td
         className="px-2 py-2 text-xs text-slate-400 dark:text-zinc-100 overflow-hidden"
-        style={{ width: colWidths.destination, minWidth: 80 }}
+        style={{ width: colWidths.destination }}
       >
         <span
           onClick={(e) => { e.stopPropagation(); setDestExpanded((v) => !v); }}
@@ -493,15 +509,15 @@ function SortableJobRow({ job, index, isSelected, onSelect, isImporting, activeD
       </td>
       <td
         className="px-2 py-2 text-xs text-slate-400 dark:text-zinc-100 truncate tabular-nums"
-        style={{ width: colWidths.size, minWidth: 50 }}
+        style={{ width: colWidths.size }}
         title={formatBytes(job.size_bytes)}
       >
         {formatBytes(job.size_bytes)}
       </td>
-      <td className="px-4 py-2 w-18"><FormatSelect job={job} /></td>
-      <td className="px-4 py-2 w-18"><BitrateSelect job={job} /></td>
-      <td className="px-4 py-2 w-20"><SampleRateSelect job={job} /></td>
-      <td className="px-4 py-2 text-xs font-medium whitespace-nowrap w-20">
+      <td className="px-1 py-2" style={{ width: colWidths.format }}><FormatSelect job={job} /></td>
+      <td className="px-1 py-2" style={{ width: colWidths.bitrate }}><BitrateSelect job={job} /></td>
+      <td className="px-1.5 py-2" style={{ width: colWidths.sampleRate }}><SampleRateSelect job={job} /></td>
+      <td className="px-1.5 py-2 text-xs font-medium whitespace-nowrap text-center" style={{ width: colWidths.status }}>
         <StatusBadge
           status={job.status}
           progress={job.progress}
@@ -513,8 +529,8 @@ function SortableJobRow({ job, index, isSelected, onSelect, isImporting, activeD
           }}
         />
       </td>
-      <td className="px-3 py-2 w-32">
-        <div className="flex items-center flex-nowrap gap-1">
+      <td className="px-1.5 py-2" style={{ width: colWidths.tools }}>
+        <div className="flex items-center flex-nowrap gap-1 justify-center">
           {job.status !== 'done' && job.status !== 'processing' && job.status !== 'queued' && (
             <ToolModeSelect jobId={job.id} />
           )}
@@ -524,7 +540,7 @@ function SortableJobRow({ job, index, isSelected, onSelect, isImporting, activeD
           <DownloadJobButton job={job} />
         </div>
       </td>
-      <td className="px-2 py-2 w-8 group/lock">
+      <td className="px-1 py-2 text-center group/lock" style={{ width: colWidths.lock }}>
         <button
           onClick={(e) => {
             e.stopPropagation();
@@ -542,7 +558,7 @@ function SortableJobRow({ job, index, isSelected, onSelect, isImporting, activeD
           <Lock size={12} />
         </button>
       </td>
-      <td className="px-2 py-2 w-8 group/trash">
+      <td className="px-1 py-2 text-center group/trash" style={{ width: colWidths.clear }}>
         <button
           onClick={(e) => {
             e.stopPropagation();
@@ -726,7 +742,20 @@ export default function QueueGrid(): JSX.Element {
   const groupByFormat = useQueueStore((s) => s.groupByFormat);
   const clearSelection = useQueueStore((s) => s.clearSelection);
   const { t } = useTranslation();
-  const [colWidths, setColWidths] = useState({ filename: 240, destination: 140, size: 80 });
+  const [colWidths, setColWidths] = useState({
+    grip: 28,
+    index: 34,
+    filename: 208,
+    destination: 124,
+    size: 65,
+    format: 75,
+    bitrate: 72,
+    sampleRate: 80,
+    status: 70,
+    tools: 112,
+    lock: 41,
+    clear: 46
+  });
   const tableContainerRef = useRef<HTMLDivElement>(null);
 
   const importingJobIds = useQueueStore((s) => s.importingJobIds);
@@ -855,38 +884,14 @@ export default function QueueGrid(): JSX.Element {
     window.addEventListener('mouseup', onMouseUp);
   }
 
+  // Each column resizes fully independently (grow + shrink) down to its own
+  // minimum. No coupling between columns — the table grows past the container
+  // and the container scrolls horizontally during calibration.
   const adjustWidth = (col: keyof typeof colWidths, delta: number): void => {
-    if (col === 'filename') {
-      const newFilename = Math.max(120, colWidths.filename + delta);
-      const filenameDelta = newFilename - colWidths.filename;
-      const newDest = Math.max(80, colWidths.destination - filenameDelta);
-      const destDelta = newDest - colWidths.destination;
-      setColWidths((p) => ({
-        ...p,
-        filename: p.filename - destDelta,
-        destination: newDest,
-      }));
-    } else if (col === 'destination') {
-      const newDest = Math.max(80, colWidths.destination + delta);
-      const destDelta = newDest - colWidths.destination;
-      const newFilename = Math.max(120, colWidths.filename - destDelta);
-      const filenameDelta = newFilename - colWidths.filename;
-      setColWidths((p) => ({
-        ...p,
-        destination: p.destination - filenameDelta,
-        filename: newFilename,
-      }));
-    } else {
-      const newSize = Math.max(50, colWidths.size + delta);
-      const sizeDelta = newSize - colWidths.size;
-      const newDest = Math.max(80, colWidths.destination - sizeDelta);
-      const destDelta = newDest - colWidths.destination;
-      setColWidths((p) => ({
-        ...p,
-        size: p.size - destDelta,
-        destination: newDest,
-      }));
-    }
+    setColWidths((p) => ({
+      ...p,
+      [col]: Math.max(MIN_COL_WIDTHS[col], p[col] + delta),
+    }));
   };
   const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set());
   const toggleGroup = (label: string): void =>
@@ -901,28 +906,7 @@ export default function QueueGrid(): JSX.Element {
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
   );
 
-  // Set FILENAME + DESTINATION widths to fill available space on first mount.
-  // Fixed columns total ≈ 568px (drag+#+ size+type+format+bitrate+sampleHz+status+tools+lock+clear).
-  // FILENAME gets 60% of remaining space, DESTINATION gets 40%.
-  useEffect(() => {
-    const container = tableContainerRef.current;
-    if (!container) return;
-    let done = false;
-    const obs = new ResizeObserver(() => {
-      if (done || container.clientWidth === 0) return;
-      const FIXED_COLS = 568;
-      const remaining = Math.max(240, container.clientWidth - FIXED_COLS);
-      setColWidths({
-        filename: Math.max(120, Math.round(remaining * 0.5)),
-        destination: Math.max(80, Math.round(remaining * 0.35)),
-        size: Math.max(60, Math.round(remaining * 0.15)),
-      });
-      done = true;
-      obs.disconnect();
-    });
-    obs.observe(container);
-    return () => obs.disconnect();
-  }, []);
+
 
   useEffect(() => {
     const unlistenProgress = listen<{ jobId: string; percent: number }>(
@@ -1132,26 +1116,46 @@ export default function QueueGrid(): JSX.Element {
   const tableHeader = (
     <thead>
       <tr className="text-slate-500 dark:text-zinc-100 font-semibold text-[10px] uppercase tracking-wider sticky top-0 bg-slate-50 dark:bg-[#090E1B] border-b-2 border-slate-200 dark:border-white/[0.08]">
-        <th className="px-2 py-2.5 w-8" />
-        <th className="px-4 py-2.5 w-10">#</th>
-        <th className="resizable-th px-2 py-2.5 text-left" style={{ width: colWidths.filename, minWidth: 120 }}>
+        <th className="resizable-th px-1 py-2.5 text-center" style={{ width: colWidths.grip }}>
+          <ResizeHandle onDelta={(d) => adjustWidth('grip', d)} />
+        </th>
+        <th className="resizable-th px-1 py-2.5 text-center" style={{ width: colWidths.index }}>
+          #
+          <ResizeHandle onDelta={(d) => adjustWidth('index', d)} />
+        </th>
+        <th className="resizable-th px-2 py-2.5 text-left" style={{ width: colWidths.filename }}>
           <span className="px-2">{t('queue.col.filename')}</span>
           <ResizeHandle onDelta={(d) => adjustWidth('filename', d)} />
         </th>
-        <th className="resizable-th px-2 py-2.5 text-left" style={{ width: colWidths.destination, minWidth: 80 }}>
+        <th className="resizable-th px-2 py-2.5 text-left" style={{ width: colWidths.destination }}>
           <span className="px-2">{t('queue.col.destination')}</span>
           <ResizeHandle onDelta={(d) => adjustWidth('destination', d)} />
         </th>
-        <th className="resizable-th px-2 py-2.5 text-left" style={{ width: colWidths.size, minWidth: 50 }}>
+        <th className="resizable-th px-2 py-2.5 text-left" style={{ width: colWidths.size }}>
           <span className="px-2">{t('queue.col.size')}</span>
           <ResizeHandle onDelta={(d) => adjustWidth('size', d)} />
         </th>
-        <th className="px-4 py-2.5 w-18">{t('queue.col.output')}</th>
-        <th className="px-4 py-2.5 w-18">{t('queue.col.bitrate')}</th>
-        <th className="px-4 py-2.5 w-20 whitespace-nowrap">{t('queue.col.sampleHz')}</th>
-        <th className="px-4 py-2.5 w-20 whitespace-nowrap">{t('queue.col.status')}</th>
-        <th className="px-3 py-2.5 w-32">TOOLS</th>
-        <th className="px-2 py-2.5 w-8 text-center">
+        <th className="resizable-th px-1 py-2.5 text-center" style={{ width: colWidths.format }}>
+          <span>{t('queue.col.output')}</span>
+          <ResizeHandle onDelta={(d) => adjustWidth('format', d)} />
+        </th>
+        <th className="resizable-th px-1 py-2.5 text-center" style={{ width: colWidths.bitrate }}>
+          <span>{t('queue.col.bitrate')}</span>
+          <ResizeHandle onDelta={(d) => adjustWidth('bitrate', d)} />
+        </th>
+        <th className="resizable-th px-1.5 py-2.5 text-center whitespace-nowrap" style={{ width: colWidths.sampleRate }}>
+          <span>{t('queue.col.sampleHz')}</span>
+          <ResizeHandle onDelta={(d) => adjustWidth('sampleRate', d)} />
+        </th>
+        <th className="resizable-th px-1.5 py-2.5 text-center whitespace-nowrap" style={{ width: colWidths.status }}>
+          <span>{t('queue.col.status')}</span>
+          <ResizeHandle onDelta={(d) => adjustWidth('status', d)} />
+        </th>
+        <th className="resizable-th px-1.5 py-2.5 text-center" style={{ width: colWidths.tools }}>
+          <span>TOOLS</span>
+          <ResizeHandle onDelta={(d) => adjustWidth('tools', d)} />
+        </th>
+        <th className="resizable-th px-1 py-2.5 text-center" style={{ width: colWidths.lock }}>
           <button
             onClick={(e) => {
               e.stopPropagation();
@@ -1167,8 +1171,9 @@ export default function QueueGrid(): JSX.Element {
           >
             <Lock size={11} className="mx-auto" />
           </button>
+          <ResizeHandle onDelta={(d) => adjustWidth('lock', d)} />
         </th>
-        <th className="px-2 py-2.5 w-8 text-center">
+        <th className="resizable-th px-1 py-2.5 text-center" style={{ width: colWidths.clear }}>
           <button
             onClick={(e) => {
               e.stopPropagation();
@@ -1189,6 +1194,7 @@ export default function QueueGrid(): JSX.Element {
           >
             Clear
           </button>
+          <ResizeHandle onDelta={(d) => adjustWidth('clear', d)} />
         </th>
       </tr>
     </thead>
@@ -1198,7 +1204,7 @@ export default function QueueGrid(): JSX.Element {
     <>
       <div
         ref={tableContainerRef}
-        className="flex-1 overflow-y-auto overflow-x-hidden rounded-xl bg-white dark:bg-[#0C1120] shadow-sm border border-slate-200 dark:border-white/[0.06] scrollbar-thin"
+        className="flex-1 overflow-y-auto overflow-x-auto rounded-xl bg-white dark:bg-[#0C1120] shadow-sm border border-slate-200 dark:border-white/[0.06] scrollbar-thin"
         onMouseDown={handleContainerMouseDown}
         onClick={(e) => { if ((e.target as HTMLElement).closest('tr') === null) clearSelection(); }}
       >
