@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { Search, Trash2, RefreshCw, LayoutList, LayoutGrid, Layers } from 'lucide-react';
+import clsx from 'clsx';
 import { listen } from '@tauri-apps/api/event';
 import { open as openDialog } from '@tauri-apps/plugin-dialog';
 import { useTranslation } from 'react-i18next';
@@ -39,6 +40,8 @@ export default function QueueToolbar(): JSX.Element {
   const filenameTemplate = useSettingsStore((s) => s.filenameTemplate);
   const focusSearchTick = useUIStore((s) => s.focusSearchTick);
   const activeTab = useUIStore((s) => s.activeTab);
+  const audioSubTab = useUIStore((s) => s.audioSubTab);
+  const setAudioSubTab = useUIStore((s) => s.setAudioSubTab);
   const searchRef = useRef<HTMLInputElement>(null);
   const abortProcessRef = useRef(false);
   const prevIsAnyConvertingRef = useRef(false);
@@ -285,34 +288,64 @@ export default function QueueToolbar(): JSX.Element {
 
   return (
     <div className="flex items-center gap-2 shrink-0 flex-wrap">
-      {/* ── Left: Primary action buttons ── */}
-      <div className="flex items-center gap-1 bg-slate-100 dark:bg-white/[0.03] rounded-xl px-1 py-1 border border-slate-200 dark:border-white/[0.06]">
-        {/* Enhance All — always visible; disabled while a batch is running */}
-        <button
-          onClick={handleProcess}
-          disabled={!canEnhance}
-          title="Enhance speech [E]"
-          className="flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium h-[28px] shrink-0 transition-all duration-150 bg-violet-600 hover:bg-violet-500 text-white shadow-glow-violet-sm disabled:opacity-40 disabled:cursor-not-allowed disabled:shadow-none"
-        >
-          {isAnyEnhancing ? 'Enhancing…' : 'Enhance All'}
-        </button>
-        <button
-          onClick={handleConvert}
-          disabled={!canConvert}
-          title="Convert format [C]"
-          className={`${ghostBtn} h-[28px]`}
-        >
-          {isAnyConverting ? 'Converting…' : 'Convert All'}
-        </button>
-        <button
-          onClick={handleSeparate}
-          disabled={!canSeparate}
-          title="Separate stems [S]"
-          className={`${ghostBtn} h-[28px]`}
-        >
-          {isSeparating ? 'Separating…' : 'Separate'}
-        </button>
-        {activeTab === 'audio' && <RecordButton />}
+      {/* ── Left: Sub-tab navigation + action button ── */}
+      <div className="flex items-center gap-2">
+        {/* Sub-tab navigation pills — always 3 visible */}
+        <div className="flex items-center gap-0.5 bg-slate-100 dark:bg-white/[0.03] rounded-xl px-1 py-1 border border-slate-200 dark:border-white/[0.06]">
+          {(['enhance', 'convert', 'separate'] as const).map((tab) => {
+            const label = tab === 'enhance' ? 'Enhance All' : tab === 'convert' ? 'Convert All' : 'Separate';
+            const isActive = audioSubTab === tab;
+            return (
+              <button
+                key={tab}
+                onClick={() => setAudioSubTab(tab)}
+                className={clsx(
+                  'px-3 py-1.5 rounded-lg text-xs font-medium h-[28px] transition-all duration-150',
+                  isActive
+                    ? 'bg-violet-600 text-white shadow-sm'
+                    : 'text-slate-500 dark:text-zinc-300 hover:text-slate-800 dark:hover:text-white hover:bg-slate-200 dark:hover:bg-white/[0.06]'
+                )}
+              >
+                {label}
+              </button>
+            );
+          })}
+        </div>
+
+        {/* Action button — only the active sub-tab's button renders */}
+        <div className="flex items-center gap-1">
+          {audioSubTab === 'enhance' && (
+            <button
+              onClick={handleProcess}
+              disabled={!canEnhance}
+              title="Enhance speech [E]"
+              className="flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium h-[28px] shrink-0 transition-all duration-150 bg-violet-600 hover:bg-violet-500 text-white shadow-glow-violet-sm disabled:opacity-40 disabled:cursor-not-allowed disabled:shadow-none"
+            >
+              {isAnyEnhancing ? 'Enhancing…' : 'Enhance All'}
+            </button>
+          )}
+          {audioSubTab === 'convert' && (
+            <button
+              onClick={handleConvert}
+              disabled={!canConvert}
+              title="Convert format [C]"
+              className={`${ghostBtn} h-[28px]`}
+            >
+              {isAnyConverting ? 'Converting…' : 'Convert All'}
+            </button>
+          )}
+          {audioSubTab === 'separate' && (
+            <button
+              onClick={handleSeparate}
+              disabled={!canSeparate}
+              title="Separate stems [S]"
+              className={`${ghostBtn} h-[28px]`}
+            >
+              {isSeparating ? 'Separating…' : 'Separate'}
+            </button>
+          )}
+          {activeTab === 'audio' && <RecordButton />}
+        </div>
       </div>
 
       {/* ── Spacer ── */}
@@ -341,26 +374,28 @@ export default function QueueToolbar(): JSX.Element {
         ))}
       </select>
 
-      <div className="flex items-center gap-1.5 bg-slate-200 dark:bg-white/[0.06] rounded-lg px-3 py-1.5 border border-transparent">
-        <span className="text-slate-400 dark:text-zinc-100 text-xs font-medium">→</span>
-        <select
-          value={globalFormat}
-          onChange={(e) => setGlobalFormat(e.target.value)}
-          className="bg-transparent text-slate-800 dark:text-white text-xs outline-none"
-        >
-          {FORMAT_OPTIONS.map((f) => (
-            <option key={f} value={f} className="bg-white dark:bg-[#111827]">{f.toUpperCase()}</option>
-          ))}
-        </select>
-        <button
-          onClick={handleApplyFormat}
-          disabled={pendingIds.length === 0}
-          title={t('toolbar.applyFormat')}
-          className="text-slate-400 dark:text-zinc-100 hover:text-violet-600 dark:hover:text-violet-400 disabled:opacity-40 transition-colors"
-        >
-          <RefreshCw size={12} />
-        </button>
-      </div>
+      {audioSubTab !== 'enhance' && (
+        <div className="flex items-center gap-1.5 bg-slate-200 dark:bg-white/[0.06] rounded-lg px-3 py-1.5 border border-transparent">
+          <span className="text-slate-400 dark:text-zinc-100 text-xs font-medium">→</span>
+          <select
+            value={globalFormat}
+            onChange={(e) => setGlobalFormat(e.target.value)}
+            className="bg-transparent text-slate-800 dark:text-white text-xs outline-none"
+          >
+            {FORMAT_OPTIONS.map((f) => (
+              <option key={f} value={f} className="bg-white dark:bg-[#111827]">{f.toUpperCase()}</option>
+            ))}
+          </select>
+          <button
+            onClick={handleApplyFormat}
+            disabled={pendingIds.length === 0}
+            title={t('toolbar.applyFormat')}
+            className="text-slate-400 dark:text-zinc-100 hover:text-violet-600 dark:hover:text-violet-400 disabled:opacity-40 transition-colors"
+          >
+            <RefreshCw size={12} />
+          </button>
+        </div>
+      )}
 
       <button onClick={toggleView} title={viewMode === 'table' ? t('toolbar.viewGrid') : t('toolbar.viewTable')} className={iconBtn}>
         {viewMode === 'table' ? <LayoutGrid size={16} /> : <LayoutList size={16} />}
