@@ -3,16 +3,25 @@ import { Keyboard } from 'lucide-react';
 import { useSettingsStore } from '@/stores/useSettingsStore';
 import { SHORTCUT_LABELS, DEFAULT_KEYBOARD_SHORTCUTS } from '@/types/settings';
 import type { KeyboardShortcutMap } from '@/types/settings';
+import { invokeSaveSettings } from '@/lib/ipc';
+
+// Use e.code to get the physical key so Shift+1 resolves to '1' not '!'
+function resolveMainKey(e: KeyboardEvent): string {
+  const code = e.code;
+  if (code.startsWith('Digit')) return code.slice(5); // 'Digit1' → '1'
+  if (code.startsWith('Key')) return code.slice(3);   // 'KeyA' → 'A'
+  const key = e.key;
+  if (['Control', 'Shift', 'Alt', 'Meta'].includes(key)) return '';
+  return key.length === 1 ? key.toUpperCase() : key;
+}
 
 function formatKey(e: KeyboardEvent): string {
   const parts: string[] = [];
   if (e.ctrlKey || e.metaKey) parts.push('Ctrl');
   if (e.shiftKey) parts.push('Shift');
   if (e.altKey) parts.push('Alt');
-  const key = e.key;
-  if (!['Control', 'Shift', 'Alt', 'Meta'].includes(key)) {
-    parts.push(key.length === 1 ? key.toUpperCase() : key);
-  }
+  const key = resolveMainKey(e);
+  if (key) parts.push(key);
   return parts.join('+');
 }
 
@@ -21,27 +30,91 @@ export default function KeyboardShortcutsPanel(): JSX.Element {
   const [recording, setRecording] = useState<keyof KeyboardShortcutMap | null>(null);
   const [collapsed, setCollapsed] = useState(true);
 
+  const [tempCombo, setTempCombo] = useState<string | null>(null);
+
   function startRecording(key: keyof KeyboardShortcutMap): void {
     setRecording(key);
+    setTempCombo(null);
+
     const handler = (e: KeyboardEvent): void => {
       e.preventDefault();
+      e.stopPropagation();
+
       if (e.key === 'Escape') {
         setRecording(null);
+        setTempCombo(null);
         window.removeEventListener('keydown', handler, true);
         return;
       }
+
+      const isModifier = ['Control', 'Shift', 'Alt', 'Meta'].includes(e.key);
       const combo = formatKey(e);
-      if (combo) {
-        setKeyboardShortcuts({ ...keyboardShortcuts, [key]: combo });
+
+      if (!isModifier) {
+        if (combo) {
+          const current = {
+            ...DEFAULT_KEYBOARD_SHORTCUTS,
+            ...(keyboardShortcuts ?? {}),
+          };
+          const updated = { ...(keyboardShortcuts ?? {}) };
+
+          // Clear duplicates
+          Object.keys(current).forEach((k) => {
+            const otherKey = k as keyof KeyboardShortcutMap;
+            if (otherKey !== key) {
+              const activeCombo = keyboardShortcuts?.[otherKey] ?? DEFAULT_KEYBOARD_SHORTCUTS[otherKey];
+              if (activeCombo?.toLowerCase() === combo.toLowerCase()) {
+                updated[otherKey] = '';
+              }
+            }
+          });
+
+          updated[key] = combo;
+          setKeyboardShortcuts(updated);
+
+          // Save settings to storage & disk
+          const settings = useSettingsStore.getState();
+          const nextSettings = {
+            theme: settings.theme,
+            outputFolder: settings.outputFolder,
+            language: settings.language,
+            setupComplete: settings.setupComplete,
+            enhancementStrength: settings.enhancementStrength,
+            filenameTemplate: settings.filenameTemplate,
+            keyboardShortcuts: updated,
+            recordingPrefix: settings.recordingPrefix ?? 'Record',
+            aiModel: settings.aiModel ?? 'deepfilternet',
+          };
+          settings.setSettings(nextSettings);
+          void invokeSaveSettings(nextSettings);
+        }
+        setRecording(null);
+        setTempCombo(null);
+        window.removeEventListener('keydown', handler, true);
+      } else {
+        setTempCombo(combo + '+...');
       }
-      setRecording(null);
-      window.removeEventListener('keydown', handler, true);
     };
+
     window.addEventListener('keydown', handler, true);
   }
 
-  function resetAll(): void {
+  async function resetAll(): Promise<void> {
     setKeyboardShortcuts({ ...DEFAULT_KEYBOARD_SHORTCUTS });
+    const settings = useSettingsStore.getState();
+    const nextSettings = {
+      theme: settings.theme,
+      outputFolder: settings.outputFolder,
+      language: settings.language,
+      setupComplete: settings.setupComplete,
+      enhancementStrength: settings.enhancementStrength,
+      filenameTemplate: settings.filenameTemplate,
+      keyboardShortcuts: DEFAULT_KEYBOARD_SHORTCUTS,
+      recordingPrefix: settings.recordingPrefix ?? 'Record',
+      aiModel: settings.aiModel ?? 'deepfilternet',
+    };
+    settings.setSettings(nextSettings);
+    await invokeSaveSettings(nextSettings);
   }
 
   return (
@@ -68,7 +141,13 @@ export default function KeyboardShortcutsPanel(): JSX.Element {
                     : 'border-white/20 bg-white/5 text-white/70 hover:border-violet-500/60 hover:text-white'
                 }`}
               >
-                {recording === key ? 'Press key…' : (keyboardShortcuts?.[key] ?? DEFAULT_KEYBOARD_SHORTCUTS[key])}
+                {recording === key 
+                  ? (tempCombo ?? 'Press key…') 
+                  : (keyboardShortcuts?.[key] === '' 
+                    ? 'None' 
+                    : (keyboardShortcuts?.[key] ?? DEFAULT_KEYBOARD_SHORTCUTS[key])
+                  )
+                }
               </button>
             </div>
           ))}

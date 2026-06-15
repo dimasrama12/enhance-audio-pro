@@ -18,7 +18,16 @@ import { DEFAULT_KEYBOARD_SHORTCUTS } from '@/types/settings';
 import type { AppSettings } from '@/types/settings';
 import { handleImportFiles } from '@/lib/importHelper';
 
+// Resolve the physical key from e.code to avoid shifted-character issues (Shift+1 → '1' not '!')
+function normalizeKey(e: KeyboardEvent): string {
+  const code = e.code;
+  if (code.startsWith('Digit')) return code.slice(5).toLowerCase();
+  if (code.startsWith('Key')) return code.slice(3).toLowerCase();
+  return e.key.toLowerCase();
+}
+
 function matches(e: KeyboardEvent, binding: string): boolean {
+  if (!binding || binding.trim() === '') return false;
   const parts = binding.toLowerCase().split('+');
   const needsCtrl = parts.includes('ctrl');
   const needsShift = parts.includes('shift');
@@ -27,7 +36,8 @@ function matches(e: KeyboardEvent, binding: string): boolean {
   if (needsCtrl !== (e.ctrlKey || e.metaKey)) return false;
   if (needsShift !== e.shiftKey) return false;
   if (needsAlt !== e.altKey) return false;
-  return e.key.toLowerCase() === mainKey || e.key === mainKey;
+  const physicalKey = normalizeKey(e);
+  return physicalKey === mainKey || e.key.toLowerCase() === mainKey;
 }
 
 export function useKeyboardShortcuts(): void {

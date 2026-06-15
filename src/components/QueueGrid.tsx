@@ -54,9 +54,17 @@ const DEFAULT_COL_WIDTHS: Record<ColKey, number> = {
 };
 
 const MIN_COL_WIDTHS: Record<ColKey, number> = {
-  grip: 24, index: 28, filename: 120, destination: 80, size: 48,
-  format: 52, bitrate: 52, sampleRate: 56, status: 52, tools: 80, lock: 32, clear: 36,
+  grip: 15, index: 15, filename: 50, destination: 50, size: 30,
+  format: 30, bitrate: 30, sampleRate: 30, status: 30, tools: 50, lock: 20, clear: 20,
 };
+
+function getVisibleCols(tab: string): ColKey[] {
+  const cols: ColKey[] = ['grip', 'index', 'filename', 'destination', 'size'];
+  if (tab !== 'enhance') cols.push('format');
+  if (tab === 'separate') { cols.push('bitrate'); cols.push('sampleRate'); }
+  cols.push('status', 'tools', 'lock', 'clear');
+  return cols;
+}
 
 // ─── Resize handle ────────────────────────────────────────────────────────────
 
@@ -389,15 +397,15 @@ function QueueActionBar(): JSX.Element {
     jobs.filter((j) => j.status === 'pending').length > 0 && !isSeparating && !isAnyActive;
 
   const ghostBtn =
-    'flex items-center justify-center gap-1.5 px-5 py-2 rounded-lg text-sm font-medium transition-all duration-150 bg-slate-200 dark:bg-white/[0.06] text-slate-700 dark:text-slate-300 hover:bg-slate-300 dark:hover:bg-white/[0.10] disabled:opacity-40 disabled:cursor-not-allowed';
+    'flex items-center justify-center gap-1.5 px-3.5 py-1.5 rounded-md text-xs font-medium transition-all duration-150 bg-slate-200 dark:bg-white/[0.06] text-slate-700 dark:text-slate-300 hover:bg-slate-300 dark:hover:bg-white/[0.10] disabled:opacity-40 disabled:cursor-not-allowed';
 
   return (
-    <div className="flex justify-end items-center px-4 py-3 border-t border-slate-200 dark:border-white/[0.06] bg-white/90 dark:bg-[#0C1120]/90 backdrop-blur-sm shrink-0">
+    <div className="flex justify-end items-center px-4 py-2 border-t border-slate-200 dark:border-white/[0.06] bg-white/90 dark:bg-[#0C1120]/90 backdrop-blur-sm shrink-0">
       {audioSubTab === 'enhance' && (
         <button
           onClick={() => window.dispatchEvent(new CustomEvent('action:enhance'))}
           disabled={!canEnhance}
-          className="flex items-center justify-center gap-1.5 px-5 py-2 rounded-lg text-sm font-medium transition-all duration-150 bg-violet-600 hover:bg-violet-500 text-white shadow-sm disabled:opacity-40 disabled:cursor-not-allowed"
+          className="flex items-center justify-center gap-1.5 px-3.5 py-1.5 rounded-md text-xs font-medium transition-all duration-150 bg-violet-600 hover:bg-violet-500 text-white shadow-sm disabled:opacity-40 disabled:cursor-not-allowed"
         >
           {isAnyEnhancing ? 'Enhancing…' : 'Enhance All'}
         </button>
@@ -486,6 +494,7 @@ function SortableJobRow({
           tabIndex={-1} aria-label="Drag to reorder">
           <GripVertical size={14} />
         </button>
+        <ResizeHandle colKey="grip" onResize={onResize} />
       </td>
       <td className="px-1 py-2 text-slate-400 dark:text-zinc-100 text-xs text-center tabular-nums relative" style={{ width: colWidths.index }}>
         {index + 1}
@@ -601,6 +610,7 @@ function SortableJobRow({
               : 'text-red-500 hover:text-red-400 dark:text-red-500 dark:hover:text-red-400 opacity-100')}>
           <Trash2 size={12} />
         </button>
+        <ResizeHandle colKey="clear" onResize={onResize} />
       </td>
     </tr>
   );
@@ -705,20 +715,64 @@ export default function QueueGrid(): JSX.Element {
   const { t } = useTranslation();
 
   // ── Resizable columns ──────────────────────────────────────────────────────
-  const [colWidths, setColWidths] = useState<Record<ColKey, number>>({ ...DEFAULT_COL_WIDTHS });
+  const [colWidths, setColWidths] = useState<Record<ColKey, number>>(() => {
+    try {
+      const saved = localStorage.getItem('enhance-audio-pro-col-widths');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        return { ...DEFAULT_COL_WIDTHS, ...parsed };
+      }
+    } catch (e) {
+      console.error('Failed to load persisted column widths:', e);
+    }
+    return { ...DEFAULT_COL_WIDTHS };
+  });
 
   const handleResize = useCallback((key: ColKey, delta: number) => {
     setColWidths((prev) => {
-      const next = Math.max(MIN_COL_WIDTHS[key], (prev[key] ?? DEFAULT_COL_WIDTHS[key]) + delta);
-      return { ...prev, [key]: next };
-    });
-  }, []);
+      const visibleCols = getVisibleCols(audioSubTab);
+      const idx = visibleCols.indexOf(key);
+      const rightKey = idx >= 0 && idx < visibleCols.length - 1 ? visibleCols[idx + 1] : null;
+      const updated = { ...prev };
 
-  function copyWidthLog(): void {
+      if (rightKey) {
+        const currentW = prev[key] ?? DEFAULT_COL_WIDTHS[key];
+        const rightW = prev[rightKey] ?? DEFAULT_COL_WIDTHS[rightKey];
+        let actualDelta = delta;
+        if (delta > 0) {
+          actualDelta = Math.min(delta, Math.max(0, rightW - MIN_COL_WIDTHS[rightKey]));
+        } else {
+          actualDelta = Math.max(delta, -(currentW - MIN_COL_WIDTHS[key]));
+        }
+        updated[key] = currentW + actualDelta;
+        updated[rightKey] = rightW - actualDelta;
+      } else {
+        // Last column: can only shrink so total width never exceeds container
+        const currentW = prev[key] ?? DEFAULT_COL_WIDTHS[key];
+        if (delta < 0) updated[key] = Math.max(MIN_COL_WIDTHS[key], currentW + delta);
+      }
+
+      try {
+        localStorage.setItem('enhance-audio-pro-col-widths', JSON.stringify(updated));
+      } catch (e) {
+        console.error('Failed to persist column widths:', e);
+      }
+      return updated;
+    });
+  }, [audioSubTab]);
+
+  const { addToast } = useToastStore();
+
+  const copyWidthLog = useCallback(() => {
     const total = Object.values(colWidths).reduce((a, b) => a + b, 0);
     const log = JSON.stringify({ ...colWidths, total }, null, 2);
     void navigator.clipboard.writeText(log);
-  }
+    const isIndonesian = useSettingsStore.getState().language === 'id';
+    addToast(
+      isIndonesian ? 'Log ukuran kolom berhasil disalin!' : 'Column width log copied to clipboard!',
+      'success'
+    );
+  }, [colWidths, addToast]);
 
   const tableContainerRef = useRef<HTMLDivElement>(null);
   const importingJobIds = useQueueStore((s) => s.tabImportingIds[audioSubTab]);
@@ -1035,9 +1089,12 @@ export default function QueueGrid(): JSX.Element {
   const tableHeader = (
     <thead>
       <tr className="text-slate-500 dark:text-zinc-100 font-semibold text-[10px] uppercase tracking-wider sticky top-0 bg-slate-50 dark:bg-[#090E1B] border-b-2 border-slate-200 dark:border-white/[0.08] z-10">
-        <th className="px-1 py-2.5 text-center relative" style={{ width: colWidths.grip }} />
+        <th className="px-1 py-2.5 text-center relative" style={{ width: colWidths.grip }}>
+          <ResizeHandle colKey="grip" onResize={handleResize} />
+        </th>
         <th className="px-1 py-2.5 text-center relative" style={{ width: colWidths.index }}>
           #
+          <ResizeHandle colKey="index" onResize={handleResize} />
         </th>
         <th className="px-2 py-2.5 text-left relative" style={{ width: colWidths.filename }}>
           <span className="px-2">{t('queue.col.filename')}</span>
@@ -1098,8 +1155,9 @@ export default function QueueGrid(): JSX.Element {
             className="text-slate-400 dark:text-zinc-100 hover:text-violet-500 dark:hover:text-violet-400 transition-colors">
             <Lock size={11} className="mx-auto" />
           </button>
+          <ResizeHandle colKey="lock" onResize={handleResize} />
         </th>
-        <th className="px-1 py-2.5 text-center" style={{ width: colWidths.clear }}>
+        <th className="px-1 py-2.5 text-center relative" style={{ width: colWidths.clear }}>
           <button
             onClick={(e) => {
               e.stopPropagation();
@@ -1120,6 +1178,7 @@ export default function QueueGrid(): JSX.Element {
             title="Clear all non-locked items">
             Clear
           </button>
+          <ResizeHandle colKey="clear" onResize={handleResize} />
         </th>
       </tr>
     </thead>
@@ -1129,7 +1188,7 @@ export default function QueueGrid(): JSX.Element {
     <>
       <div className="flex flex-col flex-1 min-h-0">
         <div ref={tableContainerRef}
-          className="flex-1 overflow-y-auto overflow-x-auto rounded-xl bg-white dark:bg-[#0C1120] shadow-sm border border-slate-200 dark:border-white/[0.06] scrollbar-thin"
+          className="flex-1 overflow-y-auto overflow-x-hidden rounded-xl bg-white dark:bg-[#0C1120] shadow-sm border border-slate-200 dark:border-white/[0.06] scrollbar-thin"
           onMouseDown={handleContainerMouseDown}
           onClick={(e) => { if ((e.target as HTMLElement).closest('tr') === null) clearSelection(audioSubTab); }}>
           <table className="w-full text-left queue-table table-fixed">
