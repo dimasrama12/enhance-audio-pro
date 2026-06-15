@@ -376,3 +376,17 @@ Execute tasks in this order to avoid breakage at each step:
 ## Task 15 — Build and replace release binary in D:\cargo_build\enhance-audio-pro\release\enhance-audio-pro.exe
 - `[x]` Run `npx tsc --noEmit` to verify type-safety
 - `[x]` Run `npm run tauri build` to compile the final `.exe` binary
+
+---
+
+## Task 16 — Bundle FFmpeg with the Python Backend (Bug Fix)
+
+> **Root cause:** the frozen sidecar's `manipulate/convert/merge/equalizer` processors fell back to a bare `"ffmpeg"` on PATH (the `sys.executable`-parent `ffmpeg.exe` check never matched a one-file PyInstaller bundle). On a machine without system ffmpeg, `subprocess.run(["ffmpeg", ...])` raises `[WinError 2] The system cannot find the file specified` — surfaced as the red "Export failed" toast.
+>
+> **Approach chosen (over the original download-static-ffmpeg plan):** reuse `imageio-ffmpeg` (already a dependency; already used by the working enhance path). It ships a static ffmpeg binary on disk, so no download is needed and the build script is unchanged.
+
+- `[x]` Switch `_ffmpeg_exe()` in `manipulate_audio.py`, `convert_audio.py`, `merge_audio.py`, and `equalizer.py` to `imageio_ffmpeg.get_ffmpeg_exe()` (matches the existing enhance path). Removed now-unused `pathlib`/`sys` imports.
+- `[x]` `backend/build.spec`: added `collect_data_files('imageio_ffmpeg')` to `datas` and `'imageio_ffmpeg'` to `hiddenimports` so the static binary is packaged into the standalone executable (bundles to `imageio_ffmpeg\binaries\` inside `_MEIPASS`, where `get_ffmpeg_exe()` finds it).
+- `[x]` `backend/tests/conftest.py`: warm `platform.uname()` before tests mock `subprocess.run` (imageio_ffmpeg's platform detection shells out via subprocess). 65/65 backend tests pass; end-to-end `volume_audio` verified with the real bundled ffmpeg.
+- `[x]` Full build done: PyInstaller sidecar rebuilt (`backend.exe`, 360 MB) and copied to `src-tauri/binaries/`; Tauri release rebuilt at `D:\cargo_build\enhance-audio-pro\release\enhance-audio-pro.exe` (8.16 MB, 2026-06-15 17:31). **Verified end-to-end against the frozen sidecar:** `/export_volume` returned `{"success":true}` and wrote the output file — the exact path that previously failed with `[WinError 2]`.
+- _Note: `scripts/build-backend.ps1` requires NO change — the original plan's download step is unnecessary with the imageio_ffmpeg approach._

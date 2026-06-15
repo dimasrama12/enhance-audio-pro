@@ -1,6 +1,4 @@
-import pathlib
 import subprocess
-import sys
 from typing import Callable
 
 SUPPORTED_FORMATS = [
@@ -10,11 +8,11 @@ SUPPORTED_FORMATS = [
 
 
 def _ffmpeg_exe() -> str:
-    if getattr(sys, "frozen", False):
-        bundled = pathlib.Path(sys.executable).parent / "ffmpeg.exe"
-        if bundled.exists():
-            return str(bundled)
-    return "ffmpeg"
+    # Use the static ffmpeg binary shipped with imageio-ffmpeg. PyInstaller
+    # bundles it via collect_data_files('imageio_ffmpeg') in build.spec, so it
+    # is available in the frozen sidecar without a system-wide ffmpeg install.
+    import imageio_ffmpeg
+    return imageio_ffmpeg.get_ffmpeg_exe()
 
 
 def convert_file(

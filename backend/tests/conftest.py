@@ -3,8 +3,17 @@ Session-wide mocks for torch, torchaudio, deepfilternet, and demucs.
 These packages are large and not installed in the dev/CI test environment.
 Individual tests can override specific mock behaviour via patch.dict(sys.modules, ...).
 """
+import platform
 import sys
 from unittest.mock import MagicMock
+
+# Several processor tests patch `subprocess.run` globally to assert the ffmpeg
+# command line. The processors now resolve ffmpeg via
+# imageio_ffmpeg.get_ffmpeg_exe(), whose platform detection (platform.machine())
+# shells out through subprocess the first time it runs. Warming Python's uname
+# cache here — before any test installs a subprocess mock — lets imageio_ffmpeg
+# resolve the bundled binary without hitting the mocked subprocess.
+platform.uname()
 
 # --- DeepFilterNet mocks ---
 _mock_df_state = MagicMock()

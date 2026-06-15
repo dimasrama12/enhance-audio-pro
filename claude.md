@@ -343,6 +343,15 @@ chore    : [configuration changes, tooling, etc.]
 - [x] **Task 15 — Verify + build:** `npx tsc --noEmit` (0 errors) and `npm run tauri build` to produce the final release `.exe`.
 - [x] Backup snapshot of source copied to `D:\vibe coding\app enhance audio pro v1\` (plan/task markdown grouped under `plan-and-task-docs\`, CLAUDE.md kept in root); committed and pushed to GitHub `master`.
 
+# Task 16 — Bundle FFmpeg with the Sidecar (Export/Convert Bug Fix) (2026-06-15)
+- **Bug:** Downloading volume-adjusted audio from the Waveform Player showed an info toast then a red `Export failed: {"success":false,"error":"[WinError 2] The system cannot find the file specified"}`.
+- **Root cause:** `manipulate_audio.py`, `convert_audio.py`, `merge_audio.py`, and `equalizer.py` each had a `_ffmpeg_exe()` that checked for `ffmpeg.exe` next to `sys.executable` and otherwise fell back to bare `"ffmpeg"` on PATH. In a one-file PyInstaller bundle data files extract to `sys._MEIPASS` (not the exe's dir), so the check never matched, and end-user machines have no system ffmpeg → `subprocess.run(["ffmpeg", ...])` raises `FileNotFoundError [WinError 2]`. The enhance path was unaffected because `enhance_speech.py`/`enhance_lavasr.py` already used `imageio_ffmpeg.get_ffmpeg_exe()`.
+- **Fix (approach chosen over the task's download-static-ffmpeg plan):** point all four processors at `imageio_ffmpeg.get_ffmpeg_exe()` — `imageio-ffmpeg` is already a dependency and ships a static `ffmpeg-win-x86_64-v7.1.exe`, so no download and no `build-backend.ps1` change. Removed now-unused `pathlib`/`sys` imports.
+- **Packaging:** `backend/build.spec` — added `collect_data_files('imageio_ffmpeg')` to `datas` and `'imageio_ffmpeg'` to `hiddenimports`. The binary bundles to `imageio_ffmpeg\binaries\` inside `_MEIPASS`, exactly where `get_ffmpeg_exe()` looks in a frozen build.
+- **Test infra:** `backend/tests/conftest.py` now calls `platform.uname()` at import. The ffmpeg tests `patch("subprocess.run")` globally, and `imageio_ffmpeg`'s platform detection shells out via subprocess the first time — warming Python's uname cache before any mock is installed lets it resolve without hitting the mock.
+- **Verification:** 65/65 backend pytest pass. Frozen sidecar `backend.exe` (360 MB) rebuilt via PyInstaller and exercised directly — `POST /export_volume` returned `{"success":true}` and wrote the output (the exact path that previously failed). Sidecar copied to `src-tauri/binaries/`; Tauri release rebuilt at `D:\cargo_build\enhance-audio-pro\release\enhance-audio-pro.exe` (8.16 MB, 2026-06-15 17:31, build exit 0).
+- **Build note:** `scripts/build-backend.ps1`'s pip step aborts under PowerShell 5.1 (`$ErrorActionPreference="Stop"` treats pip's stderr as a fatal `NativeCommandError`); ran `python -m PyInstaller build.spec` directly instead since deps were already installed.
+
 # Test Coverage (final)
 - 38/38 Vitest (frontend) — test file updated for new per-tab store API
 - 65/65 Pytest (backend)

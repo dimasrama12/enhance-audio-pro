@@ -14,6 +14,10 @@ a = Analysis(
         torch_datas + torchaudio_datas + demucs_datas + LavaSR_datas
         + collect_data_files('df')
         + collect_data_files('scipy')
+        # Bundle the static ffmpeg binary shipped with imageio-ffmpeg so the
+        # frozen sidecar can run trim/speed/pitch/volume/fade/convert/merge/EQ
+        # without a system-wide ffmpeg install (imageio_ffmpeg.get_ffmpeg_exe()).
+        + collect_data_files('imageio_ffmpeg')
     ),
     hiddenimports=(
         torch_hidden + torchaudio_hidden + demucs_hidden + LavaSR_hidden
@@ -38,6 +42,7 @@ a = Analysis(
             'uvicorn.lifespan', 'uvicorn.lifespan.on',
             'multipart', 'python_multipart',
             'einops', 'julius', 'soundfile',
+            'imageio_ffmpeg',
         ]
     ),
     hookspath=[],
