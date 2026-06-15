@@ -334,6 +334,15 @@ chore    : [configuration changes, tooling, etc.]
 - [x] **Full tab isolation:** Search, filter, selection, lock, view mode, group-by, delete, shortcuts — all scoped to `tabQueues[audioSubTab]`.
 - [x] Tauri release binary rebuilt (no-bundle) at `D:\cargo_build\enhance-audio-pro\release\enhance-audio-pro.exe` (2026-06-14, build exit 0).
 
+# Startup Queue Reset, Shutdown Order, Separate Disabled, Shortcut & Resize Polish (2026-06-15)
+- [x] **Task 10 — Empty queues on startup + shutdown cleanup order:** `App.tsx` clears the Enhance/Convert/Separate tab queues on first mount, gated by a `sessionStorage` `app_initialized` flag so Ctrl+R page reloads do NOT wipe the queue. `src-tauri/src/lib.rs` `CloseRequested` handler reordered: kill the Python sidecar FIRST, `sleep(150ms)` to let Windows release file locks, THEN recursively delete the scratch/temp cache dir, then `process::exit(0)` — prevents the cache-delete failing on files still locked by the backend.
+- [x] **Task 11 — "Separate" sub-tab disabled:** `QueueToolbar.tsx` "Separate" pill rendered disabled (reduced opacity, `cursor-not-allowed`, no click). `useUIStore.setAudioSubTab` guards against the `'separate'` value (early-returns) so the tab can never become active even programmatically.
+- [x] **Task 12 — Shrunk bottom action buttons:** "Enhance All" / "Convert All" bottom-bar buttons in `QueueGrid.tsx` reduced to `px-3.5 py-1.5 rounded-md text-xs font-medium`.
+- [x] **Task 13 — Modifier-aware, unique shortcut recording:** `SettingsPanel.tsx` + `KeyboardShortcutsPanel.tsx` keydown listeners now capture modifier combos; recording a shortcut already bound elsewhere auto-clears the previous binding (no duplicates). Reset syncs `DEFAULT_KEYBOARD_SHORTCUTS` back to the backend settings file via new `customDefaultShortcuts` field (`AppSettings`, `useSettingsStore.setCustomDefaultShortcuts`, persisted). `useKeyboardShortcuts.ts` ignores empty-string bindings so cleared shortcuts don't fire.
+- [x] **Task 14 — Full manual column resizing with persistence:** `QueueGrid.tsx` `colWidths` persisted to `localStorage`; resize handles on every header/cell including grip, index, lock, clear; success toast on "Copy Width Log" clipboard write.
+- [x] **Task 15 — Verify + build:** `npx tsc --noEmit` (0 errors) and `npm run tauri build` to produce the final release `.exe`.
+- [x] Backup snapshot of source copied to `D:\vibe coding\app enhance audio pro v1\` (plan/task markdown grouped under `plan-and-task-docs\`, CLAUDE.md kept in root); committed and pushed to GitHub `master`.
+
 # Test Coverage (final)
 - 38/38 Vitest (frontend) — test file updated for new per-tab store API
 - 65/65 Pytest (backend)

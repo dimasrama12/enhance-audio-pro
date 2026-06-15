@@ -99,6 +99,15 @@ pub fn run() {
                     );
                 }
 
+                // Kill Python backend sidecar first so no orphaned processes remain and files are unlocked
+                if let Ok(mut child_lock) = state.sidecar_child.lock() {
+                    if let Some(child) = child_lock.take() {
+                        let _ = child.kill();
+                    }
+                }
+                // Sleep briefly to let OS release file locks on Windows
+                std::thread::sleep(std::time::Duration::from_millis(150));
+
                 // Clean up scratch disk or system temp cache dir recursively
                 let scratch_disk = state.scratch_disk_dir.clone();
                 let cache_dir = if !scratch_disk.is_empty() {
@@ -110,13 +119,6 @@ pub fn run() {
                 };
                 if !cache_dir.as_os_str().is_empty() && cache_dir.is_dir() {
                     let _ = std::fs::remove_dir_all(&cache_dir);
-                }
-
-                // Kill Python backend sidecar so no orphaned processes remain
-                if let Ok(mut child_lock) = state.sidecar_child.lock() {
-                    if let Some(child) = child_lock.take() {
-                        let _ = child.kill();
-                    }
                 }
 
                 // Force-exit the entire process (all threads, Axum server, etc.)

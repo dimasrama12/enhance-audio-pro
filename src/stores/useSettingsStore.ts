@@ -12,6 +12,7 @@ interface SettingsState extends AppSettings {
   setEnhancementStrength: (v: number) => void;
   setFilenameTemplate: (t: string) => void;
   setKeyboardShortcuts: (shortcuts: KeyboardShortcutMap) => void;
+  setCustomDefaultShortcuts: (shortcuts: KeyboardShortcutMap) => void;
   setRecordingPrefix: (prefix: string) => void;
   setAiModel: (model: 'deepfilternet' | 'lavasr') => void;
   setScratchDiskDir: (dir: string) => void;
@@ -31,6 +32,7 @@ export const useSettingsStore = create<SettingsState>()(
       setEnhancementStrength: (enhancementStrength) => set({ enhancementStrength }),
       setFilenameTemplate: (filenameTemplate) => set({ filenameTemplate }),
       setKeyboardShortcuts: (keyboardShortcuts) => set({ keyboardShortcuts }),
+      setCustomDefaultShortcuts: (customDefaultShortcuts) => set({ customDefaultShortcuts }),
       setRecordingPrefix: (recordingPrefix) => set({ recordingPrefix }),
       setAiModel: (aiModel: 'deepfilternet' | 'lavasr') => set({ aiModel }),
       setScratchDiskDir: (scratchDiskDir) => set({ scratchDiskDir }),
@@ -46,6 +48,7 @@ export const useSettingsStore = create<SettingsState>()(
         enhancementStrength: state.enhancementStrength,
         filenameTemplate: state.filenameTemplate,
         keyboardShortcuts: state.keyboardShortcuts,
+        customDefaultShortcuts: state.customDefaultShortcuts,
         recordingPrefix: state.recordingPrefix,
         aiModel: state.aiModel,
         scratchDiskDir: state.scratchDiskDir,

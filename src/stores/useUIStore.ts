@@ -63,7 +63,10 @@ export const useUIStore = create<UIState>((set) => ({
   toggleSidebar: () => set((s) => ({ sidebarVisible: !s.sidebarVisible })),
   setSidebarVisible: (sidebarVisible) => set({ sidebarVisible }),
   setActiveTab: (activeTab) => set({ activeTab }),
-  setAudioSubTab: (audioSubTab) => set({ audioSubTab }),
+  setAudioSubTab: (audioSubTab) => {
+    if (audioSubTab === 'separate') return;
+    set({ audioSubTab });
+  },
   openSettings: () => set({ settingsOpen: true }),
   closeSettings: () => set({ settingsOpen: false }),
   toggleSettings: () => set((s) => ({ settingsOpen: !s.settingsOpen })),

@@ -104,6 +104,7 @@ export interface AppSettings {
   enhancementStrength: number;
   filenameTemplate: string;
   keyboardShortcuts: KeyboardShortcutMap;
+  customDefaultShortcuts?: KeyboardShortcutMap;
   recordingPrefix?: string;
   aiModel: 'deepfilternet' | 'lavasr';
   scratchDiskDir?: string;
@@ -117,6 +118,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   enhancementStrength: 50,
   filenameTemplate: '{name}_enhanced',
   keyboardShortcuts: { ...DEFAULT_KEYBOARD_SHORTCUTS },
+  customDefaultShortcuts: { ...DEFAULT_KEYBOARD_SHORTCUTS },
   recordingPrefix: 'Record',
   aiModel: 'deepfilternet',
   scratchDiskDir: '',

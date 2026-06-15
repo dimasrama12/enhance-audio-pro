@@ -26,7 +26,7 @@ function formatKey(e: KeyboardEvent): string {
 }
 
 export default function KeyboardShortcutsPanel(): JSX.Element {
-  const { keyboardShortcuts, setKeyboardShortcuts } = useSettingsStore();
+  const { keyboardShortcuts, setKeyboardShortcuts, customDefaultShortcuts, setCustomDefaultShortcuts } = useSettingsStore();
   const [recording, setRecording] = useState<keyof KeyboardShortcutMap | null>(null);
   const [collapsed, setCollapsed] = useState(true);
 
@@ -99,8 +99,9 @@ export default function KeyboardShortcutsPanel(): JSX.Element {
     window.addEventListener('keydown', handler, true);
   }
 
-  async function resetAll(): Promise<void> {
-    setKeyboardShortcuts({ ...DEFAULT_KEYBOARD_SHORTCUTS });
+  async function saveToDefault(): Promise<void> {
+    const currentShortcuts = keyboardShortcuts || DEFAULT_KEYBOARD_SHORTCUTS;
+    setCustomDefaultShortcuts(currentShortcuts);
     const settings = useSettingsStore.getState();
     const nextSettings = {
       theme: settings.theme,
@@ -109,7 +110,28 @@ export default function KeyboardShortcutsPanel(): JSX.Element {
       setupComplete: settings.setupComplete,
       enhancementStrength: settings.enhancementStrength,
       filenameTemplate: settings.filenameTemplate,
-      keyboardShortcuts: DEFAULT_KEYBOARD_SHORTCUTS,
+      keyboardShortcuts: settings.keyboardShortcuts,
+      customDefaultShortcuts: currentShortcuts,
+      recordingPrefix: settings.recordingPrefix ?? 'Record',
+      aiModel: settings.aiModel ?? 'deepfilternet',
+    };
+    settings.setSettings(nextSettings);
+    await invokeSaveSettings(nextSettings);
+  }
+
+  async function resetAll(): Promise<void> {
+    const defaultToUse = customDefaultShortcuts || DEFAULT_KEYBOARD_SHORTCUTS;
+    setKeyboardShortcuts({ ...defaultToUse });
+    const settings = useSettingsStore.getState();
+    const nextSettings = {
+      theme: settings.theme,
+      outputFolder: settings.outputFolder,
+      language: settings.language,
+      setupComplete: settings.setupComplete,
+      enhancementStrength: settings.enhancementStrength,
+      filenameTemplate: settings.filenameTemplate,
+      keyboardShortcuts: defaultToUse,
+      customDefaultShortcuts: settings.customDefaultShortcuts,
       recordingPrefix: settings.recordingPrefix ?? 'Record',
       aiModel: settings.aiModel ?? 'deepfilternet',
     };
@@ -151,12 +173,20 @@ export default function KeyboardShortcutsPanel(): JSX.Element {
               </button>
             </div>
           ))}
-          <button
-            onClick={resetAll}
-            className="mt-2 text-xs text-white/30 hover:text-white/60 transition-colors self-end"
-          >
-            Reset to defaults
-          </button>
+          <div className="mt-2 flex justify-end items-center gap-4 self-end">
+            <button
+              onClick={saveToDefault}
+              className="text-[10px] uppercase tracking-wider font-semibold text-white/30 hover:text-white/60 transition-colors"
+            >
+              save setting to default
+            </button>
+            <button
+              onClick={resetAll}
+              className="text-xs text-white/40 hover:text-white transition-colors"
+            >
+              Reset
+            </button>
+          </div>
 
           {/* Queue — fixed shortcuts */}
           <div className="mt-3 pt-3 border-t border-white/10">

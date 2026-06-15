@@ -40,6 +40,14 @@ export default function App(): JSX.Element {
         });
       }
       if (queueRes.success && queueRes.data) setJobs(queueRes.data);
+      // Empty the file queues on startup for enhance, convert, and separate tabs
+      // We check sessionStorage so we don't clear the queue on Ctrl+R page reloads!
+      if (!sessionStorage.getItem('app_initialized')) {
+        sessionStorage.setItem('app_initialized', 'true');
+        useQueueStore.getState().setJobs([], 'enhance');
+        useQueueStore.getState().setJobs([], 'convert');
+        useQueueStore.getState().setJobs([], 'separate');
+      }
       setInitialized(true);
     }
     init();

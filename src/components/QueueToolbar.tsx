@@ -344,14 +344,18 @@ export default function QueueToolbar(): JSX.Element {
       <div className="flex items-center gap-0.5 bg-slate-100 dark:bg-white/[0.03] rounded-xl px-1 py-1 border border-slate-200 dark:border-white/[0.06]">
         {(['enhance', 'convert', 'separate'] as const).map((tab) => {
           const isActive = audioSubTab === tab;
+          const isDisabled = tab === 'separate';
           return (
             <button
               key={tab}
-              onClick={() => setAudioSubTab(tab)}
+              disabled={isDisabled}
+              onClick={() => !isDisabled && setAudioSubTab(tab)}
               className={clsx(
                 'px-3 py-1.5 rounded-lg text-xs font-medium h-[28px] transition-all duration-150',
                 isActive
                   ? 'bg-white dark:bg-white/[0.12] text-slate-900 dark:text-white shadow-sm ring-1 ring-slate-200 dark:ring-white/[0.10]'
+                  : isDisabled
+                  ? 'text-slate-300 dark:text-zinc-650 cursor-not-allowed opacity-40'
                   : 'text-slate-500 dark:text-zinc-400 hover:text-slate-800 dark:hover:text-white hover:bg-slate-200/60 dark:hover:bg-white/[0.06]',
               )}
             >

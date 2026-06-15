@@ -53,32 +53,59 @@ const DEFAULT_COL_WIDTHS: Record<ColKey, number> = {
   clear: 46,
 };
 
+const ENHANCE_COL_WIDTHS: Record<ColKey, number> = {
+  grip: 28,
+  index: 34,
+  filename: 400,
+  destination: 183,
+  size: 76,
+  format: 75,
+  bitrate: 72,
+  sampleRate: 80,
+  status: 76,
+  tools: 73,
+  lock: 34,
+  clear: 46,
+};
+
+const CONVERT_COL_WIDTHS: Record<ColKey, number> = {
+  grip: 28,
+  index: 34,
+  filename: 540,
+  destination: 183,
+  size: 76,
+  format: 87,
+  bitrate: 72,
+  sampleRate: 80,
+  status: 76,
+  tools: 73,
+  lock: 34,
+  clear: 46,
+};
+
 const MIN_COL_WIDTHS: Record<ColKey, number> = {
   grip: 15, index: 15, filename: 50, destination: 50, size: 30,
   format: 30, bitrate: 30, sampleRate: 30, status: 30, tools: 50, lock: 20, clear: 20,
 };
 
-function getVisibleCols(tab: string): ColKey[] {
-  const cols: ColKey[] = ['grip', 'index', 'filename', 'destination', 'size'];
-  if (tab !== 'enhance') cols.push('format');
-  if (tab === 'separate') { cols.push('bitrate'); cols.push('sampleRate'); }
-  cols.push('status', 'tools', 'lock', 'clear');
-  return cols;
-}
+
 
 // ─── Resize handle ────────────────────────────────────────────────────────────
 
 function ResizeHandle({
   colKey,
   onResize,
+  disabled
 }: {
   colKey: ColKey;
   onResize: (key: ColKey, delta: number) => void;
-}): JSX.Element {
+  disabled?: boolean;
+}): JSX.Element | null {
   const startXRef = useRef(0);
 
   const onMouseDown = useCallback(
     (e: React.MouseEvent) => {
+      if (disabled) return;
       e.preventDefault();
       e.stopPropagation();
       startXRef.current = e.clientX;
@@ -95,8 +122,10 @@ function ResizeHandle({
       window.addEventListener('mousemove', onMouseMove);
       window.addEventListener('mouseup', onMouseUp);
     },
-    [colKey, onResize],
+    [colKey, onResize, disabled],
   );
+
+  if (disabled) return null;
 
   return (
     <div
@@ -494,11 +523,11 @@ function SortableJobRow({
           tabIndex={-1} aria-label="Drag to reorder">
           <GripVertical size={14} />
         </button>
-        <ResizeHandle colKey="grip" onResize={onResize} />
+        <ResizeHandle colKey="grip" onResize={onResize} disabled={audioSubTab === 'enhance' || audioSubTab === 'convert'} />
       </td>
       <td className="px-1 py-2 text-slate-400 dark:text-zinc-100 text-xs text-center tabular-nums relative" style={{ width: colWidths.index }}>
         {index + 1}
-        <ResizeHandle colKey="index" onResize={onResize} />
+        <ResizeHandle colKey="index" onResize={onResize} disabled={audioSubTab === 'enhance' || audioSubTab === 'convert'} />
       </td>
       <td className={clsx('px-4 py-2 text-sm text-slate-800 dark:text-zinc-100 font-medium relative', !filenameExpanded && 'overflow-hidden')}
         style={{ width: colWidths.filename }}>
@@ -521,7 +550,7 @@ function SortableJobRow({
             </span>
           )}
         </div>
-        <ResizeHandle colKey="filename" onResize={onResize} />
+        <ResizeHandle colKey="filename" onResize={onResize} disabled={audioSubTab === 'enhance' || audioSubTab === 'convert'} />
       </td>
       <td className="px-2 py-2 text-xs text-slate-400 dark:text-zinc-100 overflow-hidden relative" style={{ width: colWidths.destination }}>
         <span onClick={(e) => { e.stopPropagation(); setDestExpanded((v) => !v); }}
@@ -530,35 +559,35 @@ function SortableJobRow({
           title={destExpanded ? undefined : (getSourceDir(job.filepath) || undefined)}>
           {getSourceDir(job.filepath) || '—'}
         </span>
-        <ResizeHandle colKey="destination" onResize={onResize} />
+        <ResizeHandle colKey="destination" onResize={onResize} disabled={audioSubTab === 'enhance' || audioSubTab === 'convert'} />
       </td>
       <td className="px-2 py-2 text-xs text-slate-400 dark:text-zinc-100 truncate tabular-nums relative"
         style={{ width: colWidths.size }} title={formatBytes(job.size_bytes)}>
         {formatBytes(job.size_bytes)}
-        <ResizeHandle colKey="size" onResize={onResize} />
+        <ResizeHandle colKey="size" onResize={onResize} disabled={audioSubTab === 'enhance' || audioSubTab === 'convert'} />
       </td>
       {audioSubTab !== 'enhance' && (
         <td className="px-1 py-2 relative" style={{ width: colWidths.format }}>
           <FormatSelect job={job} />
-          <ResizeHandle colKey="format" onResize={onResize} />
+          <ResizeHandle colKey="format" onResize={onResize} disabled={audioSubTab === 'enhance' || audioSubTab === 'convert'} />
         </td>
       )}
       {audioSubTab === 'separate' && (
         <td className="px-1 py-2 relative" style={{ width: colWidths.bitrate }}>
           <BitrateSelect job={job} />
-          <ResizeHandle colKey="bitrate" onResize={onResize} />
+          <ResizeHandle colKey="bitrate" onResize={onResize} disabled={false} />
         </td>
       )}
       {audioSubTab === 'separate' && (
         <td className="px-1.5 py-2 relative" style={{ width: colWidths.sampleRate }}>
           <SampleRateSelect job={job} />
-          <ResizeHandle colKey="sampleRate" onResize={onResize} />
+          <ResizeHandle colKey="sampleRate" onResize={onResize} disabled={false} />
         </td>
       )}
       <td className="px-1.5 py-2 text-xs font-medium whitespace-nowrap text-center relative" style={{ width: colWidths.status }}>
         <StatusBadge status={job.status} progress={job.progress} errorMessage={job.error_message}
           onErrorClick={() => { if (job.error_message && onErrorClick) onErrorClick(job.filename, job.error_message); }} />
-        <ResizeHandle colKey="status" onResize={onResize} />
+        <ResizeHandle colKey="status" onResize={onResize} disabled={audioSubTab === 'enhance' || audioSubTab === 'convert'} />
       </td>
       <td className="px-1.5 py-2 relative" style={{ width: colWidths.tools }}>
         <div className="flex items-center flex-nowrap gap-1 justify-center">
@@ -572,7 +601,7 @@ function SortableJobRow({
           )}
           <DownloadJobButton job={job} />
         </div>
-        <ResizeHandle colKey="tools" onResize={onResize} />
+        <ResizeHandle colKey="tools" onResize={onResize} disabled={audioSubTab === 'enhance' || audioSubTab === 'convert'} />
       </td>
       <td className="px-1 py-2 text-center group/lock relative" style={{ width: colWidths.lock }}>
         <button
@@ -582,7 +611,7 @@ function SortableJobRow({
             isLocked ? 'text-blue-500 dark:text-blue-400' : 'text-slate-400 dark:text-white/25 hover:text-slate-600 dark:hover:text-white/50')}>
           <Lock size={12} />
         </button>
-        <ResizeHandle colKey="lock" onResize={onResize} />
+        <ResizeHandle colKey="lock" onResize={onResize} disabled={audioSubTab === 'enhance' || audioSubTab === 'convert'} />
       </td>
       <td className="px-1 py-2 text-center group/trash relative" style={{ width: colWidths.clear }}>
         <button
@@ -610,7 +639,7 @@ function SortableJobRow({
               : 'text-red-500 hover:text-red-400 dark:text-red-500 dark:hover:text-red-400 opacity-100')}>
           <Trash2 size={12} />
         </button>
-        <ResizeHandle colKey="clear" onResize={onResize} />
+        <ResizeHandle colKey="clear" onResize={onResize} disabled={audioSubTab === 'enhance' || audioSubTab === 'convert'} />
       </td>
     </tr>
   );
@@ -715,64 +744,68 @@ export default function QueueGrid(): JSX.Element {
   const { t } = useTranslation();
 
   // ── Resizable columns ──────────────────────────────────────────────────────
-  const [colWidths, setColWidths] = useState<Record<ColKey, number>>(() => {
+  const [allColWidths, setAllColWidths] = useState<Record<string, Record<ColKey, number>>>(() => {
     try {
-      const saved = localStorage.getItem('enhance-audio-pro-col-widths');
+      const saved = localStorage.getItem('enhance-audio-pro-col-widths-v2');
       if (saved) {
-        const parsed = JSON.parse(saved);
-        return { ...DEFAULT_COL_WIDTHS, ...parsed };
+        return JSON.parse(saved);
       }
     } catch (e) {
       console.error('Failed to load persisted column widths:', e);
     }
-    return { ...DEFAULT_COL_WIDTHS };
+    return {
+      enhance: { ...ENHANCE_COL_WIDTHS },
+      convert: { ...CONVERT_COL_WIDTHS },
+      separate: { ...DEFAULT_COL_WIDTHS },
+    };
   });
 
+  const colWidths = allColWidths[audioSubTab] || DEFAULT_COL_WIDTHS;
+
   const handleResize = useCallback((key: ColKey, delta: number) => {
-    setColWidths((prev) => {
-      const visibleCols = getVisibleCols(audioSubTab);
-      const idx = visibleCols.indexOf(key);
-      const rightKey = idx >= 0 && idx < visibleCols.length - 1 ? visibleCols[idx + 1] : null;
-      const updated = { ...prev };
+    if (audioSubTab === 'enhance' || audioSubTab === 'convert') return;
 
-      if (rightKey) {
-        const currentW = prev[key] ?? DEFAULT_COL_WIDTHS[key];
-        const rightW = prev[rightKey] ?? DEFAULT_COL_WIDTHS[rightKey];
-        let actualDelta = delta;
-        if (delta > 0) {
-          actualDelta = Math.min(delta, Math.max(0, rightW - MIN_COL_WIDTHS[rightKey]));
-        } else {
-          actualDelta = Math.max(delta, -(currentW - MIN_COL_WIDTHS[key]));
-        }
-        updated[key] = currentW + actualDelta;
-        updated[rightKey] = rightW - actualDelta;
-      } else {
-        // Last column: can only shrink so total width never exceeds container
-        const currentW = prev[key] ?? DEFAULT_COL_WIDTHS[key];
-        if (delta < 0) updated[key] = Math.max(MIN_COL_WIDTHS[key], currentW + delta);
-      }
-
+    setAllColWidths((prev) => {
+      const currentTabWidths = prev[audioSubTab] || DEFAULT_COL_WIDTHS;
+      const updatedTabWidths = { ...currentTabWidths };
+      const currentW = currentTabWidths[key] ?? DEFAULT_COL_WIDTHS[key];
+      updatedTabWidths[key] = Math.max(MIN_COL_WIDTHS[key] ?? 20, currentW + delta);
+      
+      const updatedAll = { ...prev, [audioSubTab]: updatedTabWidths };
       try {
-        localStorage.setItem('enhance-audio-pro-col-widths', JSON.stringify(updated));
+        localStorage.setItem('enhance-audio-pro-col-widths-v2', JSON.stringify(updatedAll));
       } catch (e) {
         console.error('Failed to persist column widths:', e);
       }
-      return updated;
+      return updatedAll;
     });
   }, [audioSubTab]);
 
   const { addToast } = useToastStore();
 
   const copyWidthLog = useCallback(() => {
-    const total = Object.values(colWidths).reduce((a, b) => a + b, 0);
-    const log = JSON.stringify({ ...colWidths, total }, null, 2);
+    let outputWidths: any = { ...colWidths };
+    
+    if (audioSubTab === 'enhance') {
+      delete outputWidths.format;
+      delete outputWidths.bitrate;
+      delete outputWidths.sampleRate;
+    } else if (audioSubTab === 'convert') {
+      delete outputWidths.bitrate;
+      delete outputWidths.sampleRate;
+      outputWidths['saveTo'] = outputWidths.format;
+      delete outputWidths.format;
+    }
+
+    const total = Object.values(outputWidths).reduce((a: any, b: any) => a + b, 0);
+    const log = JSON.stringify({ ...outputWidths, total }, null, 2);
     void navigator.clipboard.writeText(log);
     const isIndonesian = useSettingsStore.getState().language === 'id';
     addToast(
       isIndonesian ? 'Log ukuran kolom berhasil disalin!' : 'Column width log copied to clipboard!',
       'success'
     );
-  }, [colWidths, addToast]);
+  }, [colWidths, audioSubTab, addToast]);
 
   const tableContainerRef = useRef<HTMLDivElement>(null);
   const importingJobIds = useQueueStore((s) => s.tabImportingIds[audioSubTab]);
@@ -1090,55 +1123,57 @@ export default function QueueGrid(): JSX.Element {
     <thead>
       <tr className="text-slate-500 dark:text-zinc-100 font-semibold text-[10px] uppercase tracking-wider sticky top-0 bg-slate-50 dark:bg-[#090E1B] border-b-2 border-slate-200 dark:border-white/[0.08] z-10">
         <th className="px-1 py-2.5 text-center relative" style={{ width: colWidths.grip }}>
-          <ResizeHandle colKey="grip" onResize={handleResize} />
+          <ResizeHandle colKey="grip" onResize={handleResize} disabled={audioSubTab === 'enhance' || audioSubTab === 'convert'} />
         </th>
         <th className="px-1 py-2.5 text-center relative" style={{ width: colWidths.index }}>
           #
-          <ResizeHandle colKey="index" onResize={handleResize} />
+          <ResizeHandle colKey="index" onResize={handleResize} disabled={audioSubTab === 'enhance' || audioSubTab === 'convert'} />
         </th>
         <th className="px-2 py-2.5 text-left relative" style={{ width: colWidths.filename }}>
           <span className="px-2">{t('queue.col.filename')}</span>
-          <ResizeHandle colKey="filename" onResize={handleResize} />
+          <ResizeHandle colKey="filename" onResize={handleResize} disabled={audioSubTab === 'enhance' || audioSubTab === 'convert'} />
         </th>
         <th className="px-2 py-2.5 text-left relative" style={{ width: colWidths.destination }}>
           <span className="px-2">{t('queue.col.destination')}</span>
-          <ResizeHandle colKey="destination" onResize={handleResize} />
+          <ResizeHandle colKey="destination" onResize={handleResize} disabled={audioSubTab === 'enhance' || audioSubTab === 'convert'} />
         </th>
         <th className="px-2 py-2.5 text-left relative" style={{ width: colWidths.size }}>
           <span className="px-2">{t('queue.col.size')}</span>
-          <ResizeHandle colKey="size" onResize={handleResize} />
+          <ResizeHandle colKey="size" onResize={handleResize} disabled={audioSubTab === 'enhance' || audioSubTab === 'convert'} />
         </th>
         {audioSubTab !== 'enhance' && (
           <th className="px-1 py-2.5 text-center relative" style={{ width: colWidths.format }}>
             <span>{audioSubTab === 'convert' ? 'Save to' : t('queue.col.output')}</span>
-            <ResizeHandle colKey="format" onResize={handleResize} />
+            <ResizeHandle colKey="format" onResize={handleResize} disabled={false} />
           </th>
         )}
         {audioSubTab === 'separate' && (
           <th className="px-1 py-2.5 text-center relative" style={{ width: colWidths.bitrate }}>
             <span>{t('queue.col.bitrate')}</span>
-            <ResizeHandle colKey="bitrate" onResize={handleResize} />
+            <ResizeHandle colKey="bitrate" onResize={handleResize} disabled={false} />
           </th>
         )}
         {audioSubTab === 'separate' && (
           <th className="px-1.5 py-2.5 text-center whitespace-nowrap relative" style={{ width: colWidths.sampleRate }}>
             <span>{t('queue.col.sampleHz')}</span>
-            <ResizeHandle colKey="sampleRate" onResize={handleResize} />
+            <ResizeHandle colKey="sampleRate" onResize={handleResize} disabled={false} />
           </th>
         )}
         <th className="px-1.5 py-2.5 text-center whitespace-nowrap relative" style={{ width: colWidths.status }}>
           <span>{t('queue.col.status')}</span>
-          <ResizeHandle colKey="status" onResize={handleResize} />
+          <ResizeHandle colKey="status" onResize={handleResize} disabled={audioSubTab === 'enhance' || audioSubTab === 'convert'} />
         </th>
         <th className="px-1.5 py-2.5 text-center relative" style={{ width: colWidths.tools }}>
           <div className="flex items-center justify-center gap-2">
             <span>TOOLS</span>
-            <button onClick={copyWidthLog} title="Copy column width log to clipboard"
-              className="text-slate-300 dark:text-white/20 hover:text-violet-500 dark:hover:text-violet-400 transition-colors">
-              <Copy size={9} />
-            </button>
+            {audioSubTab !== 'enhance' && audioSubTab !== 'convert' && (
+              <button onClick={copyWidthLog} title="Copy column width log to clipboard"
+                className="text-slate-300 dark:text-white/20 hover:text-violet-500 dark:hover:text-violet-400 transition-colors">
+                <Copy size={9} />
+              </button>
+            )}
           </div>
-          <ResizeHandle colKey="tools" onResize={handleResize} />
+          <ResizeHandle colKey="tools" onResize={handleResize} disabled={audioSubTab === 'enhance' || audioSubTab === 'convert'} />
         </th>
         <th className="px-1 py-2.5 text-center relative" style={{ width: colWidths.lock }}>
           <button
@@ -1155,7 +1190,7 @@ export default function QueueGrid(): JSX.Element {
             className="text-slate-400 dark:text-zinc-100 hover:text-violet-500 dark:hover:text-violet-400 transition-colors">
             <Lock size={11} className="mx-auto" />
           </button>
-          <ResizeHandle colKey="lock" onResize={handleResize} />
+          <ResizeHandle colKey="lock" onResize={handleResize} disabled={audioSubTab === 'enhance' || audioSubTab === 'convert'} />
         </th>
         <th className="px-1 py-2.5 text-center relative" style={{ width: colWidths.clear }}>
           <button
@@ -1178,7 +1213,7 @@ export default function QueueGrid(): JSX.Element {
             title="Clear all non-locked items">
             Clear
           </button>
-          <ResizeHandle colKey="clear" onResize={handleResize} />
+          <ResizeHandle colKey="clear" onResize={handleResize} disabled={audioSubTab === 'enhance' || audioSubTab === 'convert'} />
         </th>
       </tr>
     </thead>
@@ -1188,15 +1223,30 @@ export default function QueueGrid(): JSX.Element {
     <>
       <div className="flex flex-col flex-1 min-h-0">
         <div ref={tableContainerRef}
-          className="flex-1 overflow-y-auto overflow-x-hidden rounded-xl bg-white dark:bg-[#0C1120] shadow-sm border border-slate-200 dark:border-white/[0.06] scrollbar-thin"
+          className="flex-1 overflow-auto rounded-xl bg-white dark:bg-[#0C1120] shadow-sm border border-slate-200 dark:border-white/[0.06] scrollbar-thin"
           onMouseDown={handleContainerMouseDown}
           onClick={(e) => { if ((e.target as HTMLElement).closest('tr') === null) clearSelection(audioSubTab); }}>
-          <table className="w-full text-left queue-table table-fixed">
+          <table className="text-left queue-table table-fixed" style={{ width: Math.max(800, Object.values(colWidths).reduce((a, b) => a + b, 0)) }}>
+            <colgroup>
+              <col style={{ width: colWidths.grip }} />
+              <col style={{ width: colWidths.index }} />
+              <col style={{ width: colWidths.filename }} />
+              <col style={{ width: colWidths.destination }} />
+              <col style={{ width: colWidths.size }} />
+              {audioSubTab === 'convert' && <col style={{ width: colWidths.format }} />}
+              {audioSubTab === 'separate' && <col style={{ width: colWidths.format }} />}
+              {audioSubTab === 'separate' && <col style={{ width: colWidths.bitrate }} />}
+              {audioSubTab === 'separate' && <col style={{ width: colWidths.sampleRate }} />}
+              <col style={{ width: colWidths.status }} />
+              <col style={{ width: colWidths.tools }} />
+              <col style={{ width: colWidths.lock }} />
+              <col style={{ width: colWidths.clear }} />
+            </colgroup>
             {tableHeader}
             <tbody>
               {jobs.length === 0 ? (
                 <tr>
-                  <td colSpan={12} className="px-4 py-16 text-center text-slate-400 dark:text-white/25 text-sm">
+                  <td colSpan={audioSubTab === 'enhance' ? 9 : (audioSubTab === 'convert' ? 10 : 12)} className="px-4 py-16 text-center text-slate-400 dark:text-white/25 text-sm">
                     {t('queue.empty')}
                   </td>
                 </tr>

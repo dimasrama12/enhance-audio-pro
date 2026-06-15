@@ -348,3 +348,31 @@ Execute tasks in this order to avoid breakage at each step:
 - **Build command:** `npm run tauri build` — NOT plain `cargo build`.
 - **Persistence:** `tabQueues` replaces the old flat `jobs` in Zustand `persist`. The old persisted `jobs` key will be ignored on first load after migration — that is acceptable (queue resets to empty on first launch after update).
 - **No Python/Rust changes required** for Tasks 1–8. Task 9 rebuilds the binary unchanged except for the frontend bundle swap.
+
+---
+
+## Task 10 — Empty queues on startup & App cache shutdown cleanup sequence
+- `[x]` Clear active queues for Enhance and Convert tabs on frontend mount in `App.tsx`
+- `[x]` Modify Rust CloseRequested handler to kill Python sidecar first, sleep 150ms, and delete cache folder
+
+## Task 11 — Disable "Separate" sub-tab pill
+- `[x]` Disable click, add disabled CSS styles (reduced opacity, cursor-not-allowed) to "Separate" button in `QueueToolbar.tsx`
+- `[x]` Guard `setAudioSubTab` in `useUIStore.ts` to ignore the 'separate' tab parameter
+
+## Task 12 — Shrink "Enhance All" and "Convert All" bottom-right action buttons
+- `[x]` Shrink action buttons in `QueueGrid.tsx` bottom bar (`px-3.5 py-1.5 rounded-md text-xs font-medium`)
+
+## Task 13 — Modifier-aware and unique shortcut recording in Settings
+- `[x]` Implement modifier-aware keys listener in `SettingsPanel.tsx` and `KeyboardShortcutsPanel.tsx`
+- `[x]` Implement duplicate shortcut auto-clearing logic in both shortcut recording panels
+- `[x]` Sync defaults to backend settings file upon reset
+- `[x]` Prevent empty string shortcuts from triggering inside `useKeyboardShortcuts.ts`
+
+## Task 14 — Full manual column resizing with calibration log persistence & Toast
+- `[x]` Persist modified `colWidths` in `localStorage`
+- `[x]` Add resizable handlers to all headers and cells in `QueueGrid.tsx` (grip, index, lock, clear)
+- `[x]` Show toast notification on successful copy of column width log
+
+## Task 15 — Build and replace release binary in D:\cargo_build\enhance-audio-pro\release\enhance-audio-pro.exe
+- `[x]` Run `npx tsc --noEmit` to verify type-safety
+- `[x]` Run `npm run tauri build` to compile the final `.exe` binary

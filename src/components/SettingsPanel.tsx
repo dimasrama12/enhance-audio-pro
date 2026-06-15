@@ -26,32 +26,130 @@ function formatKey(e: KeyboardEvent): string {
   if (e.ctrlKey || e.metaKey) parts.push('Ctrl');
   if (e.shiftKey) parts.push('Shift');
   if (e.altKey) parts.push('Alt');
-  const key = e.key;
-  if (!['Control', 'Shift', 'Alt', 'Meta'].includes(key)) {
-    parts.push(key.length === 1 ? key.toUpperCase() : key);
+  const code = e.code;
+  let keyStr = e.key;
+  if (code.startsWith('Digit')) keyStr = code.slice(5);
+  else if (code.startsWith('Key')) keyStr = code.slice(3);
+  else if (keyStr === ' ') keyStr = 'Space';
+
+  if (!['Control', 'Shift', 'Alt', 'Meta'].includes(e.key)) {
+    parts.push(keyStr.length === 1 ? keyStr.toUpperCase() : keyStr);
   }
   return parts.join('+');
 }
 
 function ShortcutsTab(): JSX.Element {
-  const { keyboardShortcuts, setKeyboardShortcuts } = useSettingsStore();
+  const { keyboardShortcuts, setKeyboardShortcuts, customDefaultShortcuts, setCustomDefaultShortcuts } = useSettingsStore();
   const [recording, setRecording] = useState<keyof KeyboardShortcutMap | null>(null);
+  const [tempCombo, setTempCombo] = useState<string | null>(null);
 
   function startRecording(key: keyof KeyboardShortcutMap): void {
     setRecording(key);
+    setTempCombo(null);
+
     const handler = (e: KeyboardEvent): void => {
       e.preventDefault();
+      e.stopPropagation();
+
       if (e.key === 'Escape') {
         setRecording(null);
+        setTempCombo(null);
         window.removeEventListener('keydown', handler, true);
         return;
       }
+
+      const isModifier = ['Control', 'Shift', 'Alt', 'Meta'].includes(e.key);
       const combo = formatKey(e);
-      if (combo) setKeyboardShortcuts({ ...keyboardShortcuts, [key]: combo });
-      setRecording(null);
-      window.removeEventListener('keydown', handler, true);
+
+      if (!isModifier) {
+        if (combo) {
+          const current = {
+            ...DEFAULT_KEYBOARD_SHORTCUTS,
+            ...(keyboardShortcuts ?? {}),
+          };
+          const updated = { ...(keyboardShortcuts ?? {}) };
+
+          // Clear duplicates
+          Object.keys(current).forEach((k) => {
+            const otherKey = k as keyof KeyboardShortcutMap;
+            if (otherKey !== key) {
+              const activeCombo = keyboardShortcuts?.[otherKey] ?? DEFAULT_KEYBOARD_SHORTCUTS[otherKey];
+              if (activeCombo?.toLowerCase() === combo.toLowerCase()) {
+                updated[otherKey] = '';
+              }
+            }
+          });
+
+          updated[key] = combo;
+          setKeyboardShortcuts(updated);
+
+          // Save settings to storage & disk
+          const settings = useSettingsStore.getState();
+          const nextSettings = {
+            theme: settings.theme,
+            outputFolder: settings.outputFolder,
+            language: settings.language,
+            setupComplete: settings.setupComplete,
+            enhancementStrength: settings.enhancementStrength,
+            filenameTemplate: settings.filenameTemplate,
+            keyboardShortcuts: updated,
+            recordingPrefix: settings.recordingPrefix ?? 'Record',
+            aiModel: settings.aiModel ?? 'deepfilternet',
+          };
+          settings.setSettings(nextSettings);
+          void invokeSaveSettings(nextSettings);
+        }
+        setRecording(null);
+        setTempCombo(null);
+        window.removeEventListener('keydown', handler, true);
+      } else {
+        setTempCombo(combo + '+...');
+      }
     };
+
     window.addEventListener('keydown', handler, true);
+  }
+
+  async function handleSaveToDefault(): Promise<void> {
+    const currentShortcuts = keyboardShortcuts || DEFAULT_KEYBOARD_SHORTCUTS;
+    setCustomDefaultShortcuts(currentShortcuts);
+    const settings = useSettingsStore.getState();
+    const nextSettings = {
+      theme: settings.theme,
+      outputFolder: settings.outputFolder,
+      language: settings.language,
+      setupComplete: settings.setupComplete,
+      enhancementStrength: settings.enhancementStrength,
+      filenameTemplate: settings.filenameTemplate,
+      keyboardShortcuts: settings.keyboardShortcuts,
+      customDefaultShortcuts: currentShortcuts,
+      recordingPrefix: settings.recordingPrefix ?? 'Record',
+      aiModel: settings.aiModel ?? 'deepfilternet',
+      scratchDiskDir: settings.scratchDiskDir,
+    };
+    settings.setSettings(nextSettings);
+    await invokeSaveSettings(nextSettings);
+  }
+
+  async function handleResetAll(): Promise<void> {
+    const defaultToUse = customDefaultShortcuts || DEFAULT_KEYBOARD_SHORTCUTS;
+    setKeyboardShortcuts({ ...defaultToUse });
+    const settings = useSettingsStore.getState();
+    const nextSettings = {
+      theme: settings.theme,
+      outputFolder: settings.outputFolder,
+      language: settings.language,
+      setupComplete: settings.setupComplete,
+      enhancementStrength: settings.enhancementStrength,
+      filenameTemplate: settings.filenameTemplate,
+      keyboardShortcuts: defaultToUse,
+      customDefaultShortcuts: settings.customDefaultShortcuts,
+      recordingPrefix: settings.recordingPrefix ?? 'Record',
+      aiModel: settings.aiModel ?? 'deepfilternet',
+      scratchDiskDir: settings.scratchDiskDir,
+    };
+    settings.setSettings(nextSettings);
+    await invokeSaveSettings(nextSettings);
   }
 
   return (
@@ -67,16 +165,30 @@ function ShortcutsTab(): JSX.Element {
                 : 'border-slate-200 dark:border-white/[0.10] bg-slate-50 dark:bg-white/[0.04] text-slate-700 dark:text-white/60 hover:border-violet-400/60 hover:text-slate-900 dark:hover:text-white'
               }`}
           >
-            {recording === key ? 'Press key…' : (keyboardShortcuts?.[key] ?? DEFAULT_KEYBOARD_SHORTCUTS[key])}
+            {recording === key 
+              ? (tempCombo ?? 'Press key…') 
+              : (keyboardShortcuts?.[key] === '' 
+                ? 'None' 
+                : (keyboardShortcuts?.[key] ?? DEFAULT_KEYBOARD_SHORTCUTS[key])
+              )
+            }
           </button>
         </div>
       ))}
-      <button
-        onClick={() => setKeyboardShortcuts({ ...DEFAULT_KEYBOARD_SHORTCUTS })}
-        className="mt-3 text-xs text-slate-400 dark:text-white/30 hover:text-slate-700 dark:hover:text-white/60 transition-colors self-end"
-      >
-        Reset all to defaults
-      </button>
+      <div className="mt-3 flex justify-end items-center gap-4 self-end">
+        <button
+          onClick={handleSaveToDefault}
+          className="text-[10px] uppercase tracking-wider font-semibold text-slate-400 dark:text-white/30 hover:text-slate-700 dark:hover:text-white/60 transition-colors"
+        >
+          save setting to default
+        </button>
+        <button
+          onClick={handleResetAll}
+          className="text-xs text-slate-500 dark:text-white/40 hover:text-slate-900 dark:hover:text-white transition-colors"
+        >
+          Reset
+        </button>
+      </div>
     </div>
   );
 }
