@@ -1,5 +1,5 @@
-import { useEffect, useRef, useState } from 'react';
-import { Search, Trash2, RefreshCw, LayoutList, LayoutGrid, Layers } from 'lucide-react';
+import { useEffect, useRef } from 'react';
+import { Search, Trash2, LayoutList, LayoutGrid, Layers } from 'lucide-react';
 import { clsx } from 'clsx';
 import { listen } from '@tauri-apps/api/event';
 import { open as openDialog } from '@tauri-apps/plugin-dialog';
@@ -14,11 +14,11 @@ import {
   invokeProcessQueue,
   invokeSeparateStems,
   invokeConvertFiles,
-  invokeSetOutputFormat,
   invokeArchiveJobs,
   invokeCancelJobs,
   invokeSetJobStatus,
   invokeCopyEnhancedFile,
+  invokeDeleteFile,
 } from '@/lib/ipc';
 import { createLogger } from '@/lib/logger';
 import type { ViewMode } from '@/stores/useQueueStore';
@@ -33,8 +33,6 @@ const FILTERS = [
   { value: 'done', label: 'Done' },
   { value: 'error', label: 'Error' },
 ];
-
-const FORMAT_OPTIONS = ['wav', 'mp3', 'flac', 'aac', 'ogg', 'opus', 'm4a'];
 
 // Tab pill labels (just tab names — action buttons live in QueueActionBar at the bottom)
 const SUB_TAB_LABELS: Record<AudioSubTab, string> = {
@@ -60,7 +58,7 @@ export default function QueueToolbar(): JSX.Element {
   const selectedJobIds = useQueueStore((s) => s.tabSelectedIds[audioSubTab]);
   const jobOperationTypes = useQueueStore((s) => s.tabJobOpTypes[audioSubTab]);
 
-  const { setFilter, setSearchQuery, setOutputFormat, setViewMode, setGroupByFormat } = useQueueStore();
+  const { setFilter, setSearchQuery, setViewMode, setGroupByFormat } = useQueueStore();
 
   const searchRef = useRef<HTMLInputElement>(null);
   const abortProcessRef = useRef(false);
@@ -72,15 +70,6 @@ export default function QueueToolbar(): JSX.Element {
     if (focusSearchTick > 0) searchRef.current?.focus();
   }, [focusSearchTick]);
 
-  const [globalFormat, setGlobalFormat] = useState('wav');
-
-  useEffect(() => {
-    if (audioSubTab === 'convert' && globalFormat !== 'wav' && globalFormat !== 'mp3') {
-      setGlobalFormat('wav');
-    }
-  }, [audioSubTab, globalFormat]);
-
-  const pendingIds = jobs.filter((j) => j.status === 'pending').map((j) => j.id);
   const activeJobs = jobs.filter((j) => j.status === 'processing' || j.status === 'queued');
   const isAnyConverting = activeJobs.some((j) => jobOperationTypes[j.id] === 'convert');
 
@@ -309,28 +298,28 @@ export default function QueueToolbar(): JSX.Element {
     let count = 0;
     for (const job of doneJobs) {
       if (!job.output_filepath) continue;
-      const filename = job.output_filepath.replace(/\\/g, '/').split('/').pop() ?? job.filename;
+      const srcPath = job.output_filepath;
+      const filename = srcPath.replace(/\\/g, '/').split('/').pop() ?? job.filename;
       const destPath = `${folder}${sep}${filename}`;
-      const res = await invokeCopyEnhancedFile(job.id, job.output_filepath, destPath);
+      const res = await invokeCopyEnhancedFile(job.id, srcPath, destPath);
       if (res.success) {
         useQueueStore.getState().setDownloadPath(job.id, destPath);
+        useQueueStore.getState().setOutputFilepath(job.id, destPath);
         count++;
+        
+        if (srcPath !== destPath) {
+          try {
+            await invokeDeleteFile(srcPath);
+          } catch (err) {
+            console.error('Failed to clean up source convert file:', err);
+          }
+        }
       }
     }
     addToast(`Downloaded ${count} converted file${count !== 1 ? 's' : ''} to ${folder}`, 'success');
   }
 
-  async function handleApplyFormat(): Promise<void> {
-    const tab = useUIStore.getState().audioSubTab;
-    const tabJobs = useQueueStore.getState().tabQueues[tab];
-    const pendingJobs = tabJobs.filter((j) => j.status === 'pending');
-    await Promise.all(
-      pendingJobs.map((j) => {
-        setOutputFormat(j.id, globalFormat);
-        return invokeSetOutputFormat(j.id, globalFormat);
-      }),
-    );
-  }
+
 
   function toggleView(): void {
     const next: ViewMode = viewMode === 'table' ? 'grid' : 'table';
@@ -404,31 +393,7 @@ export default function QueueToolbar(): JSX.Element {
         ))}
       </select>
 
-      {audioSubTab !== 'enhance' && (
-        <div className="flex items-center gap-1.5 bg-slate-200 dark:bg-white/[0.06] rounded-lg px-3 py-1.5 border border-transparent">
-          <span className="text-slate-400 dark:text-zinc-100 text-xs font-medium">→</span>
-          <select
-            value={globalFormat}
-            onChange={(e) => setGlobalFormat(e.target.value)}
-            className="bg-transparent text-slate-800 dark:text-white text-xs outline-none"
-          >
-            {(audioSubTab === 'convert' ? ['wav', 'mp3'] : FORMAT_OPTIONS).map((f) => (
-              <option key={f} value={f} className="bg-white dark:bg-[#111827]">
-                {f.toUpperCase()}
-              </option>
-            ))}
-          </select>
-          <button
-            onClick={handleApplyFormat}
-            disabled={pendingIds.length === 0}
 
-            title={t('toolbar.applyFormat')}
-            className="text-slate-400 dark:text-zinc-100 hover:text-violet-600 dark:hover:text-violet-400 disabled:opacity-40 transition-colors"
-          >
-            <RefreshCw size={12} />
-          </button>
-        </div>
-      )}
 
       <button
         onClick={toggleView}

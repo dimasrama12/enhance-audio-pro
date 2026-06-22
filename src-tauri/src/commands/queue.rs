@@ -308,3 +308,14 @@ pub fn copy_enhanced_file(
     }
 }
 
+#[tauri::command]
+pub fn delete_file(path: String) -> IpcResponse<()> {
+    let p = std::path::Path::new(&path);
+    if p.exists() {
+        if let Err(e) = std::fs::remove_file(p) {
+            return IpcResponse { success: false, data: None, error: Some(e.to_string()) };
+        }
+    }
+    IpcResponse { success: true, data: Some(()), error: None }
+}
+

@@ -81,7 +81,8 @@ export async function invokeSeparateStems(jobIds: string[]): Promise<IpcResponse
 }
 
 export async function invokeConvertFiles(jobIds: string[], filenameTemplate?: string): Promise<IpcResponse<null>> {
-  return invoke<IpcResponse<null>>('convert_files', { jobIds, filenameTemplate: filenameTemplate ?? '' });
+  const template = (filenameTemplate ?? '').replace(/enhanced/gi, 'converted');
+  return invoke<IpcResponse<null>>('convert_files', { jobIds, filenameTemplate: template });
 }
 
 export async function invokeSetOutputFormat(jobId: string, format: string): Promise<IpcResponse<null>> {
@@ -138,4 +139,20 @@ export async function invokeAppendErrorLog(entry: string): Promise<void> {
 
 export async function invokeCopyEnhancedFile(jobId: string, srcPath: string, destPath: string): Promise<IpcResponse<string>> {
   return invoke<IpcResponse<string>>('copy_enhanced_file', { jobId, srcPath, destPath });
+}
+
+export async function invokeExportVolumeAdjustedAudio(
+  inputPath: string,
+  destPath: string,
+  dbGain: number,
+): Promise<IpcResponse<void>> {
+  return invoke<IpcResponse<void>>('export_volume_adjusted_audio', {
+    inputPath,
+    destPath,
+    dbGain,
+  });
+}
+
+export async function invokeDeleteFile(path: string): Promise<IpcResponse<void>> {
+  return invoke<IpcResponse<void>>('delete_file', { path });
 }

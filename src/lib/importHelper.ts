@@ -81,11 +81,10 @@ export async function submitAddFilesDirect(
 
       if (tab === 'convert') {
         for (const job of res.data) {
-          const currentFmt = job.output_format?.toLowerCase();
-          if (currentFmt !== 'wav' && currentFmt !== 'mp3') {
-            useQueueStore.getState().setOutputFormat(job.id, 'wav');
-            void invokeSetOutputFormat(job.id, 'wav');
-          }
+          const inputExt = job.filename.split('.').pop()?.toLowerCase();
+          const targetFmt = inputExt === 'mp3' ? 'wav' : 'mp3';
+          useQueueStore.getState().setOutputFormat(job.id, targetFmt);
+          void invokeSetOutputFormat(job.id, targetFmt);
         }
       }
 

@@ -29,7 +29,7 @@ import { CSS } from '@dnd-kit/utilities';
 import { useQueueStore } from '@/stores/useQueueStore';
 import { useUIStore } from '@/stores/useUIStore';
 import { useSettingsStore } from '@/stores/useSettingsStore';
-import { invokeSetOutputFormat, invokeSetBitrate, invokeSetSampleRate, invokeArchiveJobs, invokeProcessQueue, invokeCancelJobs, invokeSetJobStatus, invokeCopyEnhancedFile, invokeConvertFiles } from '@/lib/ipc';
+import { invokeSetOutputFormat, invokeSetBitrate, invokeSetSampleRate, invokeArchiveJobs, invokeProcessQueue, invokeCancelJobs, invokeSetJobStatus, invokeCopyEnhancedFile, invokeConvertFiles, invokeDeleteFile } from '@/lib/ipc';
 import { useToastStore } from '@/stores/useToastStore';
 import { logError } from '@/lib/errorLogger';
 import type { QueueJob, JobStatus } from '@/types/queue';
@@ -170,10 +170,26 @@ function FormatSelect({ job }: { job: QueueJob }): JSX.Element {
     setOutputFormat(job.id, fmt);
     await invokeSetOutputFormat(job.id, fmt);
   }
-  const options = audioSubTab === 'convert' ? ['wav', 'mp3'] : FORMAT_OPTIONS;
+
+  const inputExt = job.filename.split('.').pop()?.toLowerCase() ?? '';
+  let options = FORMAT_OPTIONS;
+  let isDisabled = job.status !== 'pending';
+
+  if (audioSubTab === 'convert') {
+    if (inputExt === 'mp3') {
+      options = ['wav'];
+      isDisabled = true;
+    } else if (inputExt === 'wav') {
+      options = ['mp3'];
+      isDisabled = true;
+    } else {
+      options = ['wav', 'mp3'];
+    }
+  }
+
   return (
     <select value={job.output_format} onChange={handleChange} onClick={(e) => e.stopPropagation()}
-      disabled={job.status !== 'pending'} className={selectCls}>
+      disabled={isDisabled} className={selectCls}>
       {options.map((f) => (
         <option key={f} value={f} className="bg-white dark:bg-[#111827]">{f.toUpperCase()}</option>
       ))}
@@ -339,6 +355,7 @@ function ConvertRowButton({ job }: { job: QueueJob }): JSX.Element | null {
 
 function DownloadJobButton({ job }: { job: QueueJob }): JSX.Element | null {
   const { addToast } = useToastStore();
+  const audioSubTab = useUIStore((s) => s.audioSubTab);
   if (job.status !== 'done') return null;
   const canDownload = !!job.output_filepath;
 
@@ -347,20 +364,37 @@ function DownloadJobButton({ job }: { job: QueueJob }): JSX.Element | null {
     if (!canDownload || !job.output_filepath) return;
     const srcPath = job.output_filepath;
     const filename = srcPath.replace(/\\/g, '/').split('/').pop() ?? job.filename;
-    const destPath = await saveDialog({ defaultPath: filename, title: 'Save Enhanced File As' });
+    const dialogTitle = audioSubTab === 'convert' ? 'Save Converted File As' : 'Save Enhanced File As';
+    const destPath = await saveDialog({ defaultPath: filename, title: dialogTitle });
     if (!destPath) return;
     const res = await invokeCopyEnhancedFile(job.id, srcPath, destPath);
     if (res.success) {
       useQueueStore.getState().setDownloadPath(job.id, destPath);
+      if (audioSubTab === 'convert') {
+        useQueueStore.getState().setOutputFilepath(job.id, destPath);
+      }
       addToast(`Saved "${filename}"`, 'success');
+      
+      // Delete temporary/original copy from source folder if a different path was chosen
+      if (audioSubTab === 'convert' && srcPath !== destPath) {
+        try {
+          await invokeDeleteFile(srcPath);
+        } catch (err) {
+          console.error('Failed to clean up source convert file:', err);
+        }
+      }
     } else {
       addToast(`Save failed: ${res.error ?? 'Unknown error'}`, 'error');
     }
   }
 
+  const titleText = audioSubTab === 'convert'
+    ? (canDownload ? 'Download converted file' : 'File not converted yet')
+    : (canDownload ? 'Download enhanced file' : 'File not enhanced yet');
+
   return (
     <button onClick={handleDownload} disabled={!canDownload}
-      title={canDownload ? 'Download enhanced file' : 'File not enhanced yet'}
+      title={titleText}
       className={clsx(
         'transition-all duration-150',
         canDownload

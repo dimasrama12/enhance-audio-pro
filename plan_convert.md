@@ -1047,6 +1047,24 @@
 
 ---
 
+## Task 15 — Auto-Toggle WAV/MP3 conversion format, global save to removal, correct filename suffix, and duplicate file deletion 🚀 [NEW]
+
+**Files:** `src/lib/importHelper.ts`, `src/components/QueueGrid.tsx`, `src/components/QueueToolbar.tsx`, `src/lib/ipc.ts`, `src-tauri/src/commands/queue.rs`, `src-tauri/src/lib.rs`
+
+- [x] **Step 1 — Auto-select output format based on input extension and disable dropdown selection on Convert sub-tab**
+  Update `submitAddFilesDirect` in `src/lib/importHelper.ts` to automatically select `'mp3'` output format if input is `.wav` and `'wav'` if input is `.mp3` when active sub-tab is `'convert'`. Update `FormatSelect` in `src/components/QueueGrid.tsx` to display only the opposite format option and set selection state to disabled on the convert sub-tab.
+
+- [x] **Step 2 — Remove the global format select dropdown and apply button**
+  Delete the global format selection div block and related `handleApplyFormat` logic from `src/components/QueueToolbar.tsx`.
+
+- [x] **Step 3 — Adjust default filename template to replace '_enhanced' with '_converted' for convert jobs**
+  Update `invokeConvertFiles` wrapper in `src/lib/ipc.ts` to dynamically replace any instances of `enhanced` or `_enhanced` in `filenameTemplate` with `converted` or `_converted` before dispatching the Tauri command.
+
+- [x] **Step 4 — Implement delete_file Rust IPC command and clean up source files after user download**
+  Add a new `delete_file` command to `src-tauri/src/commands/queue.rs` and register it in `src-tauri/src/lib.rs`. Update individual row `DownloadJobButton` in `src/components/QueueGrid.tsx` and toolbar `triggerConvertDownloadAll` in `src/components/QueueToolbar.tsx` to invoke `delete_file` on `srcPath` and update `output_filepath` in Zustand queue store if they are on the convert sub-tab and a different directory destination is chosen.
+
+---
+
 ## Self-Review Checklist
 
 | Requirement | Covered by |
