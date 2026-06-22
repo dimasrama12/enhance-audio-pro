@@ -24,7 +24,7 @@ export default function DropZone(): JSX.Element {
     jobs.some((j) => j.id === activePlayerJobId),
   );
   const isHidden = playerOpen && activeJobExists;
-  const { activeTab } = useUIStore();
+  const { activeTab, audioSubTab } = useUIStore();
   const dragCounterRef = useRef(0);
   const { t } = useTranslation();
 
@@ -97,7 +97,7 @@ export default function DropZone(): JSX.Element {
 
   const handleClick = async (): Promise<void> => {
     const extensions = activeTab === 'audio'
-      ? ['mp3', 'wav', 'flac', 'aac', 'ogg', 'opus', 'm4a', 'wma', 'aiff', 'mp2']
+      ? (audioSubTab === 'convert' ? ['mp3', 'wav'] : ['mp3', 'wav', 'flac', 'aac', 'ogg', 'opus', 'm4a', 'wma', 'aiff', 'mp2'])
       : ['mp4', 'mkv', 'mov', 'avi', 'webm', 'flv'];
     const selected = await openDialog({
       multiple: true,
@@ -225,7 +225,7 @@ export default function DropZone(): JSX.Element {
             {t('dropzone.browse')}
             {' · '}
             <span className="text-slate-400 dark:text-zinc-200">
-              {isAudio ? 'MP3, WAV, FLAC, AAC +7' : 'MP4, MKV, MOV, AVI +2'}
+              {isAudio ? (audioSubTab === 'convert' ? 'MP3, WAV' : 'MP3, WAV, FLAC, AAC +7') : 'MP4, MKV, MOV, AVI +2'}
             </span>
           </p>
         </div>

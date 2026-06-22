@@ -1029,6 +1029,24 @@
 
 ---
 
+## Task 14 — Constrain Convert Tab to MP3/WAV Only and Fix Convert Stuck Issue 🚀 [NEW]
+
+**Files:** `src/lib/importHelper.ts`, `src/components/DropZone.tsx`, `src/components/QueueGrid.tsx`, `src/components/QueueToolbar.tsx`, `backend/processors/convert_audio.py`
+
+- [x] **Step 1 — Restrict files added via browse dialog or drag-and-drop on Convert tab to MP3/WAV only**
+  Update `handleImportFiles` in `src/lib/importHelper.ts` to filter paths to only `.mp3` and `.wav` files when `audioSubTab === 'convert'`. Also update `DropZone.tsx`'s `handleClick` file selection filters and UI helper text when on the Convert sub-tab.
+
+- [x] **Step 2 — Default the output format of new files added under Convert sub-tab to 'wav'**
+  Update `submitAddFilesDirect` in `src/lib/importHelper.ts` to ensure that any jobs added while the active sub-tab is `'convert'` default their output format to `'wav'` (or keep their format if it is already `'wav'` or `'mp3'`).
+
+- [x] **Step 3 — Restrict format options dropdowns to 'wav' and 'mp3' only on Convert tab**
+  Update `FormatSelect` in `src/components/QueueGrid.tsx` and the global format dropdown in `src/components/QueueToolbar.tsx` to display only `'wav'` and `'mp3'` when the active sub-tab is `'convert'`. Ensure `globalFormat` resets to `'wav'` on tab switch if it has an invalid format.
+
+- [x] **Step 4 — Add "-loglevel error" flag to ffmpeg execution in convert_audio.py**
+  Update `convert_file` in `backend/processors/convert_audio.py` to insert `"-loglevel", "error"` in the command list before `"-i"` input file argument to prevent subprocess output buffer deadlocks.
+
+---
+
 ## Self-Review Checklist
 
 | Requirement | Covered by |

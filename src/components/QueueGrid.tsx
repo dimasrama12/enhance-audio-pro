@@ -71,7 +71,7 @@ const ENHANCE_COL_WIDTHS: Record<ColKey, number> = {
 const CONVERT_COL_WIDTHS: Record<ColKey, number> = {
   grip: 28,
   index: 34,
-  filename: 540,
+  filename: 500,
   destination: 183,
   size: 76,
   format: 87,
@@ -83,56 +83,21 @@ const CONVERT_COL_WIDTHS: Record<ColKey, number> = {
   clear: 46,
 };
 
-const MIN_COL_WIDTHS: Record<ColKey, number> = {
-  grip: 15, index: 15, filename: 50, destination: 50, size: 30,
-  format: 30, bitrate: 30, sampleRate: 30, status: 30, tools: 50, lock: 20, clear: 20,
-};
-
 
 
 // ─── Resize handle ────────────────────────────────────────────────────────────
 
 function ResizeHandle({
-  colKey,
-  onResize,
-  disabled
+  colKey: _colKey,
+  onResize: _onResize,
+  disabled: _disabled
 }: {
   colKey: ColKey;
   onResize: (key: ColKey, delta: number) => void;
   disabled?: boolean;
 }): JSX.Element | null {
-  const startXRef = useRef(0);
-
-  const onMouseDown = useCallback(
-    (e: React.MouseEvent) => {
-      if (disabled) return;
-      e.preventDefault();
-      e.stopPropagation();
-      startXRef.current = e.clientX;
-
-      const onMouseMove = (ev: MouseEvent): void => {
-        const delta = ev.clientX - startXRef.current;
-        startXRef.current = ev.clientX;
-        onResize(colKey, delta);
-      };
-      const onMouseUp = (): void => {
-        window.removeEventListener('mousemove', onMouseMove);
-        window.removeEventListener('mouseup', onMouseUp);
-      };
-      window.addEventListener('mousemove', onMouseMove);
-      window.addEventListener('mouseup', onMouseUp);
-    },
-    [colKey, onResize, disabled],
-  );
-
-  if (disabled) return null;
-
-  return (
-    <div
-      onMouseDown={onMouseDown}
-      className="absolute right-0 top-0 h-full w-1.5 cursor-col-resize select-none hover:bg-violet-500/40 active:bg-violet-500/60 transition-colors z-10"
-    />
-  );
+  // Column resizing is locked by request
+  return null;
 }
 
 // ─── Status badge ─────────────────────────────────────────────────────────────
@@ -149,12 +114,12 @@ function StatusBadge({ status, progress, errorMessage, onErrorClick }: {
   status: JobStatus;
   progress: number;
   errorMessage?: string | null;
-  onErrorClick?: () => void;
+  onErrorClick?: (e: React.MouseEvent) => void;
 }): JSX.Element {
   return (
     <div className="flex flex-col items-center justify-center w-full">
       <span
-        onClick={status === 'error' ? onErrorClick : undefined}
+        onClick={status === 'error' ? (e) => { e.stopPropagation(); onErrorClick?.(e); } : undefined}
         className={clsx(
           'inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium capitalize mx-auto',
           STATUS_BADGE_CLS[status],
@@ -198,16 +163,18 @@ const selectCls =
 
 function FormatSelect({ job }: { job: QueueJob }): JSX.Element {
   const setOutputFormat = useQueueStore((s) => s.setOutputFormat);
+  const audioSubTab = useUIStore((s) => s.audioSubTab);
   async function handleChange(e: React.ChangeEvent<HTMLSelectElement>): Promise<void> {
     e.stopPropagation();
     const fmt = e.target.value;
     setOutputFormat(job.id, fmt);
     await invokeSetOutputFormat(job.id, fmt);
   }
+  const options = audioSubTab === 'convert' ? ['wav', 'mp3'] : FORMAT_OPTIONS;
   return (
     <select value={job.output_format} onChange={handleChange} onClick={(e) => e.stopPropagation()}
       disabled={job.status !== 'pending'} className={selectCls}>
-      {FORMAT_OPTIONS.map((f) => (
+      {options.map((f) => (
         <option key={f} value={f} className="bg-white dark:bg-[#111827]">{f.toUpperCase()}</option>
       ))}
     </select>
@@ -523,11 +490,11 @@ function SortableJobRow({
           tabIndex={-1} aria-label="Drag to reorder">
           <GripVertical size={14} />
         </button>
-        <ResizeHandle colKey="grip" onResize={onResize} disabled={audioSubTab === 'enhance' || audioSubTab === 'convert'} />
+        <ResizeHandle colKey="grip" onResize={onResize} disabled={false} />
       </td>
       <td className="px-1 py-2 text-slate-400 dark:text-zinc-100 text-xs text-center tabular-nums relative" style={{ width: colWidths.index }}>
         {index + 1}
-        <ResizeHandle colKey="index" onResize={onResize} disabled={audioSubTab === 'enhance' || audioSubTab === 'convert'} />
+        <ResizeHandle colKey="index" onResize={onResize} disabled={false} />
       </td>
       <td className={clsx('px-4 py-2 text-sm text-slate-800 dark:text-zinc-100 font-medium relative', !filenameExpanded && 'overflow-hidden')}
         style={{ width: colWidths.filename }}>
@@ -550,7 +517,7 @@ function SortableJobRow({
             </span>
           )}
         </div>
-        <ResizeHandle colKey="filename" onResize={onResize} disabled={audioSubTab === 'enhance' || audioSubTab === 'convert'} />
+        <ResizeHandle colKey="filename" onResize={onResize} disabled={false} />
       </td>
       <td className="px-2 py-2 text-xs text-slate-400 dark:text-zinc-100 overflow-hidden relative" style={{ width: colWidths.destination }}>
         <span onClick={(e) => { e.stopPropagation(); setDestExpanded((v) => !v); }}
@@ -559,17 +526,17 @@ function SortableJobRow({
           title={destExpanded ? undefined : (getSourceDir(job.filepath) || undefined)}>
           {getSourceDir(job.filepath) || '—'}
         </span>
-        <ResizeHandle colKey="destination" onResize={onResize} disabled={audioSubTab === 'enhance' || audioSubTab === 'convert'} />
+        <ResizeHandle colKey="destination" onResize={onResize} disabled={false} />
       </td>
       <td className="px-2 py-2 text-xs text-slate-400 dark:text-zinc-100 truncate tabular-nums relative"
         style={{ width: colWidths.size }} title={formatBytes(job.size_bytes)}>
         {formatBytes(job.size_bytes)}
-        <ResizeHandle colKey="size" onResize={onResize} disabled={audioSubTab === 'enhance' || audioSubTab === 'convert'} />
+        <ResizeHandle colKey="size" onResize={onResize} disabled={false} />
       </td>
       {audioSubTab !== 'enhance' && (
         <td className="px-1 py-2 relative" style={{ width: colWidths.format }}>
           <FormatSelect job={job} />
-          <ResizeHandle colKey="format" onResize={onResize} disabled={audioSubTab === 'enhance' || audioSubTab === 'convert'} />
+          <ResizeHandle colKey="format" onResize={onResize} disabled={false} />
         </td>
       )}
       {audioSubTab === 'separate' && (
@@ -586,8 +553,8 @@ function SortableJobRow({
       )}
       <td className="px-1.5 py-2 text-xs font-medium whitespace-nowrap text-center relative" style={{ width: colWidths.status }}>
         <StatusBadge status={job.status} progress={job.progress} errorMessage={job.error_message}
-          onErrorClick={() => { if (job.error_message && onErrorClick) onErrorClick(job.filename, job.error_message); }} />
-        <ResizeHandle colKey="status" onResize={onResize} disabled={audioSubTab === 'enhance' || audioSubTab === 'convert'} />
+          onErrorClick={(e) => { e.stopPropagation(); if (onErrorClick) onErrorClick(job.filename, job.error_message || 'Unknown error occurred during enhancement'); }} />
+        <ResizeHandle colKey="status" onResize={onResize} disabled={false} />
       </td>
       <td className="px-1.5 py-2 relative" style={{ width: colWidths.tools }}>
         <div className="flex items-center flex-nowrap gap-1 justify-center">
@@ -601,7 +568,7 @@ function SortableJobRow({
           )}
           <DownloadJobButton job={job} />
         </div>
-        <ResizeHandle colKey="tools" onResize={onResize} disabled={audioSubTab === 'enhance' || audioSubTab === 'convert'} />
+        <ResizeHandle colKey="tools" onResize={onResize} disabled={false} />
       </td>
       <td className="px-1 py-2 text-center group/lock relative" style={{ width: colWidths.lock }}>
         <button
@@ -611,7 +578,7 @@ function SortableJobRow({
             isLocked ? 'text-blue-500 dark:text-blue-400' : 'text-slate-400 dark:text-white/25 hover:text-slate-600 dark:hover:text-white/50')}>
           <Lock size={12} />
         </button>
-        <ResizeHandle colKey="lock" onResize={onResize} disabled={audioSubTab === 'enhance' || audioSubTab === 'convert'} />
+        <ResizeHandle colKey="lock" onResize={onResize} disabled={false} />
       </td>
       <td className="px-1 py-2 text-center group/trash relative" style={{ width: colWidths.clear }}>
         <button
@@ -639,7 +606,7 @@ function SortableJobRow({
               : 'text-red-500 hover:text-red-400 dark:text-red-500 dark:hover:text-red-400 opacity-100')}>
           <Trash2 size={12} />
         </button>
-        <ResizeHandle colKey="clear" onResize={onResize} disabled={audioSubTab === 'enhance' || audioSubTab === 'convert'} />
+        <ResizeHandle colKey="clear" onResize={onResize} disabled={false} />
       </td>
     </tr>
   );
@@ -744,42 +711,19 @@ export default function QueueGrid(): JSX.Element {
   const { t } = useTranslation();
 
   // ── Resizable columns ──────────────────────────────────────────────────────
-  const [allColWidths, setAllColWidths] = useState<Record<string, Record<ColKey, number>>>(() => {
-    try {
-      const saved = localStorage.getItem('enhance-audio-pro-col-widths-v2');
-      if (saved) {
-        return JSON.parse(saved);
-      }
-    } catch (e) {
-      console.error('Failed to load persisted column widths:', e);
-    }
-    return {
-      enhance: { ...ENHANCE_COL_WIDTHS },
-      convert: { ...CONVERT_COL_WIDTHS },
-      separate: { ...DEFAULT_COL_WIDTHS },
-    };
-  });
+  // Column sizes are now locked to their correct predefined values.
+  const allColWidths = useMemo<Record<string, Record<ColKey, number>>>(() => ({
+    enhance: { ...ENHANCE_COL_WIDTHS },
+    convert: { ...CONVERT_COL_WIDTHS },
+    separate: { ...DEFAULT_COL_WIDTHS },
+  }), []);
 
   const colWidths = allColWidths[audioSubTab] || DEFAULT_COL_WIDTHS;
 
-  const handleResize = useCallback((key: ColKey, delta: number) => {
-    if (audioSubTab === 'enhance' || audioSubTab === 'convert') return;
-
-    setAllColWidths((prev) => {
-      const currentTabWidths = prev[audioSubTab] || DEFAULT_COL_WIDTHS;
-      const updatedTabWidths = { ...currentTabWidths };
-      const currentW = currentTabWidths[key] ?? DEFAULT_COL_WIDTHS[key];
-      updatedTabWidths[key] = Math.max(MIN_COL_WIDTHS[key] ?? 20, currentW + delta);
-      
-      const updatedAll = { ...prev, [audioSubTab]: updatedTabWidths };
-      try {
-        localStorage.setItem('enhance-audio-pro-col-widths-v2', JSON.stringify(updatedAll));
-      } catch (e) {
-        console.error('Failed to persist column widths:', e);
-      }
-      return updatedAll;
-    });
-  }, [audioSubTab]);
+  // Resizing is disabled, but keep signature to avoid breaking other components
+  const handleResize = useCallback((_key: ColKey, _delta: number) => {
+    // Locked
+  }, []);
 
   const { addToast } = useToastStore();
 
@@ -1123,23 +1067,23 @@ export default function QueueGrid(): JSX.Element {
     <thead>
       <tr className="text-slate-500 dark:text-zinc-100 font-semibold text-[10px] uppercase tracking-wider sticky top-0 bg-slate-50 dark:bg-[#090E1B] border-b-2 border-slate-200 dark:border-white/[0.08] z-10">
         <th className="px-1 py-2.5 text-center relative" style={{ width: colWidths.grip }}>
-          <ResizeHandle colKey="grip" onResize={handleResize} disabled={audioSubTab === 'enhance' || audioSubTab === 'convert'} />
+          <ResizeHandle colKey="grip" onResize={handleResize} disabled={false} />
         </th>
         <th className="px-1 py-2.5 text-center relative" style={{ width: colWidths.index }}>
           #
-          <ResizeHandle colKey="index" onResize={handleResize} disabled={audioSubTab === 'enhance' || audioSubTab === 'convert'} />
+          <ResizeHandle colKey="index" onResize={handleResize} disabled={false} />
         </th>
         <th className="px-2 py-2.5 text-left relative" style={{ width: colWidths.filename }}>
           <span className="px-2">{t('queue.col.filename')}</span>
-          <ResizeHandle colKey="filename" onResize={handleResize} disabled={audioSubTab === 'enhance' || audioSubTab === 'convert'} />
+          <ResizeHandle colKey="filename" onResize={handleResize} disabled={false} />
         </th>
         <th className="px-2 py-2.5 text-left relative" style={{ width: colWidths.destination }}>
           <span className="px-2">{t('queue.col.destination')}</span>
-          <ResizeHandle colKey="destination" onResize={handleResize} disabled={audioSubTab === 'enhance' || audioSubTab === 'convert'} />
+          <ResizeHandle colKey="destination" onResize={handleResize} disabled={false} />
         </th>
         <th className="px-2 py-2.5 text-left relative" style={{ width: colWidths.size }}>
           <span className="px-2">{t('queue.col.size')}</span>
-          <ResizeHandle colKey="size" onResize={handleResize} disabled={audioSubTab === 'enhance' || audioSubTab === 'convert'} />
+          <ResizeHandle colKey="size" onResize={handleResize} disabled={false} />
         </th>
         {audioSubTab !== 'enhance' && (
           <th className="px-1 py-2.5 text-center relative" style={{ width: colWidths.format }}>
@@ -1161,7 +1105,7 @@ export default function QueueGrid(): JSX.Element {
         )}
         <th className="px-1.5 py-2.5 text-center whitespace-nowrap relative" style={{ width: colWidths.status }}>
           <span>{t('queue.col.status')}</span>
-          <ResizeHandle colKey="status" onResize={handleResize} disabled={audioSubTab === 'enhance' || audioSubTab === 'convert'} />
+          <ResizeHandle colKey="status" onResize={handleResize} disabled={false} />
         </th>
         <th className="px-1.5 py-2.5 text-center relative" style={{ width: colWidths.tools }}>
           <div className="flex items-center justify-center gap-2">
@@ -1173,7 +1117,7 @@ export default function QueueGrid(): JSX.Element {
               </button>
             )}
           </div>
-          <ResizeHandle colKey="tools" onResize={handleResize} disabled={audioSubTab === 'enhance' || audioSubTab === 'convert'} />
+          <ResizeHandle colKey="tools" onResize={handleResize} disabled={false} />
         </th>
         <th className="px-1 py-2.5 text-center relative" style={{ width: colWidths.lock }}>
           <button
@@ -1190,7 +1134,7 @@ export default function QueueGrid(): JSX.Element {
             className="text-slate-400 dark:text-zinc-100 hover:text-violet-500 dark:hover:text-violet-400 transition-colors">
             <Lock size={11} className="mx-auto" />
           </button>
-          <ResizeHandle colKey="lock" onResize={handleResize} disabled={audioSubTab === 'enhance' || audioSubTab === 'convert'} />
+          <ResizeHandle colKey="lock" onResize={handleResize} disabled={false} />
         </th>
         <th className="px-1 py-2.5 text-center relative" style={{ width: colWidths.clear }}>
           <button
@@ -1213,7 +1157,7 @@ export default function QueueGrid(): JSX.Element {
             title="Clear all non-locked items">
             Clear
           </button>
-          <ResizeHandle colKey="clear" onResize={handleResize} disabled={audioSubTab === 'enhance' || audioSubTab === 'convert'} />
+          <ResizeHandle colKey="clear" onResize={handleResize} disabled={false} />
         </th>
       </tr>
     </thead>
@@ -1223,10 +1167,10 @@ export default function QueueGrid(): JSX.Element {
     <>
       <div className="flex flex-col flex-1 min-h-0">
         <div ref={tableContainerRef}
-          className="flex-1 overflow-auto rounded-xl bg-white dark:bg-[#0C1120] shadow-sm border border-slate-200 dark:border-white/[0.06] scrollbar-thin"
+          className="flex-1 overflow-y-scroll overflow-x-auto rounded-xl bg-white dark:bg-[#0C1120] shadow-sm border border-slate-200 dark:border-white/[0.06] scrollbar-thin"
           onMouseDown={handleContainerMouseDown}
           onClick={(e) => { if ((e.target as HTMLElement).closest('tr') === null) clearSelection(audioSubTab); }}>
-          <table className="text-left queue-table table-fixed" style={{ width: Math.max(800, Object.values(colWidths).reduce((a, b) => a + b, 0)) }}>
+          <table className="text-left queue-table table-fixed w-full" style={{ minWidth: Math.max(800, colWidths.grip + colWidths.index + colWidths.filename + colWidths.destination + colWidths.size + colWidths.status + colWidths.tools + colWidths.lock + colWidths.clear + (audioSubTab === 'convert' ? colWidths.format : audioSubTab === 'separate' ? colWidths.format + colWidths.bitrate + colWidths.sampleRate : 0)) }}>
             <colgroup>
               <col style={{ width: colWidths.grip }} />
               <col style={{ width: colWidths.index }} />
@@ -1255,7 +1199,7 @@ export default function QueueGrid(): JSX.Element {
                   {visibleGroups.map((group, gi) => (
                     <React.Fragment key={`group-${gi}`}>
                       <tr>
-                        <td colSpan={12} className="px-4 pt-3 pb-1">
+                        <td colSpan={audioSubTab === 'enhance' ? 9 : (audioSubTab === 'convert' ? 10 : 12)} className="px-4 pt-3 pb-1">
                           <button onClick={() => toggleGroup(group.label)}
                             className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wider text-violet-600 dark:text-violet-400/80 hover:text-violet-700 dark:hover:text-violet-300 transition-colors">
                             <ChevronRight size={11} className={`transition-transform shrink-0 ${collapsedGroups.has(group.label) ? '' : 'rotate-90'}`} />

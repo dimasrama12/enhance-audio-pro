@@ -74,6 +74,12 @@ export default function QueueToolbar(): JSX.Element {
 
   const [globalFormat, setGlobalFormat] = useState('wav');
 
+  useEffect(() => {
+    if (audioSubTab === 'convert' && globalFormat !== 'wav' && globalFormat !== 'mp3') {
+      setGlobalFormat('wav');
+    }
+  }, [audioSubTab, globalFormat]);
+
   const pendingIds = jobs.filter((j) => j.status === 'pending').map((j) => j.id);
   const activeJobs = jobs.filter((j) => j.status === 'processing' || j.status === 'queued');
   const isAnyConverting = activeJobs.some((j) => jobOperationTypes[j.id] === 'convert');
@@ -406,7 +412,7 @@ export default function QueueToolbar(): JSX.Element {
             onChange={(e) => setGlobalFormat(e.target.value)}
             className="bg-transparent text-slate-800 dark:text-white text-xs outline-none"
           >
-            {FORMAT_OPTIONS.map((f) => (
+            {(audioSubTab === 'convert' ? ['wav', 'mp3'] : FORMAT_OPTIONS).map((f) => (
               <option key={f} value={f} className="bg-white dark:bg-[#111827]">
                 {f.toUpperCase()}
               </option>

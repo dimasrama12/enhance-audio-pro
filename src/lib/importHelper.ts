@@ -1,5 +1,5 @@
 import { validateFile, getFilename } from '@/lib/fileValidation';
-import { invokeAddFiles, invokeSetDestination } from '@/lib/ipc';
+import { invokeAddFiles, invokeSetDestination, invokeSetOutputFormat } from '@/lib/ipc';
 import { useQueueStore } from '@/stores/useQueueStore';
 import { useSettingsStore } from '@/stores/useSettingsStore';
 import { useUIStore } from '@/stores/useUIStore';
@@ -13,11 +13,22 @@ export async function handleImportFiles(paths: string[]): Promise<void> {
   const ui = useUIStore.getState();
   ui.setIsImporting(true);
   try {
-    const valid = paths.filter((p) => validateFile(getFilename(p)).valid);
+    const tab = ui.audioSubTab;
+    let valid = paths.filter((p) => validateFile(getFilename(p)).valid);
+    if (tab === 'convert') {
+      valid = valid.filter((p) => {
+        const ext = getFilename(p).split('.').pop()?.toLowerCase() ?? '';
+        return ext === 'mp3' || ext === 'wav';
+      });
+    }
     const skipped = paths.length - valid.length;
 
     if (valid.length === 0) {
-      ui.setImportError('No supported audio or video files found.');
+      if (tab === 'convert') {
+        ui.setImportError('Only MP3 and WAV files are supported in Convert tab.');
+      } else {
+        ui.setImportError('No supported audio or video files found.');
+      }
       setTimeout(() => ui.setImportError(null), 3000);
       ui.setIsImporting(false);
       return;
@@ -26,7 +37,6 @@ export async function handleImportFiles(paths: string[]): Promise<void> {
     const capped = valid;
 
     // Duplicate detection against the ACTIVE tab's queue only
-    const tab = ui.audioSubTab;
     const existingPaths = new Set(
       useQueueStore.getState().tabQueues[tab].map((j) => normalizePath(j.filepath)),
     );
@@ -68,6 +78,16 @@ export async function submitAddFilesDirect(
       // Route to the currently active sub-tab
       const tab = useUIStore.getState().audioSubTab;
       useQueueStore.getState().addJobs(res.data, tab);
+
+      if (tab === 'convert') {
+        for (const job of res.data) {
+          const currentFmt = job.output_format?.toLowerCase();
+          if (currentFmt !== 'wav' && currentFmt !== 'mp3') {
+            useQueueStore.getState().setOutputFormat(job.id, 'wav');
+            void invokeSetOutputFormat(job.id, 'wav');
+          }
+        }
+      }
 
       for (const job of res.data) {
         prewarmAudio(job.filepath);

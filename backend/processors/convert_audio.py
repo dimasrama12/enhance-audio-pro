@@ -23,7 +23,7 @@ def convert_file(
     sample_rate: str = "",
 ) -> None:
     progress_cb(10)
-    cmd = [_ffmpeg_exe(), "-y", "-i", input_path, "-vn"]
+    cmd = [_ffmpeg_exe(), "-y", "-loglevel", "error", "-i", input_path, "-vn"]
     if bitrate:
         cmd += ["-b:a", bitrate]
     if sample_rate:
