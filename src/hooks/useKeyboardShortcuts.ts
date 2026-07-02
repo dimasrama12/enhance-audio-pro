@@ -9,7 +9,6 @@ import {
   invokeListFolderFiles,
   invokeConvertFiles,
   invokeProcessQueue,
-  invokeSeparateStems,
   invokeSaveSettings,
   invokeArchiveJobs,
   invokeSetJobStatus,
@@ -74,9 +73,12 @@ export function useKeyboardShortcuts(): void {
           setupComplete: s.setupComplete,
           enhancementStrength: s.enhancementStrength,
           filenameTemplate: s.filenameTemplate,
+          filenameTemplateConverted: s.filenameTemplateConverted,
           keyboardShortcuts: s.keyboardShortcuts,
           recordingPrefix: s.recordingPrefix ?? 'Record',
           aiModel: s.aiModel ?? 'deepfilternet',
+          scratchDiskDir: s.scratchDiskDir,
+          customDefaultShortcuts: s.customDefaultShortcuts,
           ...patch,
         };
         s.setSettings(next);
@@ -112,6 +114,7 @@ export function useKeyboardShortcuts(): void {
 
       // ── Queue actions ──────────────────────────────────────────────────────
       if (matches(e, sc.enhance)) {
+        if (tab !== 'enhance') return;
         const tabJobs = q.tabQueues[tab];
         const enhIds = tabJobs.filter((j) => j.status === 'pending' || j.status === 'error').map((j) => j.id);
         const isActive = tabJobs.some((j) => j.status === 'processing' || j.status === 'queued');
@@ -133,13 +136,10 @@ export function useKeyboardShortcuts(): void {
         return;
       }
 
-      if (matches(e, sc.separate)) {
-        const ids = q.tabQueues[tab].filter((j) => j.status === 'pending').map((j) => j.id);
-        if (ids.length) invokeSeparateStems(ids);
-        return;
-      }
+
 
       if (matches(e, sc.convert)) {
+        if (tab !== 'convert') return;
         const tabJobs = q.tabQueues[tab];
         const ids = tabJobs.filter((j) => j.status === 'pending').map((j) => j.id);
         const isActive = tabJobs.some((j) => j.status === 'processing' || j.status === 'queued');
@@ -152,7 +152,7 @@ export function useKeyboardShortcuts(): void {
         const freshJobs = useQueueStore.getState().tabQueues[tab];
         const nextQueued = freshJobs.find((j) => j.status === 'queued');
         if (nextQueued) {
-          invokeConvertFiles([nextQueued.id], s.filenameTemplate).catch(console.error);
+          invokeConvertFiles([nextQueued.id], s.filenameTemplateConverted).catch(console.error);
         }
         return;
       }
@@ -238,14 +238,13 @@ export function useKeyboardShortcuts(): void {
 
       // ── Navigation ────────────────────────────────────────────────────────
       if (matches(e, sc.audioTab)) { ui.setActiveTab('audio'); return; }
-      if (matches(e, sc.videoTab)) { ui.setActiveTab('video'); return; }
+      if (matches(e, sc.videoTab)) { return; } // Locked
       if (matches(e, sc.toggleSidebar)) { e.preventDefault(); ui.toggleSidebar(); return; }
       if (matches(e, sc.focusSearch)) { e.preventDefault(); ui.requestFocusSearch(); return; }
 
       // ── Sub-tab switch (1 / 2 / 3) ────────────────────────────────────────
       if (matches(e, sc.tabEnhance)) { ui.setAudioSubTab('enhance'); return; }
       if (matches(e, sc.tabConvert)) { ui.setAudioSubTab('convert'); return; }
-      if (matches(e, sc.tabSeparate)) { ui.setAudioSubTab('separate'); return; }
 
       if (matches(e, sc.browseFolder)) {
         e.preventDefault();

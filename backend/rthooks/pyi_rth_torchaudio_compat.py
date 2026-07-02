@@ -7,10 +7,15 @@ Injected before any app code runs so the imports and loads succeed.
 import sys
 
 # Do not apply compat shims during pytest runs to avoid breaking session-wide MagicMocks
+print("DEBUG: torchaudio_compat hook started")
 if "pytest" not in sys.modules and not any("pytest" in arg for arg in sys.argv):
+    import os
+    os.environ["KMP_DUPLICATE_LIB_OK"] = "TRUE"
     import types
     from dataclasses import dataclass
+    print("DEBUG: importing soundfile")
     import soundfile as sf
+    print("DEBUG: importing torch")
     import torch
 
     @dataclass
@@ -30,6 +35,7 @@ if "pytest" not in sys.modules and not any("pytest" in arg for arg in sys.argv):
     sys.modules.setdefault("torchaudio.backend.common", _common)
 
     # Back-patch torchaudio if already loaded
+    print("DEBUG: importing torchaudio")
     import torchaudio
 
     def load_shim(file, frame_offset=0, num_frames=-1, normalize=True, channels_first=True, **kwargs):
@@ -64,3 +70,4 @@ if "pytest" not in sys.modules and not any("pytest" in arg for arg in sys.argv):
     torchaudio.backend = _backend
     if "torchaudio" in sys.modules:
         sys.modules["torchaudio"].backend = _backend
+print("DEBUG: torchaudio_compat hook completed")

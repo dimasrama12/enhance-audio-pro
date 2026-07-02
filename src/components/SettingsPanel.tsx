@@ -92,9 +92,12 @@ function ShortcutsTab(): JSX.Element {
             setupComplete: settings.setupComplete,
             enhancementStrength: settings.enhancementStrength,
             filenameTemplate: settings.filenameTemplate,
+            filenameTemplateConverted: settings.filenameTemplateConverted,
             keyboardShortcuts: updated,
             recordingPrefix: settings.recordingPrefix ?? 'Record',
             aiModel: settings.aiModel ?? 'deepfilternet',
+            scratchDiskDir: settings.scratchDiskDir,
+            customDefaultShortcuts: settings.customDefaultShortcuts,
           };
           settings.setSettings(nextSettings);
           void invokeSaveSettings(nextSettings);
@@ -121,6 +124,7 @@ function ShortcutsTab(): JSX.Element {
       setupComplete: settings.setupComplete,
       enhancementStrength: settings.enhancementStrength,
       filenameTemplate: settings.filenameTemplate,
+      filenameTemplateConverted: settings.filenameTemplateConverted,
       keyboardShortcuts: settings.keyboardShortcuts,
       customDefaultShortcuts: currentShortcuts,
       recordingPrefix: settings.recordingPrefix ?? 'Record',
@@ -142,6 +146,7 @@ function ShortcutsTab(): JSX.Element {
       setupComplete: settings.setupComplete,
       enhancementStrength: settings.enhancementStrength,
       filenameTemplate: settings.filenameTemplate,
+      filenameTemplateConverted: settings.filenameTemplateConverted,
       keyboardShortcuts: defaultToUse,
       customDefaultShortcuts: settings.customDefaultShortcuts,
       recordingPrefix: settings.recordingPrefix ?? 'Record',
@@ -198,23 +203,14 @@ function ShortcutsTab(): JSX.Element {
 const AUDIO_FORMATS = [
   { ext: 'MP3', desc: 'Lossy, universal compatibility' },
   { ext: 'WAV', desc: 'Lossless PCM, studio quality' },
-  { ext: 'FLAC', desc: 'Lossless compressed' },
-  { ext: 'AAC', desc: 'Lossy, high efficiency' },
-  { ext: 'OGG', desc: 'Lossy, open source' },
   { ext: 'OPUS', desc: 'Lossy, low latency' },
   { ext: 'M4A', desc: 'AAC in MPEG-4 container' },
-  { ext: 'WMA', desc: 'Windows Media Audio' },
-  { ext: 'AIFF', desc: 'Apple lossless PCM' },
-  { ext: 'MP2', desc: 'MPEG-1 Audio Layer II' },
 ];
 
 const VIDEO_FORMATS = [
   { ext: 'MP4', desc: 'H.264/H.265, universal' },
   { ext: 'MKV', desc: 'Matroska, multi-track' },
   { ext: 'MOV', desc: 'QuickTime, Apple native' },
-  { ext: 'AVI', desc: 'Audio Video Interleave' },
-  { ext: 'WebM', desc: 'VP8/VP9, web optimised' },
-  { ext: 'FLV', desc: 'Flash Video, legacy' },
 ];
 
 function FormatsTab(): JSX.Element {
@@ -279,9 +275,12 @@ export default function SettingsPanel({ open, onClose }: Props): JSX.Element {
       setupComplete: store.setupComplete,
       enhancementStrength: store.enhancementStrength,
       filenameTemplate: store.filenameTemplate,
+      filenameTemplateConverted: store.filenameTemplateConverted,
       keyboardShortcuts: store.keyboardShortcuts,
       recordingPrefix: store.recordingPrefix ?? 'Record',
       aiModel: store.aiModel ?? 'deepfilternet',
+      scratchDiskDir: store.scratchDiskDir,
+      customDefaultShortcuts: store.customDefaultShortcuts,
       ...patch,
     };
     store.setSettings(next);
@@ -436,14 +435,29 @@ export default function SettingsPanel({ open, onClose }: Props): JSX.Element {
                         </button>
                       </div>
 
-                      <label className="text-sm text-slate-900 dark:text-slate-100 mt-1">Output Filename Template</label>
-                      <input
-                        type="text"
-                        value={store.filenameTemplate}
-                        onChange={(e) => save({ filenameTemplate: e.target.value })}
-                        placeholder="{name}_enhanced"
-                        className="w-full px-3 py-1.5 bg-slate-100 dark:bg-white/[0.06] border border-slate-200 dark:border-white/[0.08] rounded-lg text-sm text-slate-900 dark:text-white outline-none focus:ring-1 focus:ring-violet-500 transition"
-                      />
+                      <label className="text-sm text-slate-900 dark:text-slate-100 mt-1">Output Filename</label>
+                      <div className="flex flex-col gap-2.5 pl-2 border-l border-slate-200 dark:border-white/[0.06] mt-0.5">
+                        <div>
+                          <label className="text-[10px] text-slate-400 dark:text-white/35 mb-1 block">Enhanced Filename Template</label>
+                          <input
+                            type="text"
+                            value={store.filenameTemplate}
+                            onChange={(e) => save({ filenameTemplate: e.target.value })}
+                            placeholder="{name}_enhanced"
+                            className="w-full px-3 py-1.5 bg-slate-100 dark:bg-white/[0.06] border border-slate-200 dark:border-white/[0.08] rounded-lg text-sm text-slate-900 dark:text-white outline-none focus:ring-1 focus:ring-violet-500 transition"
+                          />
+                        </div>
+                        <div>
+                          <label className="text-[10px] text-slate-400 dark:text-white/35 mb-1 block">Converted Filename Template</label>
+                          <input
+                            type="text"
+                            value={store.filenameTemplateConverted}
+                            onChange={(e) => save({ filenameTemplateConverted: e.target.value })}
+                            placeholder="{name}_converted"
+                            className="w-full px-3 py-1.5 bg-slate-100 dark:bg-white/[0.06] border border-slate-200 dark:border-white/[0.08] rounded-lg text-sm text-slate-900 dark:text-white outline-none focus:ring-1 focus:ring-violet-500 transition"
+                          />
+                        </div>
+                      </div>
                       <p className="text-[10px] text-slate-400 dark:text-white/30">
                         Tokens: <code className="font-mono">{'{name}'}</code>, <code className="font-mono">{'{date}'}</code>, <code className="font-mono">{'{format}'}</code>
                       </p>

@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { listen } from '@tauri-apps/api/event';
 import { motion, AnimatePresence } from 'framer-motion';
 import { clsx } from 'clsx';
-import { GripVertical, Play, Lock, ChevronRight, Trash2, Wand2, Download, RefreshCw, Copy } from 'lucide-react';
+import { GripVertical, Play, Lock, ChevronRight, Trash2, Wand2, Download, RefreshCw } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { save as saveDialog } from '@tauri-apps/plugin-dialog';
 import ProcessingTimer from '@/components/ProcessingTimer';
@@ -27,9 +27,9 @@ import {
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { useQueueStore } from '@/stores/useQueueStore';
-import { useUIStore } from '@/stores/useUIStore';
+import { useUIStore, type AudioSubTab } from '@/stores/useUIStore';
 import { useSettingsStore } from '@/stores/useSettingsStore';
-import { invokeSetOutputFormat, invokeSetBitrate, invokeSetSampleRate, invokeArchiveJobs, invokeProcessQueue, invokeCancelJobs, invokeSetJobStatus, invokeCopyEnhancedFile, invokeConvertFiles, invokeDeleteFile } from '@/lib/ipc';
+import { invokeSetOutputFormat, invokeArchiveJobs, invokeProcessQueue, invokeCancelJobs, invokeSetJobStatus, invokeCopyEnhancedFile, invokeConvertFiles, invokeDeleteFile } from '@/lib/ipc';
 import { useToastStore } from '@/stores/useToastStore';
 import { logError } from '@/lib/errorLogger';
 import type { QueueJob, JobStatus } from '@/types/queue';
@@ -149,8 +149,6 @@ function StatusBadge({ status, progress, errorMessage, onErrorClick }: {
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 const FORMAT_OPTIONS = ['wav', 'mp3', 'flac', 'aac', 'ogg', 'opus', 'm4a'];
-const BITRATE_OPTIONS = ['', '64k', '96k', '128k', '192k', '256k', '320k'];
-const SAMPLE_RATE_OPTIONS = ['', '22050', '44100', '48000', '96000'];
 
 function formatBytes(n: number): string {
   if (n < 1024) return `${n} B`;
@@ -197,64 +195,12 @@ function FormatSelect({ job }: { job: QueueJob }): JSX.Element {
   );
 }
 
-function BitrateSelect({ job }: { job: QueueJob }): JSX.Element {
-  const setBitrate = useQueueStore((s) => s.setBitrate);
-  async function handleChange(e: React.ChangeEvent<HTMLSelectElement>): Promise<void> {
-    e.stopPropagation();
-    const br = e.target.value;
-    setBitrate(job.id, br);
-    await invokeSetBitrate(job.id, br);
-  }
-  return (
-    <select value={job.bitrate || ''} onChange={handleChange} onClick={(e) => e.stopPropagation()}
-      disabled={job.status !== 'pending'} className={selectCls}>
-      {BITRATE_OPTIONS.map((b) => (
-        <option key={b} value={b} className="bg-white dark:bg-[#111827]">{b || 'Auto'}</option>
-      ))}
-    </select>
-  );
-}
 
-function SampleRateSelect({ job }: { job: QueueJob }): JSX.Element {
-  const setSampleRate = useQueueStore((s) => s.setSampleRate);
-  async function handleChange(e: React.ChangeEvent<HTMLSelectElement>): Promise<void> {
-    e.stopPropagation();
-    const sr = e.target.value;
-    setSampleRate(job.id, sr);
-    await invokeSetSampleRate(job.id, sr);
-  }
-  return (
-    <select value={job.sample_rate || ''} onChange={handleChange} onClick={(e) => e.stopPropagation()}
-      disabled={job.status !== 'pending'} className={selectCls}>
-      {SAMPLE_RATE_OPTIONS.map((r) => (
-        <option key={r} value={r} className="bg-white dark:bg-[#111827]">{r ? `${r} Hz` : 'Auto'}</option>
-      ))}
-    </select>
-  );
-}
 
 function getSourceDir(filepath: string): string {
   if (!filepath) return '';
   const lastSep = Math.max(filepath.lastIndexOf('\\'), filepath.lastIndexOf('/'));
   return lastSep > 0 ? filepath.substring(0, lastSep) : filepath;
-}
-
-// ─── Per-row tool mode selector ───────────────────────────────────────────────
-
-function ToolModeSelect({ jobId, audioSubTab }: { jobId: string; audioSubTab: string }): JSX.Element {
-  const mode = useQueueStore((s) => s.tabJobOpTypes[audioSubTab as 'enhance'|'convert'|'separate'][jobId] ?? 'enhance');
-  const setJobOperationMode = useQueueStore((s) => s.setJobOperationMode);
-  return (
-    <select
-      value={mode}
-      onChange={(e) => { e.stopPropagation(); setJobOperationMode(jobId, e.target.value as 'enhance' | 'convert'); }}
-      onClick={(e) => e.stopPropagation()}
-      className="bg-slate-100 dark:bg-white/[0.07] text-slate-700 dark:text-white text-[10px] rounded px-1 py-0.5 outline-none focus:ring-1 focus:ring-violet-500 border border-slate-200 dark:border-white/[0.06] cursor-pointer"
-    >
-      <option value="enhance" className="bg-white dark:bg-[#111827]">Enh</option>
-      <option value="convert" className="bg-white dark:bg-[#111827]">Conv</option>
-    </select>
-  );
 }
 
 // ─── Per-row enhance button ────────────────────────────────────────────────────
@@ -308,7 +254,7 @@ function EnhanceRowButton({ job }: { job: QueueJob }): JSX.Element | null {
 // ─── Per-row convert button ────────────────────────────────────────────────────
 
 function ConvertRowButton({ job }: { job: QueueJob }): JSX.Element | null {
-  const filenameTemplate = useSettingsStore((s) => s.filenameTemplate);
+  const filenameTemplateConverted = useSettingsStore((s) => s.filenameTemplateConverted);
   const { addToast } = useToastStore();
   const canCancel = job.status === 'processing' || job.status === 'queued';
 
@@ -332,7 +278,7 @@ function ConvertRowButton({ job }: { job: QueueJob }): JSX.Element | null {
       addToast(`Queued "${job.filename}" for conversion`, 'info');
     } else {
       useQueueStore.getState().setJobOperationMode(job.id, 'convert', tab);
-      await invokeConvertFiles([job.id], filenameTemplate);
+      await invokeConvertFiles([job.id], filenameTemplateConverted);
     }
   }
 
@@ -412,7 +358,7 @@ function QueueActionBar(): JSX.Element {
   const audioSubTab = useUIStore((s) => s.audioSubTab);
   const jobs = useQueueStore((s) => s.tabQueues[audioSubTab]);
   const jobOpTypes = useQueueStore((s) => s.tabJobOpTypes[audioSubTab]);
-  const isSeparating = useUIStore((s) => s.isSeparating);
+
 
   const activeJobs = jobs.filter((j) => j.status === 'processing' || j.status === 'queued');
   const isAnyActive = activeJobs.length > 0;
@@ -423,8 +369,6 @@ function QueueActionBar(): JSX.Element {
     jobs.filter((j) => j.status === 'pending' || j.status === 'error').length > 0 && !isAnyActive;
   const canConvert =
     jobs.filter((j) => j.status === 'pending').length > 0 && !isAnyActive;
-  const canSeparate =
-    jobs.filter((j) => j.status === 'pending').length > 0 && !isSeparating && !isAnyActive;
 
   const ghostBtn =
     'flex items-center justify-center gap-1.5 px-3.5 py-1.5 rounded-md text-xs font-medium transition-all duration-150 bg-slate-200 dark:bg-white/[0.06] text-slate-700 dark:text-slate-300 hover:bg-slate-300 dark:hover:bg-white/[0.10] disabled:opacity-40 disabled:cursor-not-allowed';
@@ -449,15 +393,6 @@ function QueueActionBar(): JSX.Element {
           {isAnyConverting ? 'Converting…' : 'Convert All'}
         </button>
       )}
-      {audioSubTab === 'separate' && (
-        <button
-          onClick={() => window.dispatchEvent(new CustomEvent('action:separate'))}
-          disabled={!canSeparate}
-          className={ghostBtn}
-        >
-          {isSeparating ? 'Separating…' : 'Separate All'}
-        </button>
-      )}
     </div>
   );
 }
@@ -473,19 +408,19 @@ function SortableJobRow({
   onSelect: (e: React.MouseEvent) => void;
   isImporting?: boolean;
   activeDragId: string | null;
-  onErrorClick?: (filename: string, errorMessage: string) => void;
+  onErrorClick?: (filename: string, errorMessage: string, isConvert: boolean) => void;
   colWidths: Record<ColKey, number>;
   onResize: (key: ColKey, delta: number) => void;
   audioSubTab: string;
 }): JSX.Element {
   const [filenameExpanded, setFilenameExpanded] = useState(false);
   const [destExpanded, setDestExpanded] = useState(false);
-  const rowToolMode = useQueueStore((s) => s.tabJobOpTypes[audioSubTab as 'enhance'|'convert'|'separate'][job.id] ?? 'enhance');
+  const rowToolMode = useQueueStore((s) => s.tabJobOpTypes[audioSubTab as 'enhance'|'convert'][job.id] ?? 'enhance');
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: job.id });
-  const selectedJobIds = useQueueStore((s) => s.tabSelectedIds[audioSubTab as 'enhance'|'convert'|'separate']);
+  const selectedJobIds = useQueueStore((s) => s.tabSelectedIds[audioSubTab as 'enhance'|'convert']);
   const isDragOfSelectedItem = !!(activeDragId && selectedJobIds.includes(activeDragId));
   const isDraggingAnySelected = isDragOfSelectedItem && selectedJobIds.includes(job.id);
-  const isLocked = useQueueStore((s) => s.tabLockedIds[audioSubTab as 'enhance'|'convert'|'separate'].includes(job.id));
+  const isLocked = useQueueStore((s) => s.tabLockedIds[audioSubTab as 'enhance'|'convert'].includes(job.id));
   const unlockJobs = useQueueStore((s) => s.unlockJobs);
 
   const isEnhanced = job.ab_mode === 'enhanced';
@@ -573,33 +508,25 @@ function SortableJobRow({
           <ResizeHandle colKey="format" onResize={onResize} disabled={false} />
         </td>
       )}
-      {audioSubTab === 'separate' && (
-        <td className="px-1 py-2 relative" style={{ width: colWidths.bitrate }}>
-          <BitrateSelect job={job} />
-          <ResizeHandle colKey="bitrate" onResize={onResize} disabled={false} />
-        </td>
-      )}
-      {audioSubTab === 'separate' && (
-        <td className="px-1.5 py-2 relative" style={{ width: colWidths.sampleRate }}>
-          <SampleRateSelect job={job} />
-          <ResizeHandle colKey="sampleRate" onResize={onResize} disabled={false} />
-        </td>
-      )}
+
       <td className="px-1.5 py-2 text-xs font-medium whitespace-nowrap text-center relative" style={{ width: colWidths.status }}>
         <StatusBadge status={job.status} progress={job.progress} errorMessage={job.error_message}
-          onErrorClick={(e) => { e.stopPropagation(); if (onErrorClick) onErrorClick(job.filename, job.error_message || 'Unknown error occurred during enhancement'); }} />
+          onErrorClick={(e) => {
+            e.stopPropagation();
+            if (onErrorClick) {
+              const isConvert = audioSubTab === 'convert' || rowToolMode === 'convert';
+              const fallbackMsg = isConvert
+                ? 'Unknown error occurred during conversion'
+                : 'Unknown error occurred during enhancement';
+              onErrorClick(job.filename, job.error_message || fallbackMsg, isConvert);
+            }
+          }} />
         <ResizeHandle colKey="status" onResize={onResize} disabled={false} />
       </td>
       <td className="px-1.5 py-2 relative" style={{ width: colWidths.tools }}>
         <div className="flex items-center flex-nowrap gap-1 justify-center">
-          {audioSubTab === 'separate' && job.status !== 'done' && job.status !== 'processing' && job.status !== 'queued' && (
-            <ToolModeSelect jobId={job.id} audioSubTab={audioSubTab} />
-          )}
           {audioSubTab === 'enhance' && <EnhanceRowButton job={job} />}
           {audioSubTab === 'convert' && <ConvertRowButton job={job} />}
-          {audioSubTab === 'separate' && (
-            rowToolMode === 'enhance' ? <EnhanceRowButton job={job} /> : <ConvertRowButton job={job} />
-          )}
           <DownloadJobButton job={job} />
         </div>
         <ResizeHandle colKey="tools" onResize={onResize} disabled={false} />
@@ -654,14 +581,14 @@ function SortableJobCard({ job, isSelected, onSelect, isImporting, activeDragId,
   onSelect: (e: React.MouseEvent) => void;
   isImporting?: boolean;
   activeDragId: string | null;
-  onErrorClick?: (filename: string, errorMessage: string) => void;
+  onErrorClick?: (filename: string, errorMessage: string, isConvert: boolean) => void;
   audioSubTab: string;
 }): JSX.Element {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: job.id });
-  const selectedJobIds = useQueueStore((s) => s.tabSelectedIds[audioSubTab as 'enhance'|'convert'|'separate']);
+  const selectedJobIds = useQueueStore((s) => s.tabSelectedIds[audioSubTab as 'enhance'|'convert']);
   const isDragOfSelectedItem = !!(activeDragId && selectedJobIds.includes(activeDragId));
   const isDraggingAnySelected = isDragOfSelectedItem && selectedJobIds.includes(job.id);
-  const isLocked = useQueueStore((s) => s.tabLockedIds[audioSubTab as 'enhance'|'convert'|'separate'].includes(job.id));
+  const isLocked = useQueueStore((s) => s.tabLockedIds[audioSubTab as 'enhance'|'convert'].includes(job.id));
   const unlockJobs = useQueueStore((s) => s.unlockJobs);
   const isEnhanced = job.ab_mode === 'enhanced';
   const isSecondaryDrag = isDraggingAnySelected && !isDragging;
@@ -701,7 +628,16 @@ function SortableJobCard({ job, isSelected, onSelect, isImporting, activeDragId,
               isLocked ? 'text-blue-500 dark:text-blue-400' : 'text-slate-400 dark:text-white/25 hover:text-slate-600 dark:hover:text-white/50')}>
             <Lock size={12} />
           </button>
-          <span onClick={() => { if (job.status === 'error' && job.error_message && onErrorClick) onErrorClick(job.filename, job.error_message); }}
+          <span onClick={() => {
+            if (job.status === 'error' && job.error_message && onErrorClick) {
+              const rowToolMode = useQueueStore.getState().tabJobOpTypes[audioSubTab as 'enhance'|'convert'][job.id] ?? 'enhance';
+              const isConvert = audioSubTab === 'convert' || rowToolMode === 'convert';
+              const fallbackMsg = isConvert
+                ? 'Unknown error occurred during conversion'
+                : 'Unknown error occurred during enhancement';
+              onErrorClick(job.filename, job.error_message || fallbackMsg, isConvert);
+            }
+          }}
             className={clsx('inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[10px] font-medium capitalize',
               STATUS_BADGE_CLS[job.status], job.status === 'error' && 'cursor-pointer hover:bg-red-500/20 active:scale-95 transition-all')}>
             {job.status === 'processing' && <span className="w-1 h-1 rounded-full bg-amber-400 status-processing-dot" />}
@@ -729,16 +665,13 @@ function SortableJobCard({ job, isSelected, onSelect, isImporting, activeDragId,
 
 export default function QueueGrid(): JSX.Element {
   const activeTab = useUIStore((s) => s.activeTab);
-  const audioSubTab = useUIStore((s) => s.audioSubTab);
+  const audioSubTab = useUIStore((s) => s.audioSubTab) as AudioSubTab;
   const jobs = useQueueStore((s) => s.filteredJobs(audioSubTab, activeTab));
   const groups = useQueueStore((s) => s.groupedFilteredJobs(audioSubTab, activeTab));
-  const setProgress = useQueueStore((s) => s.setProgress);
-  const setStatus = useQueueStore((s) => s.setStatus);
-  const setOutputFilepath = useQueueStore((s) => s.setOutputFilepath);
-  const setAbMode = useQueueStore((s) => s.setAbMode);
+  const visibleJobIds = jobs.map((j) => j.id);
+  const selectedJobIds = useQueueStore((s) => s.tabSelectedIds[audioSubTab]).filter((id) => visibleJobIds.includes(id));
   const reorderJobs = useQueueStore((s) => s.reorderJobs);
-  const selectedJobIds = useQueueStore((s) => s.tabSelectedIds[audioSubTab]);
-  const { setSelectedJob, toggleSelectJob, rangeSelectJobs } = useQueueStore();
+  const { setProgress, setStatus, setOutputFilepath, setAbMode, setSelectedJob, toggleSelectJob, rangeSelectJobs } = useQueueStore();
   const viewMode = useQueueStore((s) => s.tabViewModes[audioSubTab]);
   const groupByFormat = useQueueStore((s) => s.tabGroupByFormat[audioSubTab]);
   const clearSelection = useQueueStore((s) => s.clearSelection);
@@ -749,7 +682,6 @@ export default function QueueGrid(): JSX.Element {
   const allColWidths = useMemo<Record<string, Record<ColKey, number>>>(() => ({
     enhance: { ...ENHANCE_COL_WIDTHS },
     convert: { ...CONVERT_COL_WIDTHS },
-    separate: { ...DEFAULT_COL_WIDTHS },
   }), []);
 
   const colWidths = allColWidths[audioSubTab] || DEFAULT_COL_WIDTHS;
@@ -759,41 +691,17 @@ export default function QueueGrid(): JSX.Element {
     // Locked
   }, []);
 
-  const { addToast } = useToastStore();
 
-  const copyWidthLog = useCallback(() => {
-    let outputWidths: any = { ...colWidths };
-    
-    if (audioSubTab === 'enhance') {
-      delete outputWidths.format;
-      delete outputWidths.bitrate;
-      delete outputWidths.sampleRate;
-    } else if (audioSubTab === 'convert') {
-      delete outputWidths.bitrate;
-      delete outputWidths.sampleRate;
-      outputWidths['saveTo'] = outputWidths.format;
-      delete outputWidths.format;
-    }
-
-    const total = Object.values(outputWidths).reduce((a: any, b: any) => a + b, 0);
-    const log = JSON.stringify({ ...outputWidths, total }, null, 2);
-    void navigator.clipboard.writeText(log);
-    const isIndonesian = useSettingsStore.getState().language === 'id';
-    addToast(
-      isIndonesian ? 'Log ukuran kolom berhasil disalin!' : 'Column width log copied to clipboard!',
-      'success'
-    );
-  }, [colWidths, audioSubTab, addToast]);
 
   const tableContainerRef = useRef<HTMLDivElement>(null);
   const importingJobIds = useQueueStore((s) => s.tabImportingIds[audioSubTab]);
   const [selectionBox, setSelectionBox] = useState<{ left: number; top: number; width: number; height: number } | null>(null);
   const [showClearConfirm, setShowClearConfirm] = useState(false);
   const [activeDragId, setActiveDragId] = useState<string | null>(null);
-  const [errorDetailModal, setErrorDetailModal] = useState<{ filename: string; errorMessage: string } | null>(null);
+  const [errorDetailModal, setErrorDetailModal] = useState<{ filename: string; errorMessage: string; isConvert?: boolean } | null>(null);
 
-  const handleErrorClick = (filename: string, errorMessage: string): void => {
-    setErrorDetailModal({ filename, errorMessage });
+  const handleErrorClick = (filename: string, errorMessage: string, isConvert?: boolean): void => {
+    setErrorDetailModal({ filename, errorMessage, isConvert });
   };
 
   const dragSelectedIds = useMemo((): string[] => {
@@ -931,12 +839,19 @@ export default function QueueGrid(): JSX.Element {
         const job = useQueueStore.getState().getJobById(jobId);
         const filename = job?.filename ?? jobId;
         const { addToast } = useToastStore.getState();
+        const jobTab = useQueueStore.getState().findJobTab(jobId);
+        const opType = jobTab ? (useQueueStore.getState().tabJobOpTypes[jobTab][jobId] ?? 'enhance') : 'enhance';
+        const isConvert = opType === 'convert' || jobTab === 'convert';
+        const opNamePast = isConvert ? 'converted' : 'enhanced';
+        const opNameTitle = isConvert ? 'Conversion' : 'Enhancement';
+        const opNameAction = isConvert ? 'convert' : 'enhance';
+
         if (status === 'done') {
-          addToast(`"${filename}" enhanced successfully`, 'success');
+          addToast(`"${filename}" ${opNamePast} successfully`, 'success');
         } else if (status === 'error') {
-          console.error(`Error enhancing "${filename}":`, error_message);
-          addToast(`Error: ${error_message || 'Failed to enhance ' + filename}`, 'error');
-          logError('Enhancement', `Failed to enhance "${filename}"`, error_message ?? undefined);
+          console.error(`Error performing ${opNameAction} on "${filename}":`, error_message);
+          addToast(`Error: ${error_message || 'Failed to ' + opNameAction + ' ' + filename}`, 'error');
+          logError(opNameTitle, `Failed to ${opNameAction} "${filename}"`, error_message ?? undefined);
         }
 
         // Auto-advance within the same tab
@@ -951,11 +866,11 @@ export default function QueueGrid(): JSX.Element {
               const nextQueued = tabJobs.find((j) => j.status === 'queued');
               if (nextQueued) {
                 const opType = tabJobOpTypes[jobTab][nextQueued.id] ?? 'enhance';
-                const { aiModel, enhancementStrength, filenameTemplate } = useSettingsStore.getState();
+                const { aiModel, enhancementStrength, filenameTemplateConverted } = useSettingsStore.getState();
                 if (opType === 'enhance') {
                   invokeProcessQueue([nextQueued.id], enhancementStrength, aiModel).catch(console.error);
                 } else {
-                  invokeConvertFiles([nextQueued.id], filenameTemplate).catch(console.error);
+                  invokeConvertFiles([nextQueued.id], filenameTemplateConverted).catch(console.error);
                 }
               }
             }
@@ -1125,18 +1040,7 @@ export default function QueueGrid(): JSX.Element {
             <ResizeHandle colKey="format" onResize={handleResize} disabled={false} />
           </th>
         )}
-        {audioSubTab === 'separate' && (
-          <th className="px-1 py-2.5 text-center relative" style={{ width: colWidths.bitrate }}>
-            <span>{t('queue.col.bitrate')}</span>
-            <ResizeHandle colKey="bitrate" onResize={handleResize} disabled={false} />
-          </th>
-        )}
-        {audioSubTab === 'separate' && (
-          <th className="px-1.5 py-2.5 text-center whitespace-nowrap relative" style={{ width: colWidths.sampleRate }}>
-            <span>{t('queue.col.sampleHz')}</span>
-            <ResizeHandle colKey="sampleRate" onResize={handleResize} disabled={false} />
-          </th>
-        )}
+
         <th className="px-1.5 py-2.5 text-center whitespace-nowrap relative" style={{ width: colWidths.status }}>
           <span>{t('queue.col.status')}</span>
           <ResizeHandle colKey="status" onResize={handleResize} disabled={false} />
@@ -1144,12 +1048,6 @@ export default function QueueGrid(): JSX.Element {
         <th className="px-1.5 py-2.5 text-center relative" style={{ width: colWidths.tools }}>
           <div className="flex items-center justify-center gap-2">
             <span>TOOLS</span>
-            {audioSubTab !== 'enhance' && audioSubTab !== 'convert' && (
-              <button onClick={copyWidthLog} title="Copy column width log to clipboard"
-                className="text-slate-300 dark:text-white/20 hover:text-violet-500 dark:hover:text-violet-400 transition-colors">
-                <Copy size={9} />
-              </button>
-            )}
           </div>
           <ResizeHandle colKey="tools" onResize={handleResize} disabled={false} />
         </th>
@@ -1204,7 +1102,7 @@ export default function QueueGrid(): JSX.Element {
           className="flex-1 overflow-y-scroll overflow-x-auto rounded-xl bg-white dark:bg-[#0C1120] shadow-sm border border-slate-200 dark:border-white/[0.06] scrollbar-thin"
           onMouseDown={handleContainerMouseDown}
           onClick={(e) => { if ((e.target as HTMLElement).closest('tr') === null) clearSelection(audioSubTab); }}>
-          <table className="text-left queue-table table-fixed w-full" style={{ minWidth: Math.max(800, colWidths.grip + colWidths.index + colWidths.filename + colWidths.destination + colWidths.size + colWidths.status + colWidths.tools + colWidths.lock + colWidths.clear + (audioSubTab === 'convert' ? colWidths.format : audioSubTab === 'separate' ? colWidths.format + colWidths.bitrate + colWidths.sampleRate : 0)) }}>
+          <table className="text-left queue-table table-fixed w-full" style={{ minWidth: Math.max(800, colWidths.grip + colWidths.index + colWidths.filename + colWidths.destination + colWidths.size + colWidths.status + colWidths.tools + colWidths.lock + colWidths.clear + (audioSubTab === 'convert' ? colWidths.format : 0)) }}>
             <colgroup>
               <col style={{ width: colWidths.grip }} />
               <col style={{ width: colWidths.index }} />
@@ -1212,9 +1110,7 @@ export default function QueueGrid(): JSX.Element {
               <col style={{ width: colWidths.destination }} />
               <col style={{ width: colWidths.size }} />
               {audioSubTab === 'convert' && <col style={{ width: colWidths.format }} />}
-              {audioSubTab === 'separate' && <col style={{ width: colWidths.format }} />}
-              {audioSubTab === 'separate' && <col style={{ width: colWidths.bitrate }} />}
-              {audioSubTab === 'separate' && <col style={{ width: colWidths.sampleRate }} />}
+
               <col style={{ width: colWidths.status }} />
               <col style={{ width: colWidths.tools }} />
               <col style={{ width: colWidths.lock }} />
@@ -1224,7 +1120,7 @@ export default function QueueGrid(): JSX.Element {
             <tbody>
               {jobs.length === 0 ? (
                 <tr>
-                  <td colSpan={audioSubTab === 'enhance' ? 9 : (audioSubTab === 'convert' ? 10 : 12)} className="px-4 py-16 text-center text-slate-400 dark:text-white/25 text-sm">
+                  <td colSpan={audioSubTab === 'enhance' ? 9 : 10} className="px-4 py-16 text-center text-slate-400 dark:text-white/25 text-sm">
                     {t('queue.empty')}
                   </td>
                 </tr>
@@ -1325,7 +1221,9 @@ export default function QueueGrid(): JSX.Element {
       {errorDetailModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm" onClick={() => setErrorDetailModal(null)}>
           <div className="bg-slate-900 border border-white/10 p-6 rounded-2xl max-w-md w-full shadow-2xl flex flex-col gap-4" onClick={(e) => e.stopPropagation()}>
-            <h3 className="text-sm font-semibold text-red-500 uppercase tracking-wider">Enhancement Error Details</h3>
+            <h3 className="text-sm font-semibold text-red-500 uppercase tracking-wider">
+              {errorDetailModal.isConvert ? 'Convert Error Details' : 'Enhancement Error Details'}
+            </h3>
             <div className="flex flex-col gap-1">
               <span className="text-[10px] text-white/45 uppercase font-medium">File</span>
               <span className="text-xs text-white font-medium truncate">{errorDetailModal.filename}</span>

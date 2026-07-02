@@ -10,9 +10,9 @@ export default function Sidebar(): JSX.Element {
   const { activeTab, setActiveTab, openSettings, historyOpen, toggleHistory, closeHistory } = useUIStore();
   const store = useSettingsStore();
 
-  const tabs: { id: AppTab; label: string; Icon: typeof Music }[] = [
+  const tabs: { id: AppTab; label: string; Icon: typeof Music; disabled?: boolean }[] = [
     { id: 'audio', label: 'Audio', Icon: Music },
-    { id: 'video', label: 'Video', Icon: Video },
+    { id: 'video', label: 'Video', Icon: Video, disabled: true },
   ];
 
   const toggleTheme = async (): Promise<void> => {
@@ -25,9 +25,12 @@ export default function Sidebar(): JSX.Element {
       setupComplete: store.setupComplete,
       enhancementStrength: store.enhancementStrength,
       filenameTemplate: store.filenameTemplate,
+      filenameTemplateConverted: store.filenameTemplateConverted,
       keyboardShortcuts: store.keyboardShortcuts,
       recordingPrefix: store.recordingPrefix ?? 'Record',
       aiModel: store.aiModel ?? 'deepfilternet',
+      scratchDiskDir: store.scratchDiskDir,
+      customDefaultShortcuts: store.customDefaultShortcuts,
     };
     await invokeSaveSettings(settings);
   };
@@ -43,11 +46,12 @@ export default function Sidebar(): JSX.Element {
       <aside className="flex flex-col w-16 bg-[#EFF2F6] dark:bg-[#080D18] border-r border-slate-200 dark:border-white/[0.06] items-center py-3 gap-1.5 shrink-0 transition-colors duration-200">
         {/* Nav tabs */}
         <div className="flex flex-col gap-1 w-full px-2">
-          {tabs.map(({ id, label, Icon }) => (
+          {tabs.map(({ id, label, Icon, disabled }) => (
             <button
               key={id}
+              disabled={disabled}
               onClick={() => setActiveTab(id)}
-              title={`${label} tab`}
+              title={disabled ? `${label} (Locked)` : `${label} tab`}
               className={clsx(
                 'flex flex-col items-center gap-0.5 py-2 rounded-xl w-full transition-all duration-150',
                 activeTab === id
@@ -56,6 +60,11 @@ export default function Sidebar(): JSX.Element {
                       'text-violet-600 dark:text-violet-400',
                       'shadow-sm dark:shadow-none',
                       'border-2 border-violet-300 dark:border-violet-500/50',
+                    ]
+                  : disabled
+                  ? [
+                      'text-slate-400/50 dark:text-white/20 opacity-40 cursor-not-allowed',
+                      'border-2 border-transparent',
                     ]
                   : [
                       'text-slate-500 dark:text-white/40',

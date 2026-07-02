@@ -48,9 +48,12 @@ export default function SetupWizard(): JSX.Element {
           setupComplete: true,
           enhancementStrength: store.enhancementStrength,
           filenameTemplate: store.filenameTemplate,
+          filenameTemplateConverted: store.filenameTemplateConverted,
           keyboardShortcuts: store.keyboardShortcuts,
           recordingPrefix: store.recordingPrefix ?? 'Record',
           aiModel: store.aiModel ?? 'deepfilternet',
+          scratchDiskDir: store.scratchDiskDir,
+          customDefaultShortcuts: store.customDefaultShortcuts,
         });
       }
     );

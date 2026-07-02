@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 
 export type AppTab = 'audio' | 'video';
-export type AudioSubTab = 'enhance' | 'convert' | 'separate';
+export type AudioSubTab = 'enhance' | 'convert';
 
 export interface DuplicatePending {
   newPaths: string[];
@@ -23,9 +23,7 @@ interface UIState {
   importError: string | null;
   importLimitWarning: string | null;
   isImporting: boolean;
-  isSeparating: boolean;
   setIsImporting: (v: boolean) => void;
-  setIsSeparating: (v: boolean) => void;
   toggleSidebar: () => void;
   setSidebarVisible: (v: boolean) => void;
   setActiveTab: (tab: AppTab) => void;
@@ -57,16 +55,11 @@ export const useUIStore = create<UIState>((set) => ({
   importError: null,
   importLimitWarning: null,
   isImporting: false,
-  isSeparating: false,
   setIsImporting: (isImporting) => set({ isImporting }),
-  setIsSeparating: (isSeparating) => set({ isSeparating }),
   toggleSidebar: () => set((s) => ({ sidebarVisible: !s.sidebarVisible })),
   setSidebarVisible: (sidebarVisible) => set({ sidebarVisible }),
   setActiveTab: (activeTab) => set({ activeTab }),
-  setAudioSubTab: (audioSubTab) => {
-    if (audioSubTab === 'separate') return;
-    set({ audioSubTab });
-  },
+  setAudioSubTab: (audioSubTab) => set({ audioSubTab }),
   openSettings: () => set({ settingsOpen: true }),
   closeSettings: () => set({ settingsOpen: false }),
   toggleSettings: () => set((s) => ({ settingsOpen: !s.settingsOpen })),

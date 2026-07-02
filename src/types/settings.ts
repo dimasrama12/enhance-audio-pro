@@ -1,7 +1,6 @@
 export interface KeyboardShortcutMap {
   // Queue actions
   enhance: string;
-  separate: string;
   convert: string;
   openFiles: string;
   // Selection
@@ -23,7 +22,6 @@ export interface KeyboardShortcutMap {
   // Sub-tab switch
   tabEnhance: string;
   tabConvert: string;
-  tabSeparate: string;
   // History
   openHistory: string;
   // Window
@@ -38,7 +36,6 @@ export interface KeyboardShortcutMap {
 
 export const DEFAULT_KEYBOARD_SHORTCUTS: KeyboardShortcutMap = {
   enhance: 'E',
-  separate: 'S',
   convert: 'C',
   openFiles: 'Ctrl+O',
   selectAll: 'Ctrl+A',
@@ -56,7 +53,6 @@ export const DEFAULT_KEYBOARD_SHORTCUTS: KeyboardShortcutMap = {
   gridView: 'shift+2',
   tabEnhance: '1',
   tabConvert: '2',
-  tabSeparate: '3',
   openHistory: 'Ctrl+H',
   toggleFullscreen: 'F',
   openSettings: 'Ctrl+,',
@@ -68,7 +64,6 @@ export const DEFAULT_KEYBOARD_SHORTCUTS: KeyboardShortcutMap = {
 
 export const SHORTCUT_LABELS: Record<keyof KeyboardShortcutMap, string> = {
   enhance: 'Enhance Speech',
-  separate: 'Separate Stems',
   convert: 'Convert Format',
   openFiles: 'Open Files',
   selectAll: 'Select All',
@@ -86,7 +81,6 @@ export const SHORTCUT_LABELS: Record<keyof KeyboardShortcutMap, string> = {
   gridView: 'Switch to Grid View',
   tabEnhance: 'Switch to Enhance Tab',
   tabConvert: 'Switch to Convert Tab',
-  tabSeparate: 'Switch to Separate Tab',
   openHistory: 'Open File History',
   toggleFullscreen: 'Toggle Fullscreen',
   openSettings: 'Open Settings',
@@ -103,6 +97,7 @@ export interface AppSettings {
   setupComplete: boolean;
   enhancementStrength: number;
   filenameTemplate: string;
+  filenameTemplateConverted: string;
   keyboardShortcuts: KeyboardShortcutMap;
   customDefaultShortcuts?: KeyboardShortcutMap;
   recordingPrefix?: string;
@@ -117,6 +112,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   setupComplete: true,
   enhancementStrength: 50,
   filenameTemplate: '{name}_enhanced',
+  filenameTemplateConverted: '{name}_converted',
   keyboardShortcuts: { ...DEFAULT_KEYBOARD_SHORTCUTS },
   customDefaultShortcuts: { ...DEFAULT_KEYBOARD_SHORTCUTS },
   recordingPrefix: 'Record',

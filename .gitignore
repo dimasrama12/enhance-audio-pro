@@ -1,3 +1,6 @@
+# Local scratch / archived files (excluded from backup)
+trash/
+
 # Dependencies
 node_modules/
 .pnp

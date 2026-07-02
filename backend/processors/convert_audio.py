@@ -23,13 +23,13 @@ def convert_file(
     sample_rate: str = "",
 ) -> None:
     progress_cb(10)
-    cmd = [_ffmpeg_exe(), "-y", "-loglevel", "error", "-i", input_path, "-vn"]
+    cmd = [_ffmpeg_exe(), "-y", "-loglevel", "error", "-nostdin", "-i", input_path, "-vn"]
     if bitrate:
         cmd += ["-b:a", bitrate]
     if sample_rate:
         cmd += ["-ar", sample_rate]
     cmd.append(output_path)
-    result = subprocess.run(cmd, capture_output=True, text=True)
+    result = subprocess.run(cmd, stdin=subprocess.DEVNULL, capture_output=True, text=True)
     if result.returncode != 0:
         raise RuntimeError(f"ffmpeg failed: {result.stderr.strip()}")
     progress_cb(100)

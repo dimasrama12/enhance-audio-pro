@@ -9,14 +9,17 @@ export default function ManipulationPanel(): JSX.Element {
   const activePlayerJobId = useUIStore((s) => s.activePlayerJobId);
   const setPlayerOpen = useUIStore((s) => s.setPlayerOpen);
 
-  const activeJob = useQueueStore((s) => {
+  const activeEntry = useQueueStore((s) => {
     if (!activePlayerJobId) return null;
-    for (const tab of ['enhance', 'convert', 'separate'] as const) {
+    for (const tab of ['enhance', 'convert'] as const) {
       const job = s.tabQueues[tab].find((j) => j.id === activePlayerJobId);
-      if (job) return job;
+      if (job) return { job, tab };
     }
     return null;
   });
+  const activeJob = activeEntry?.job ?? null;
+  // The Original/Enhanced A/B toggle is only relevant in the Enhance tab.
+  const showAbToggle = activeEntry?.tab === 'enhance';
   const showPlayer = playerOpen && activeJob;
 
   return (
@@ -50,6 +53,7 @@ export default function ManipulationPanel(): JSX.Element {
               filepath={activeJob.filepath}
               outputFilepath={activeJob.output_filepath ?? null}
               filename={activeJob.filename}
+              showAbToggle={showAbToggle}
             />
           </div>
         </motion.div>

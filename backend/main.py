@@ -1,6 +1,8 @@
+print("DEBUG: main.py started")
+import os
+os.environ["KMP_DUPLICATE_LIB_OK"] = "TRUE"
 import logging
 import logging.handlers
-import os
 import pathlib
 import sys
 
@@ -10,6 +12,9 @@ try:
     import rthooks.pyi_rth_torchaudio_compat
 except Exception as e:
     print("Failed to load torchaudio compatibility shim:", e)
+
+
+print("DEBUG: main.py setting up logging")
 
 
 def _setup_logging() -> None:
@@ -48,10 +53,12 @@ def _setup_logging() -> None:
 
 
 _setup_logging()
+print("DEBUG: main.py logging setup complete")
 
+print("DEBUG: main.py importing routers and starting uvicorn")
 import uvicorn
 from fastapi import FastAPI
-from routers import convert, enhance, health, manipulate, queue, separate, wizard
+from routers import convert, enhance, health, manipulate, queue, wizard
 
 logger = logging.getLogger(__name__)
 
@@ -60,11 +67,11 @@ app.include_router(health.router)
 app.include_router(queue.router)
 app.include_router(enhance.router)
 app.include_router(wizard.router)
-app.include_router(separate.router)
 app.include_router(convert.router)
 app.include_router(manipulate.router)
 
 if __name__ == "__main__":
     port = int(os.environ.get("BACKEND_PORT", "8765"))
     logger.info(f"Starting backend server on port {port}")
+    print("DEBUG: main.py running uvicorn.run on port", port)
     uvicorn.run(app, host="127.0.0.1", port=port, log_level="warning")

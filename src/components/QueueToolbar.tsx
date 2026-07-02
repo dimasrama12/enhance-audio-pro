@@ -1,8 +1,7 @@
 import { useEffect, useRef } from 'react';
 import { Search, Trash2, LayoutList, LayoutGrid, Layers } from 'lucide-react';
 import { clsx } from 'clsx';
-import { listen } from '@tauri-apps/api/event';
-import { open as openDialog } from '@tauri-apps/plugin-dialog';
+
 import { useTranslation } from 'react-i18next';
 import RecordButton from '@/components/RecordButton';
 import { useQueueStore } from '@/stores/useQueueStore';
@@ -12,13 +11,10 @@ import type { AudioSubTab } from '@/stores/useUIStore';
 import { useToastStore } from '@/stores/useToastStore';
 import {
   invokeProcessQueue,
-  invokeSeparateStems,
   invokeConvertFiles,
   invokeArchiveJobs,
   invokeCancelJobs,
   invokeSetJobStatus,
-  invokeCopyEnhancedFile,
-  invokeDeleteFile,
 } from '@/lib/ipc';
 import { createLogger } from '@/lib/logger';
 import type { ViewMode } from '@/stores/useQueueStore';
@@ -38,12 +34,11 @@ const FILTERS = [
 const SUB_TAB_LABELS: Record<AudioSubTab, string> = {
   enhance: 'Enhance',
   convert: 'Convert',
-  separate: 'Separate',
 };
 
 export default function QueueToolbar(): JSX.Element {
   const enhancementStrength = useSettingsStore((s) => s.enhancementStrength);
-  const filenameTemplate = useSettingsStore((s) => s.filenameTemplate);
+  const filenameTemplateConverted = useSettingsStore((s) => s.filenameTemplateConverted);
   const focusSearchTick = useUIStore((s) => s.focusSearchTick);
   const activeTab = useUIStore((s) => s.activeTab);
   const audioSubTab = useUIStore((s) => s.audioSubTab);
@@ -52,17 +47,14 @@ export default function QueueToolbar(): JSX.Element {
   // Per-tab state reads
   const filter = useQueueStore((s) => s.tabFilters[audioSubTab]);
   const searchQuery = useQueueStore((s) => s.tabSearches[audioSubTab]);
-  const jobs = useQueueStore((s) => s.tabQueues[audioSubTab]);
   const viewMode = useQueueStore((s) => s.tabViewModes[audioSubTab]);
   const groupByFormat = useQueueStore((s) => s.tabGroupByFormat[audioSubTab]);
   const selectedJobIds = useQueueStore((s) => s.tabSelectedIds[audioSubTab]);
-  const jobOperationTypes = useQueueStore((s) => s.tabJobOpTypes[audioSubTab]);
 
   const { setFilter, setSearchQuery, setViewMode, setGroupByFormat } = useQueueStore();
 
   const searchRef = useRef<HTMLInputElement>(null);
   const abortProcessRef = useRef(false);
-  const prevIsAnyConvertingRef = useRef(false);
   const { t } = useTranslation();
   const { addToast } = useToastStore();
 
@@ -70,83 +62,7 @@ export default function QueueToolbar(): JSX.Element {
     if (focusSearchTick > 0) searchRef.current?.focus();
   }, [focusSearchTick]);
 
-  const activeJobs = jobs.filter((j) => j.status === 'processing' || j.status === 'queued');
-  const isAnyConverting = activeJobs.some((j) => jobOperationTypes[j.id] === 'convert');
 
-  // Fire "Download All" toast when a convert batch finishes
-  useEffect(() => {
-    if (prevIsAnyConvertingRef.current && !isAnyConverting) {
-      const freshOpTypes = useQueueStore.getState().tabJobOpTypes[audioSubTab];
-      const freshJobs = useQueueStore.getState().tabQueues[audioSubTab];
-      const convertDoneJobs = freshJobs.filter(
-        (j) => j.status === 'done' && !!j.output_filepath && freshOpTypes[j.id] === 'convert',
-      );
-      if (convertDoneJobs.length > 0) {
-        addToast(
-          `${convertDoneJobs.length} file${convertDoneJobs.length > 1 ? 's' : ''} converted`,
-          'success',
-          {
-            label: 'Download All',
-            onClick: () => void triggerConvertDownloadAll(convertDoneJobs),
-          },
-          8000,
-        );
-      }
-    }
-    prevIsAnyConvertingRef.current = isAnyConverting;
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isAnyConverting]);
-
-  async function runSequentially(
-    ids: string[],
-    invoke: (id: string) => Promise<unknown>,
-  ): Promise<void> {
-    for (const id of ids) {
-      await new Promise<void>((resolve) => {
-        let settled = false;
-        let unlisten: (() => void) | undefined;
-        const timeoutId = setTimeout(() => {
-          if (!settled) {
-            log.warn(`Job ${id} timed out after 5 minutes — advancing queue`);
-            settled = true;
-            unlisten?.();
-            resolve();
-          }
-        }, 300_000);
-
-        const settle = (): void => {
-          if (!settled) {
-            settled = true;
-            clearTimeout(timeoutId);
-            unlisten?.();
-            resolve();
-          }
-        };
-
-        listen<{ jobId: string; status: string }>('queue://status-change', (evt) => {
-          if (
-            !settled &&
-            evt.payload.jobId === id &&
-            (evt.payload.status === 'done' ||
-              evt.payload.status === 'error' ||
-              evt.payload.status === 'pending')
-          ) {
-            log.info(`Job ${id} settled with status: ${evt.payload.status}`);
-            settle();
-          }
-        }).then((fn) => {
-          unlisten = fn;
-          if (!settled && !abortProcessRef.current) {
-            log.info(`Dispatching job ${id}`);
-            invoke(id).catch(() => settle());
-          } else {
-            settle();
-          }
-        });
-      });
-      if (abortProcessRef.current) break;
-    }
-  }
 
   async function handleDeleteSelected(): Promise<void> {
     const tab = useUIStore.getState().audioSubTab;
@@ -215,12 +131,13 @@ export default function QueueToolbar(): JSX.Element {
 
   async function handleCancelAll(): Promise<void> {
     abortProcessRef.current = true;
-    // Cancel across ALL tabs
+    // Cancel only the ACTIVE tab's jobs — the other tab's queue is untouched.
+    const tab = useUIStore.getState().audioSubTab;
     const { tabQueues } = useQueueStore.getState();
-    const activeIds = (['enhance', 'convert', 'separate'] as const).flatMap((t) =>
-      tabQueues[t].filter((j) => j.status === 'processing' || j.status === 'queued').map((j) => j.id),
-    );
-    log.info(`Cancel All: cancelling ${activeIds.length} active job(s)`);
+    const activeIds = tabQueues[tab]
+      .filter((j) => j.status === 'processing' || j.status === 'queued')
+      .map((j) => j.id);
+    log.info(`Cancel All [${tab}]: cancelling ${activeIds.length} active job(s)`);
     if (activeIds.length > 0) {
       try {
         await invokeCancelJobs(activeIds);
@@ -231,19 +148,7 @@ export default function QueueToolbar(): JSX.Element {
     }
   }
 
-  async function handleSeparate(): Promise<void> {
-    const tab = useUIStore.getState().audioSubTab;
-    const tabJobs = useQueueStore.getState().tabQueues[tab];
-    const ids = tabJobs.filter((j) => j.status === 'pending').map((j) => j.id);
-    const isActive = tabJobs.some((j) => j.status === 'processing' || j.status === 'queued');
-    if (!ids.length || useUIStore.getState().isSeparating || isActive) return;
-    useUIStore.getState().setIsSeparating(true);
-    try {
-      await runSequentially(ids, (id) => invokeSeparateStems([id]));
-    } finally {
-      useUIStore.getState().setIsSeparating(false);
-    }
-  }
+
 
   async function handleConvert(): Promise<void> {
     const tab = useUIStore.getState().audioSubTab;
@@ -265,7 +170,7 @@ export default function QueueToolbar(): JSX.Element {
     if (!isAnyProcessing) {
       const nextQueued = freshJobs.find((j) => j.status === 'queued');
       if (nextQueued) {
-        invokeConvertFiles([nextQueued.id], filenameTemplate).catch((err) => {
+        invokeConvertFiles([nextQueued.id], filenameTemplateConverted).catch((err) => {
           console.error('Failed to auto-start convert job', err);
         });
       }
@@ -276,48 +181,17 @@ export default function QueueToolbar(): JSX.Element {
   useEffect(() => {
     const onEnhance = (): void => { void handleProcess(); };
     const onConvert = (): void => { void handleConvert(); };
-    const onSeparate = (): void => { void handleSeparate(); };
     const onCancelAll = (): void => { void handleCancelAll(); };
     window.addEventListener('action:enhance', onEnhance);
     window.addEventListener('action:convert', onConvert);
-    window.addEventListener('action:separate', onSeparate);
     window.addEventListener('queue:cancel-all', onCancelAll);
     return () => {
       window.removeEventListener('action:enhance', onEnhance);
       window.removeEventListener('action:convert', onConvert);
-      window.removeEventListener('action:separate', onSeparate);
       window.removeEventListener('queue:cancel-all', onCancelAll);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
-
-  async function triggerConvertDownloadAll(doneJobs: QueueJob[]): Promise<void> {
-    const folder = await openDialog({ directory: true, multiple: false, title: 'Select Download Folder' });
-    if (typeof folder !== 'string' || !folder) return;
-    const sep = folder.includes('\\') ? '\\' : '/';
-    let count = 0;
-    for (const job of doneJobs) {
-      if (!job.output_filepath) continue;
-      const srcPath = job.output_filepath;
-      const filename = srcPath.replace(/\\/g, '/').split('/').pop() ?? job.filename;
-      const destPath = `${folder}${sep}${filename}`;
-      const res = await invokeCopyEnhancedFile(job.id, srcPath, destPath);
-      if (res.success) {
-        useQueueStore.getState().setDownloadPath(job.id, destPath);
-        useQueueStore.getState().setOutputFilepath(job.id, destPath);
-        count++;
-        
-        if (srcPath !== destPath) {
-          try {
-            await invokeDeleteFile(srcPath);
-          } catch (err) {
-            console.error('Failed to clean up source convert file:', err);
-          }
-        }
-      }
-    }
-    addToast(`Downloaded ${count} converted file${count !== 1 ? 's' : ''} to ${folder}`, 'success');
-  }
 
 
 
@@ -337,20 +211,16 @@ export default function QueueToolbar(): JSX.Element {
     <div className="flex items-center gap-2 shrink-0 flex-wrap">
       {/* ── Left: Sub-tab navigation pills only ── */}
       <div className="flex items-center gap-0.5 bg-slate-100 dark:bg-white/[0.03] rounded-xl px-1 py-1 border border-slate-200 dark:border-white/[0.06]">
-        {(['enhance', 'convert', 'separate'] as const).map((tab) => {
+        {(['enhance', 'convert'] as const).map((tab) => {
           const isActive = audioSubTab === tab;
-          const isDisabled = tab === 'separate';
           return (
             <button
               key={tab}
-              disabled={isDisabled}
-              onClick={() => !isDisabled && setAudioSubTab(tab)}
+              onClick={() => setAudioSubTab(tab)}
               className={clsx(
                 'px-3 py-1.5 rounded-lg text-xs font-medium h-[28px] transition-all duration-150',
                 isActive
                   ? 'bg-white dark:bg-white/[0.12] text-slate-900 dark:text-white shadow-sm ring-1 ring-slate-200 dark:ring-white/[0.10]'
-                  : isDisabled
-                  ? 'text-slate-300 dark:text-zinc-650 cursor-not-allowed opacity-40'
                   : 'text-slate-500 dark:text-zinc-400 hover:text-slate-800 dark:hover:text-white hover:bg-slate-200/60 dark:hover:bg-white/[0.06]',
               )}
             >

@@ -32,6 +32,14 @@
       "icons/icon.icns",
       "icons/icon.ico"
     ],
-    "externalBin": ["binaries/backend"]
+    "externalBin": ["binaries/backend"],
+    "resources": [
+      "WebView2Loader.dll"
+    ],
+    "windows": {
+      "nsis": {
+        "installerHooks": "hooks.nsh"
+      }
+    }
   }
 }

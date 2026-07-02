@@ -49,13 +49,27 @@ Pop-Location
 Write-Host ""
 Write-Host "--- Step 3: npm run tauri build ---"
 Push-Location $Root
-& npm run tauri build
+
+# Copy WebView2Loader.dll from target directory to src-tauri before build so it's packaged as a resource
+$TargetReleaseDir = if ($env:CARGO_TARGET_DIR) { "$env:CARGO_TARGET_DIR\release" } else { "$Root\src-tauri\target\release" }
+$DllSource = "$TargetReleaseDir\WebView2Loader.dll"
+if (Test-Path $DllSource) {
+    Copy-Item -Path $DllSource -Destination "$Root\src-tauri\WebView2Loader.dll" -Force
+    Write-Host "Copied $DllSource to src-tauri\WebView2Loader.dll"
+} else {
+    Write-Warning "WebView2Loader.dll not found at $DllSource. Bundling might fail if not present."
+}
+
+& npm run tauri build -- --target x86_64-pc-windows-gnu
 if (-not $?) { Pop-Location; Write-Error "Tauri build failed"; exit 1 }
 Pop-Location
 
 # Report output
 $TargetRoot = if ($env:CARGO_TARGET_DIR) { $env:CARGO_TARGET_DIR } else { Join-Path $Root "src-tauri\target" }
-$ExeDir = Join-Path $TargetRoot "release\bundle\nsis"
+$ExeDir = Join-Path $TargetRoot "x86_64-pc-windows-gnu\release\bundle\nsis"
+if (-not (Test-Path $ExeDir)) {
+    $ExeDir = Join-Path $TargetRoot "release\bundle\nsis"
+}
 $ExeFile = Get-ChildItem $ExeDir -Filter "*.exe" -ErrorAction SilentlyContinue | Select-Object -First 1
 if ($ExeFile) {
     Write-Host ""

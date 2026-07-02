@@ -30,15 +30,15 @@ const getSelectedIds = () => useQueueStore.getState().tabSelectedIds[TAB];
 describe('useQueueStore', () => {
   beforeEach(() => {
     useQueueStore.setState({
-      tabQueues: { enhance: [], convert: [], separate: [] },
-      tabFilters: { enhance: 'all', convert: 'all', separate: 'all' },
-      tabSearches: { enhance: '', convert: '', separate: '' },
-      tabSelectedIds: { enhance: [], convert: [], separate: [] },
-      tabLockedIds: { enhance: [], convert: [], separate: [] },
-      tabImportingIds: { enhance: [], convert: [], separate: [] },
-      tabViewModes: { enhance: 'table', convert: 'table', separate: 'table' },
-      tabGroupByFormat: { enhance: false, convert: false, separate: false },
-      tabJobOpTypes: { enhance: {}, convert: {}, separate: {} },
+      tabQueues: { enhance: [], convert: [] },
+      tabFilters: { enhance: 'all', convert: 'all' },
+      tabSearches: { enhance: '', convert: '' },
+      tabSelectedIds: { enhance: [], convert: [] },
+      tabLockedIds: { enhance: [], convert: [] },
+      tabImportingIds: { enhance: [], convert: [] },
+      tabViewModes: { enhance: 'table', convert: 'table' },
+      tabGroupByFormat: { enhance: false, convert: false },
+      tabJobOpTypes: { enhance: {}, convert: {} },
     });
   });
 
@@ -49,8 +49,8 @@ describe('useQueueStore', () => {
 
   it('filters by status', () => {
     useQueueStore.setState({
-      tabQueues: { enhance: [makeJob({ id: '1', status: 'pending' }), makeJob({ id: '2', status: 'done' })], convert: [], separate: [] },
-      tabFilters: { enhance: 'done', convert: 'all', separate: 'all' },
+      tabQueues: { enhance: [makeJob({ id: '1', status: 'pending' }), makeJob({ id: '2', status: 'done' })], convert: [] },
+      tabFilters: { enhance: 'done', convert: 'all' },
     });
     const results = useQueueStore.getState().filteredJobs(TAB);
     expect(results).toHaveLength(1);
@@ -59,21 +59,21 @@ describe('useQueueStore', () => {
 
   it('filters by search query', () => {
     useQueueStore.setState({
-      tabQueues: { enhance: [makeJob({ id: '1', filename: 'podcast.mp3' }), makeJob({ id: '2', filename: 'music.wav' })], convert: [], separate: [] },
-      tabSearches: { enhance: 'podcast', convert: '', separate: '' },
+      tabQueues: { enhance: [makeJob({ id: '1', filename: 'podcast.mp3' }), makeJob({ id: '2', filename: 'music.wav' })], convert: [] },
+      tabSearches: { enhance: 'podcast', convert: '' },
     });
     expect(useQueueStore.getState().filteredJobs(TAB)).toHaveLength(1);
   });
 
   it('clears queue', () => {
-    useQueueStore.setState({ tabQueues: { enhance: [makeJob()], convert: [], separate: [] } });
+    useQueueStore.setState({ tabQueues: { enhance: [makeJob()], convert: [] } });
     useQueueStore.getState().clearQueue(TAB);
     expect(getTabJobs()).toHaveLength(0);
   });
 
   it('setProgress updates progress on the matching job only', () => {
     useQueueStore.setState({
-      tabQueues: { enhance: [makeJob({ id: 'a', progress: 0 }), makeJob({ id: 'b', progress: 0 })], convert: [], separate: [] },
+      tabQueues: { enhance: [makeJob({ id: 'a', progress: 0 }), makeJob({ id: 'b', progress: 0 })], convert: [] },
     });
     useQueueStore.getState().setProgress('a', 50);
     const jobs = getTabJobs();
@@ -82,7 +82,7 @@ describe('useQueueStore', () => {
   });
 
   it('setStatus updates status and keeps error_message null when not provided', () => {
-    useQueueStore.setState({ tabQueues: { enhance: [makeJob({ id: 'x', status: 'pending' })], convert: [], separate: [] } });
+    useQueueStore.setState({ tabQueues: { enhance: [makeJob({ id: 'x', status: 'pending' })], convert: [] } });
     useQueueStore.getState().setStatus('x', 'processing');
     const job = getTabJobs()[0];
     expect(job.status).toBe('processing');
@@ -90,7 +90,7 @@ describe('useQueueStore', () => {
   });
 
   it('setStatus records error_message when status is error', () => {
-    useQueueStore.setState({ tabQueues: { enhance: [makeJob({ id: 'y', status: 'processing' })], convert: [], separate: [] } });
+    useQueueStore.setState({ tabQueues: { enhance: [makeJob({ id: 'y', status: 'processing' })], convert: [] } });
     useQueueStore.getState().setStatus('y', 'error', 'Model not found');
     const job = getTabJobs()[0];
     expect(job.status).toBe('error');
@@ -130,28 +130,28 @@ describe('useQueueStore', () => {
   });
 
   it('selectAllJobs selects every job id', () => {
-    useQueueStore.setState({ tabQueues: { enhance: [makeJob({ id: '1' }), makeJob({ id: '2' }), makeJob({ id: '3' })], convert: [], separate: [] } });
+    useQueueStore.setState({ tabQueues: { enhance: [makeJob({ id: '1' }), makeJob({ id: '2' }), makeJob({ id: '3' })], convert: [] } });
     useQueueStore.getState().selectAllJobs(TAB);
     expect(getSelectedIds()).toHaveLength(3);
   });
 
   it('clearSelection empties selectedJobIds', () => {
-    useQueueStore.setState({ tabSelectedIds: { enhance: ['a', 'b'], convert: [], separate: [] } });
+    useQueueStore.setState({ tabSelectedIds: { enhance: ['a', 'b'], convert: [] } });
     useQueueStore.getState().clearSelection(TAB);
     expect(getSelectedIds()).toHaveLength(0);
   });
 
   it('primarySelectedId returns first selected id or null', () => {
-    useQueueStore.setState({ tabSelectedIds: { enhance: ['x', 'y'], convert: [], separate: [] } });
+    useQueueStore.setState({ tabSelectedIds: { enhance: ['x', 'y'], convert: [] } });
     expect(useQueueStore.getState().primarySelectedId(TAB)).toBe('x');
-    useQueueStore.setState({ tabSelectedIds: { enhance: [], convert: [], separate: [] } });
+    useQueueStore.setState({ tabSelectedIds: { enhance: [], convert: [] } });
     expect(useQueueStore.getState().primarySelectedId(TAB)).toBeNull();
   });
 
   it('rangeSelectJobs selects a contiguous range', () => {
     useQueueStore.setState({
-      tabQueues: { enhance: [makeJob({ id: 'a' }), makeJob({ id: 'b' }), makeJob({ id: 'c' }), makeJob({ id: 'd' })], convert: [], separate: [] },
-      tabSelectedIds: { enhance: ['a'], convert: [], separate: [] },
+      tabQueues: { enhance: [makeJob({ id: 'a' }), makeJob({ id: 'b' }), makeJob({ id: 'c' }), makeJob({ id: 'd' })], convert: [] },
+      tabSelectedIds: { enhance: ['a'], convert: [] },
     });
     useQueueStore.getState().rangeSelectJobs('c', TAB);
     const ids = getSelectedIds();
@@ -167,14 +167,14 @@ describe('useQueueStore', () => {
   });
 
   it('reorderJobs moves a job from one position to another', () => {
-    useQueueStore.setState({ tabQueues: { enhance: [makeJob({ id: 'a' }), makeJob({ id: 'b' }), makeJob({ id: 'c' })], convert: [], separate: [] } });
+    useQueueStore.setState({ tabQueues: { enhance: [makeJob({ id: 'a' }), makeJob({ id: 'b' }), makeJob({ id: 'c' })], convert: [] } });
     useQueueStore.getState().reorderJobs('a', 'c', TAB);
     const ids = getTabJobs().map((j) => j.id);
     expect(ids).toEqual(['b', 'c', 'a']);
   });
 
   it('reorderJobs is a no-op when active and over are the same', () => {
-    useQueueStore.setState({ tabQueues: { enhance: [makeJob({ id: 'a' }), makeJob({ id: 'b' })], convert: [], separate: [] } });
+    useQueueStore.setState({ tabQueues: { enhance: [makeJob({ id: 'a' }), makeJob({ id: 'b' })], convert: [] } });
     useQueueStore.getState().reorderJobs('a', 'a', TAB);
     const ids = getTabJobs().map((j) => j.id);
     expect(ids).toEqual(['a', 'b']);
@@ -188,9 +188,9 @@ describe('useQueueStore', () => {
 
   it('groupedFilteredJobs groups jobs by input file extension', () => {
     useQueueStore.setState({
-      tabQueues: { enhance: [makeJob({ id: '1', filename: 'a.mp3' }), makeJob({ id: '2', filename: 'b.mp3' }), makeJob({ id: '3', filename: 'c.wav' })], convert: [], separate: [] },
-      tabFilters: { enhance: 'all', convert: 'all', separate: 'all' },
-      tabSearches: { enhance: '', convert: '', separate: '' },
+      tabQueues: { enhance: [makeJob({ id: '1', filename: 'a.mp3' }), makeJob({ id: '2', filename: 'b.mp3' }), makeJob({ id: '3', filename: 'c.wav' })], convert: [] },
+      tabFilters: { enhance: 'all', convert: 'all' },
+      tabSearches: { enhance: '', convert: '' },
     });
     const groups = useQueueStore.getState().groupedFilteredJobs(TAB);
     expect(groups).toHaveLength(2);
@@ -202,9 +202,9 @@ describe('useQueueStore', () => {
 
   it('groupedFilteredJobs sorts groups alphabetically', () => {
     useQueueStore.setState({
-      tabQueues: { enhance: [makeJob({ id: '1', filename: 'z.wav' }), makeJob({ id: '2', filename: 'a.mp3' })], convert: [], separate: [] },
-      tabFilters: { enhance: 'all', convert: 'all', separate: 'all' },
-      tabSearches: { enhance: '', convert: '', separate: '' },
+      tabQueues: { enhance: [makeJob({ id: '1', filename: 'z.wav' }), makeJob({ id: '2', filename: 'a.mp3' })], convert: [] },
+      tabFilters: { enhance: 'all', convert: 'all' },
+      tabSearches: { enhance: '', convert: '' },
     });
     const groups = useQueueStore.getState().groupedFilteredJobs(TAB);
     expect(groups[0].label).toBe('MP3');

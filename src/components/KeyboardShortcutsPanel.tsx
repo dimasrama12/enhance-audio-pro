@@ -81,9 +81,12 @@ export default function KeyboardShortcutsPanel(): JSX.Element {
             setupComplete: settings.setupComplete,
             enhancementStrength: settings.enhancementStrength,
             filenameTemplate: settings.filenameTemplate,
+            filenameTemplateConverted: settings.filenameTemplateConverted,
             keyboardShortcuts: updated,
             recordingPrefix: settings.recordingPrefix ?? 'Record',
             aiModel: settings.aiModel ?? 'deepfilternet',
+            scratchDiskDir: settings.scratchDiskDir,
+            customDefaultShortcuts: settings.customDefaultShortcuts,
           };
           settings.setSettings(nextSettings);
           void invokeSaveSettings(nextSettings);
@@ -110,10 +113,12 @@ export default function KeyboardShortcutsPanel(): JSX.Element {
       setupComplete: settings.setupComplete,
       enhancementStrength: settings.enhancementStrength,
       filenameTemplate: settings.filenameTemplate,
+      filenameTemplateConverted: settings.filenameTemplateConverted,
       keyboardShortcuts: settings.keyboardShortcuts,
       customDefaultShortcuts: currentShortcuts,
       recordingPrefix: settings.recordingPrefix ?? 'Record',
       aiModel: settings.aiModel ?? 'deepfilternet',
+      scratchDiskDir: settings.scratchDiskDir,
     };
     settings.setSettings(nextSettings);
     await invokeSaveSettings(nextSettings);
@@ -130,10 +135,12 @@ export default function KeyboardShortcutsPanel(): JSX.Element {
       setupComplete: settings.setupComplete,
       enhancementStrength: settings.enhancementStrength,
       filenameTemplate: settings.filenameTemplate,
+      filenameTemplateConverted: settings.filenameTemplateConverted,
       keyboardShortcuts: defaultToUse,
       customDefaultShortcuts: settings.customDefaultShortcuts,
       recordingPrefix: settings.recordingPrefix ?? 'Record',
       aiModel: settings.aiModel ?? 'deepfilternet',
+      scratchDiskDir: settings.scratchDiskDir,
     };
     settings.setSettings(nextSettings);
     await invokeSaveSettings(nextSettings);

@@ -8,10 +8,10 @@ export type ViewMode = 'table' | 'grid';
 
 export interface JobGroup { label: string; jobs: QueueJob[]; }
 
-const ALL_TABS: AudioSubTab[] = ['enhance', 'convert', 'separate'];
+const ALL_TABS: AudioSubTab[] = ['enhance', 'convert'];
 
 function emptyPerTab<T>(factory: () => T): Record<AudioSubTab, T> {
-  return { enhance: factory(), convert: factory(), separate: factory() };
+  return { enhance: factory(), convert: factory() };
 }
 
 function getActiveSubTab(tab?: AudioSubTab): AudioSubTab {
@@ -143,8 +143,41 @@ export const useQueueStore = create<QueueState>()(
       // ── Job add/set ──────────────────────────────────────────────────────────
       setJobs: (jobs, tab) =>
         set((s) => {
-          const t = getActiveSubTab(tab);
-          return { tabQueues: { ...s.tabQueues, [t]: jobs } };
+          if (tab !== undefined) {
+            return { tabQueues: { ...s.tabQueues, [tab]: jobs } };
+          }
+          const updatedQueues = {
+            enhance: [...s.tabQueues.enhance],
+            convert: [...s.tabQueues.convert],
+          };
+          const matchedIds = new Set<string>();
+          for (const dbJob of jobs) {
+            for (const t of ALL_TABS) {
+              const idx = updatedQueues[t].findIndex((j) => j.id === dbJob.id);
+              if (idx !== -1) {
+                const existing = updatedQueues[t][idx];
+                updatedQueues[t][idx] = {
+                  ...existing,
+                  ...dbJob,
+                  startedAt: existing.startedAt ?? dbJob.startedAt,
+                  completed_duration: dbJob.completed_duration ?? existing.completed_duration,
+                  ab_mode: dbJob.ab_mode ?? existing.ab_mode ?? 'original',
+                };
+                matchedIds.add(dbJob.id);
+                break;
+              }
+            }
+          }
+          const unmatchedJobs = jobs.filter((j) => !matchedIds.has(j.id));
+          if (unmatchedJobs.length > 0) {
+            const activeTab = getActiveSubTab();
+            updatedQueues[activeTab] = [...updatedQueues[activeTab], ...unmatchedJobs];
+          }
+          const dbJobIds = new Set(jobs.map((j) => j.id));
+          for (const t of ALL_TABS) {
+            updatedQueues[t] = updatedQueues[t].filter((j) => dbJobIds.has(j.id));
+          }
+          return { tabQueues: updatedQueues };
         }),
 
       addJobs: (newJobs, tab) =>

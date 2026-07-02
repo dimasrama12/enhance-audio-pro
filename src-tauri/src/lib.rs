@@ -17,7 +17,6 @@ use commands::queue::{
     delete_job, delete_all_history, read_audio_file, set_destination, show_item_in_folder,
     set_job_status, append_error_log, copy_enhanced_file, delete_file,
 };
-use commands::separate::separate_stems;
 use commands::settings::{get_settings, save_settings, get_scratch_disk_dir, save_scratch_disk_dir};
 
 pub struct AppState {
@@ -142,7 +141,6 @@ pub fn run() {
             cancel_jobs,
             start_model_download,
             check_model_status,
-            separate_stems,
             convert_files,
             set_output_format,
             set_bitrate,

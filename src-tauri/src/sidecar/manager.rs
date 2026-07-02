@@ -39,6 +39,7 @@ pub fn spawn(
         .env("MODELS_DIR", models)
         .env("DATABASE_PATH", db_path.to_string_lossy().to_string())
         .env("SCRATCH_DISK_DIR", scratch_disk_dir)
+        .env("KMP_DUPLICATE_LIB_OK", "TRUE")
         .spawn()
         .map_err(|e| e.to_string())?;
     Ok(child)

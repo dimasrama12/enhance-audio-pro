@@ -17,7 +17,6 @@ interface Section {
 const SECTIONS: Section[] = [
   { key: 'gettingStarted', titleKey: 'help.sections.gettingStarted', contentKey: 'help.sections.gettingStartedContent' },
   { key: 'enhance',        titleKey: 'help.sections.enhance',        contentKey: 'help.sections.enhanceContent' },
-  { key: 'separate',       titleKey: 'help.sections.separate',       contentKey: 'help.sections.separateContent' },
   { key: 'convert',        titleKey: 'help.sections.convert',        contentKey: 'help.sections.convertContent' },
   { key: 'manipulation',   titleKey: 'help.sections.manipulation',   contentKey: 'help.sections.manipulationContent' },
   { key: 'waveform',       titleKey: 'help.sections.waveform',       contentKey: 'help.sections.waveformContent' },

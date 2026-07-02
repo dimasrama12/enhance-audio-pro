@@ -81,8 +81,7 @@ export async function invokeSeparateStems(jobIds: string[]): Promise<IpcResponse
 }
 
 export async function invokeConvertFiles(jobIds: string[], filenameTemplate?: string): Promise<IpcResponse<null>> {
-  const template = (filenameTemplate ?? '').replace(/enhanced/gi, 'converted');
-  return invoke<IpcResponse<null>>('convert_files', { jobIds, filenameTemplate: template });
+  return invoke<IpcResponse<null>>('convert_files', { jobIds, filenameTemplate });
 }
 
 export async function invokeSetOutputFormat(jobId: string, format: string): Promise<IpcResponse<null>> {

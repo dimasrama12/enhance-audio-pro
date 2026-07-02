@@ -74,7 +74,7 @@ pub fn process_queue(
 
         // Retry up to 25 times (≤50 s) so PyInstaller sidecar cold-start latency is covered.
         // Cold PyInstaller binaries can take 20–40 s to extract and initialise on the first launch.
-        const MAX_ATTEMPTS: u32 = 25;
+        const MAX_ATTEMPTS: u32 = 45;
         let mut attempts = 0u32;
         let err_msg = loop {
             let result = reqwest::Client::new()

@@ -2,13 +2,19 @@ import { useEffect, useRef, useState } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import WaveSurfer from 'wavesurfer.js';
 import TimelinePlugin from 'wavesurfer.js/dist/plugins/timeline.js';
-import { Play, Pause, ToggleLeft, ToggleRight, RotateCcw } from 'lucide-react';
+import { Play, Pause, ToggleLeft, ToggleRight, RotateCcw, Download } from 'lucide-react';
 import { useSettingsStore } from '@/stores/useSettingsStore';
+import { save as saveDialog } from '@tauri-apps/plugin-dialog';
+import { invokeExportVolumeAdjustedAudio } from '@/lib/ipc';
+import { useToastStore } from '@/stores/useToastStore';
 
 interface Props {
   filepath: string;
   outputFilepath: string | null;
   filename: string;
+  // A/B (Original ↔ Enhanced) toggle is only meaningful in the Enhance tab.
+  // When false (e.g. opened from the Convert tab) the toggle is hidden entirely.
+  showAbToggle?: boolean;
 }
 
 function dbToLinear(db: number): number {
@@ -71,7 +77,7 @@ function getAudioContext(): AudioContext {
 
 const FRAME_SIZE = 1 / 30;
 
-export default function WaveformPlayer({ filepath, outputFilepath, filename }: Props): JSX.Element {
+export default function WaveformPlayer({ filepath, outputFilepath, filename, showAbToggle = true }: Props): JSX.Element {
   const waveformRef = useRef<HTMLDivElement>(null);
   const wsRef = useRef<WaveSurfer | null>(null);
   const blobUrlRef = useRef<string | null>(null);
@@ -139,6 +145,61 @@ export default function WaveformPlayer({ filepath, outputFilepath, filename }: P
 
   const activeFile = showOutput && outputFilepath ? outputFilepath : filepath;
   activeFileRef.current = activeFile;
+
+  const { addToast } = useToastStore();
+
+  async function handleDownloadModifiedVolume(e: React.MouseEvent): Promise<void> {
+    e.stopPropagation();
+    if (volumeDb === 0) return;
+
+    const lastDot = filename.lastIndexOf('.');
+    const stem = lastDot !== -1 ? filename.substring(0, lastDot) : filename;
+    const ext = lastDot !== -1 ? filename.substring(lastDot + 1) : 'wav';
+
+    const defaultName = showOutput && outputFilepath
+      ? `${stem}_enhanced_${volumeDb}dB.${ext}`
+      : `${stem}_vol_${volumeDb}dB.${ext}`;
+
+    const destPath = await saveDialog({
+      defaultPath: defaultName,
+      title: 'Save Volume-Adjusted Audio As',
+      filters: [{ name: 'Audio', extensions: [ext] }],
+    });
+
+    if (!destPath) return;
+
+    if (wsRef.current && isPlaying) {
+      wsRef.current.pause();
+    }
+
+    addToast(
+      useSettingsStore.getState().language === 'id'
+        ? 'Mengekspor audio dengan modifikasi volume...'
+        : 'Exporting volume-adjusted audio...',
+      'info'
+    );
+
+    try {
+      const res = await invokeExportVolumeAdjustedAudio(activeFile, destPath, volumeDb);
+      if (res.success) {
+        addToast(
+          useSettingsStore.getState().language === 'id'
+            ? `Audio berhasil disimpan ke ${destPath.split('\\').pop() ?? destPath}`
+            : `Audio successfully saved to ${destPath.split('/').pop() ?? destPath}`,
+          'success'
+        );
+      } else {
+        addToast(
+          useSettingsStore.getState().language === 'id'
+            ? `Ekspor gagal: ${res.error ?? 'Error tidak diketahui'}`
+            : `Export failed: ${res.error ?? 'Unknown error'}`,
+          'error'
+        );
+      }
+    } catch (err) {
+      addToast(`Error: ${String(err)}`, 'error');
+    }
+  }
 
   const waveColor = theme === 'dark' ? '#6d28d9' : '#7c3aed';
   const progressColor = theme === 'dark' ? '#a78bfa' : '#4c1d95';
@@ -901,7 +962,7 @@ export default function WaveformPlayer({ filepath, outputFilepath, filename }: P
             </span>
           )}
         </div>
-        {outputFilepath && (
+        {showAbToggle && outputFilepath && (
           <button
             onClick={() => setShowOutput((v) => !v)}
             className="flex items-center gap-1 text-[10px] text-slate-500 dark:text-zinc-100 hover:text-violet-600 dark:hover:text-violet-400 transition-colors shrink-0"
@@ -956,8 +1017,17 @@ export default function WaveformPlayer({ filepath, outputFilepath, filename }: P
 
         <span className="text-[10px] text-slate-500 dark:text-zinc-100 tabular-nums shrink-0">
           {formatTimeHHMMSSFF(currentTime)} / {formatTimeHHMMSSFF(duration)}
-          <span className="ml-1.5 px-1 rounded bg-slate-200/50 dark:bg-white/[0.06] text-slate-600 dark:text-zinc-100 text-[9px] font-mono">
+          <span className="ml-1.5 px-1.5 py-0.5 rounded bg-slate-200/50 dark:bg-white/[0.06] text-slate-600 dark:text-zinc-100 text-[9px] font-mono inline-flex items-center gap-1.5">
             {volumeDb > -40 ? `${volumeDb > 0 ? '+' : ''}${volumeDb} dB` : 'Muted'}
+            {volumeDb !== 0 && (
+              <button
+                onClick={handleDownloadModifiedVolume}
+                className="text-violet-600 hover:text-violet-500 dark:text-violet-400 dark:hover:text-violet-300 transition-colors cursor-pointer"
+                title={useSettingsStore.getState().language === 'id' ? 'Unduh dengan volume termodifikasi' : 'Download with modified volume'}
+              >
+                <Download size={10} />
+              </button>
+            )}
           </span>
         </span>
 

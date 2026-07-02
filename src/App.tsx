@@ -46,7 +46,6 @@ export default function App(): JSX.Element {
         sessionStorage.setItem('app_initialized', 'true');
         useQueueStore.getState().setJobs([], 'enhance');
         useQueueStore.getState().setJobs([], 'convert');
-        useQueueStore.getState().setJobs([], 'separate');
       }
       setInitialized(true);
     }

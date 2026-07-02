@@ -2,6 +2,7 @@ import asyncio
 import os
 import pathlib
 import sqlite3
+import tempfile
 from datetime import date
 from typing import List
 
@@ -54,7 +55,7 @@ async def _process_jobs(job_ids: List[str], callback_url: str, filename_template
             try:
                 # Heartbeat: confirm "processing" before starting work
                 try:
-                    async with httpx.AsyncClient(timeout=5) as client:
+                    async with httpx.AsyncClient(timeout=5, trust_env=False) as client:
                         await client.post(
                             f"{callback_url}/callback/status",
                             json={"job_id": job_id, "status": "processing"},
@@ -77,18 +78,28 @@ async def _process_jobs(job_ids: List[str], callback_url: str, filename_template
                 bitrate = bitrate or ""
                 sample_rate = sample_rate or ""
                 stem = pathlib.Path(filename).stem
-                out_dir = pathlib.Path(destination) if destination else pathlib.Path(filepath).parent
+                if destination:
+                    out_dir = pathlib.Path(destination)
+                else:
+                    scratch_disk = os.environ.get("SCRATCH_DISK_DIR", "").strip()
+                    if scratch_disk:
+                        out_dir = pathlib.Path(scratch_disk) / "enhance-audio-pro-cache" / "converted_temp"
+                    else:
+                        out_dir = pathlib.Path(tempfile.gettempdir()) / "enhance-audio-pro-cache" / "converted_temp"
                 out_dir.mkdir(parents=True, exist_ok=True)
                 out_stem = apply_filename_template(filename_template, stem, output_format)
                 out_path = out_dir / f"{out_stem}.{output_format}"
 
                 def _sync_convert(src: str, dst: str, jid: str, br: str, sr: str) -> None:
                     def _cb(pct: int) -> None:
-                        httpx.post(
-                            f"{callback_url}/callback/progress",
-                            json={"job_id": jid, "percent": pct},
-                            timeout=5,
-                        )
+                        try:
+                            with httpx.Client(timeout=5, trust_env=False) as client:
+                                client.post(
+                                    f"{callback_url}/callback/progress",
+                                    json={"job_id": jid, "percent": pct},
+                                )
+                        except Exception:
+                            pass
                     convert_file(src, dst, _cb, bitrate=br, sample_rate=sr)
 
                 await loop.run_in_executor(
@@ -96,7 +107,7 @@ async def _process_jobs(job_ids: List[str], callback_url: str, filename_template
                     lambda fp=filepath, op=str(out_path), jid=job_id, br=bitrate, sr=sample_rate: _sync_convert(fp, op, jid, br, sr),
                 )
 
-                async with httpx.AsyncClient(timeout=5) as client:
+                async with httpx.AsyncClient(timeout=5, trust_env=False) as client:
                     await client.post(
                         f"{callback_url}/callback/status",
                         json={"job_id": job_id, "status": "done", "output_filepath": str(out_path)},
@@ -104,7 +115,7 @@ async def _process_jobs(job_ids: List[str], callback_url: str, filename_template
 
             except Exception as exc:
                 try:
-                    async with httpx.AsyncClient(timeout=5) as client:
+                    async with httpx.AsyncClient(timeout=5, trust_env=False) as client:
                         await client.post(
                             f"{callback_url}/callback/status",
                             json={"job_id": job_id, "status": "error", "error_message": str(exc)},
