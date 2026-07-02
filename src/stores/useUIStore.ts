@@ -8,6 +8,9 @@ export interface DuplicatePending {
   uniquePaths: string[];
   duplicateNames: string[];
   skippedInvalid: number;
+  // Maps a (normalized) extracted-audio path → its source video path, so jobs
+  // created from video drops keep their provenance through duplicate resolution.
+  sourceVideoMap?: Record<string, string>;
 }
 
 interface UIState {

@@ -24,3 +24,8 @@ export function validateFile(filename: string): ValidationResult {
 export function getFilename(filepath: string): string {
   return filepath.split(/[\\/]/).pop() ?? filepath;
 }
+
+export function isVideoFile(filename: string): boolean {
+  const ext = filename.split('.').pop()?.toLowerCase() ?? '';
+  return VIDEO_EXTENSIONS.has(ext);
+}

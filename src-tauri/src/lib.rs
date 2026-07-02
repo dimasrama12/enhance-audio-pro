@@ -18,6 +18,7 @@ use commands::queue::{
     set_job_status, append_error_log, copy_enhanced_file, delete_file,
 };
 use commands::settings::{get_settings, save_settings, get_scratch_disk_dir, save_scratch_disk_dir};
+use commands::video::extract_video_audio;
 
 pub struct AppState {
     pub db: Arc<Mutex<rusqlite::Connection>>,
@@ -158,6 +159,7 @@ pub fn run() {
             append_error_log,
             copy_enhanced_file,
             delete_file,
+            extract_video_audio,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

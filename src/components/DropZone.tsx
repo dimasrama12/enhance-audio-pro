@@ -96,9 +96,14 @@ export default function DropZone(): JSX.Element {
   };
 
   const handleClick = async (): Promise<void> => {
+    // Video containers are accepted on both audio sub-tabs — their audio stream
+    // is extracted to mp3 on import (see importHelper.extractVideosToAudio).
+    const videoExts = ['mp4', 'mkv', 'mov', 'avi', 'webm', 'flv'];
     const extensions = activeTab === 'audio'
-      ? (audioSubTab === 'convert' ? ['mp3', 'wav'] : ['mp3', 'wav', 'flac', 'aac', 'ogg', 'opus', 'm4a', 'wma', 'aiff', 'mp2'])
-      : ['mp4', 'mkv', 'mov', 'avi', 'webm', 'flv'];
+      ? (audioSubTab === 'convert'
+          ? ['mp3', 'wav', ...videoExts]
+          : ['mp3', 'wav', 'flac', 'aac', 'ogg', 'opus', 'm4a', 'wma', 'aiff', 'mp2', ...videoExts])
+      : videoExts;
     const selected = await openDialog({
       multiple: true,
       filters: [{ name: activeTab === 'audio' ? 'Audio Files' : 'Video Files', extensions }],
@@ -141,7 +146,7 @@ export default function DropZone(): JSX.Element {
               onClick={async () => {
                 const pending = duplicatePending;
                 setDuplicatePending(null);
-                await submitAddFilesDirect(pending.newPaths, pending.skippedInvalid);
+                await submitAddFilesDirect(pending.newPaths, pending.skippedInvalid, pending.sourceVideoMap);
               }}
               className="px-3 py-1.5 rounded-lg text-xs font-medium bg-violet-600 hover:bg-violet-500 text-white transition-colors"
             >
@@ -152,7 +157,7 @@ export default function DropZone(): JSX.Element {
                 onClick={async () => {
                   const pending = duplicatePending;
                   setDuplicatePending(null);
-                  await submitAddFilesDirect(pending.uniquePaths, pending.skippedInvalid);
+                  await submitAddFilesDirect(pending.uniquePaths, pending.skippedInvalid, pending.sourceVideoMap);
                 }}
                 className="px-3 py-1.5 rounded-lg text-xs font-medium bg-slate-200 dark:bg-white/10 hover:bg-slate-300 dark:hover:bg-white/20 text-slate-700 dark:text-white transition-colors"
               >

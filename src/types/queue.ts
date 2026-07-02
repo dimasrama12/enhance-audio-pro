@@ -21,4 +21,8 @@ export interface QueueJob {
   created_at: string;
   updated_at: string;
   download_path: string | null;
+  // Set when this audio job was produced by extracting the audio stream of a
+  // dropped video file. Holds the original video's path (frontend-only, not
+  // persisted to SQLite). Undefined for normal audio imports.
+  source_video_path?: string;
 }

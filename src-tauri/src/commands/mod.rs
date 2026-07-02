@@ -5,6 +5,7 @@ pub mod process;
 pub mod queue;
 pub mod record;
 pub mod settings;
+pub mod video;
 
 use serde::Serialize;
 

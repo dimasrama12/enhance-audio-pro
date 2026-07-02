@@ -58,7 +58,7 @@ print("DEBUG: main.py logging setup complete")
 print("DEBUG: main.py importing routers and starting uvicorn")
 import uvicorn
 from fastapi import FastAPI
-from routers import convert, enhance, health, manipulate, queue, wizard
+from routers import convert, enhance, health, manipulate, queue, video, wizard
 
 logger = logging.getLogger(__name__)
 
@@ -69,6 +69,7 @@ app.include_router(enhance.router)
 app.include_router(wizard.router)
 app.include_router(convert.router)
 app.include_router(manipulate.router)
+app.include_router(video.router)
 
 if __name__ == "__main__":
     port = int(os.environ.get("BACKEND_PORT", "8765"))

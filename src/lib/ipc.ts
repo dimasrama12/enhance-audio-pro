@@ -155,3 +155,15 @@ export async function invokeExportVolumeAdjustedAudio(
 export async function invokeDeleteFile(path: string): Promise<IpcResponse<void>> {
   return invoke<IpcResponse<void>>('delete_file', { path });
 }
+
+export interface ExtractedAudio {
+  audio_path: string;
+  base_name: string;
+}
+
+export async function invokeExtractVideoAudio(
+  inputPath: string,
+  fmt = 'mp3',
+): Promise<IpcResponse<ExtractedAudio>> {
+  return invoke<IpcResponse<ExtractedAudio>>('extract_video_audio', { inputPath, fmt });
+}
