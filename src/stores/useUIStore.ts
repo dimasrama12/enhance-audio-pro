@@ -27,6 +27,10 @@ interface UIState {
   importLimitWarning: string | null;
   isImporting: boolean;
   setIsImporting: (v: boolean) => void;
+  // Incremented every time the user aborts an in-progress import (Esc / Cancel).
+  // Import routines capture its value at start and bail out if it changes.
+  importCancelSeq: number;
+  cancelImport: () => void;
   toggleSidebar: () => void;
   setSidebarVisible: (v: boolean) => void;
   setActiveTab: (tab: AppTab) => void;
@@ -59,6 +63,9 @@ export const useUIStore = create<UIState>((set) => ({
   importLimitWarning: null,
   isImporting: false,
   setIsImporting: (isImporting) => set({ isImporting }),
+  importCancelSeq: 0,
+  cancelImport: () =>
+    set((s) => ({ isImporting: false, importCancelSeq: s.importCancelSeq + 1 })),
   toggleSidebar: () => set((s) => ({ sidebarVisible: !s.sidebarVisible })),
   setSidebarVisible: (sidebarVisible) => set({ sidebarVisible }),
   setActiveTab: (activeTab) => set({ activeTab }),

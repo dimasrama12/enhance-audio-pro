@@ -1,5 +1,6 @@
 import asyncio
 import hashlib
+import logging
 import os
 import pathlib
 import tempfile
@@ -11,6 +12,7 @@ from pydantic import BaseModel
 from processors.extract_audio import extract_audio
 
 router = APIRouter()
+logger = logging.getLogger(__name__)
 
 # Serialise extractions so concurrent multi-file video drops don't spawn many
 # parallel ffmpeg processes at once (mirrors the convert/enhance lock pattern).
@@ -22,6 +24,23 @@ class ExtractRequest(BaseModel):
     fmt: str = "mp3"
 
 
+def _normalize_input_path(raw: str) -> str:
+    r"""Clean up a path that may arrive from an OS drag-and-drop event.
+
+    Windows drag-drop (via wry) can deliver extended-length "verbatim" paths
+    prefixed with ``\\?\`` (or ``\\?\UNC\`` for network shares). ffmpeg rejects
+    those with "Invalid argument", which is why drag-dropped videos failed while
+    the file-browser dialog (which returns plain paths) worked. Strip the prefix
+    and any stray surrounding whitespace so ffmpeg gets a normal path.
+    """
+    p = raw.strip().strip('"')
+    if p.startswith("\\\\?\\UNC\\"):
+        p = "\\\\" + p[len("\\\\?\\UNC\\"):]
+    elif p.startswith("\\\\?\\"):
+        p = p[len("\\\\?\\"):]
+    return p
+
+
 def _cache_dir() -> pathlib.Path:
     """Scratch/cache dir for extracted audio — wiped by the Rust app on close."""
     scratch_disk = os.environ.get("SCRATCH_DISK_DIR", "").strip()
@@ -31,21 +50,32 @@ def _cache_dir() -> pathlib.Path:
 
 @router.post("/extract_audio")
 async def extract_audio_endpoint(req: ExtractRequest) -> JSONResponse:
-    src = pathlib.Path(req.input_path)
+    input_path = _normalize_input_path(req.input_path)
+    src = pathlib.Path(input_path)
     base_name = src.stem  # preserve the original video's base filename
     fmt = (req.fmt or "mp3").lower()
 
-    out_dir = _cache_dir()
+    logger.info("extract_audio request: raw=%r normalized=%r", req.input_path, input_path)
+
+    if not src.is_file():
+        logger.error("extract_audio: source not found: %r", input_path)
+        return JSONResponse(
+            status_code=400,
+            content={"success": False, "error": f"Video file not found: {input_path}"},
+        )
+
+    # Suffix an 8-char hash of the source path onto the *directory* (not the file
+    # name) so two different videos that share a base name (clip.mov / clip.mkv)
+    # don't collide on disk, while the extracted file keeps EXACTLY the original
+    # base name — e.g. "[Kusonime] ... [1080p].mp3", no random suffix.
+    path_hash = hashlib.sha1(str(src).encode("utf-8")).hexdigest()[:8]
+    out_dir = _cache_dir() / path_hash
     try:
         out_dir.mkdir(parents=True, exist_ok=True)
     except Exception as e:
         return JSONResponse(status_code=500, content={"success": False, "error": str(e)})
 
-    # Suffix an 8-char hash of the source path so two different videos that share
-    # a base name (clip.mov / clip.mkv) don't collide on disk. The displayed
-    # filename stays "<base>.<fmt>" — the frontend derives that from base_name.
-    path_hash = hashlib.sha1(str(src).encode("utf-8")).hexdigest()[:8]
-    out_path = out_dir / f"{base_name}.{path_hash}.{fmt}"
+    out_path = out_dir / f"{base_name}.{fmt}"
 
     def _run() -> None:
         def _cb(_pct: int) -> None:
@@ -57,8 +87,10 @@ async def extract_audio_endpoint(req: ExtractRequest) -> JSONResponse:
             loop = asyncio.get_running_loop()
             await loop.run_in_executor(None, _run)
         except Exception as e:
+            logger.error("extract_audio failed for %r: %s", input_path, e)
             return JSONResponse(status_code=500, content={"success": False, "error": str(e)})
 
+    logger.info("extract_audio done: %r -> %r", input_path, str(out_path))
     return JSONResponse(
         status_code=200,
         content={

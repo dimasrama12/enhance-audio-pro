@@ -29,3 +29,19 @@ export function isVideoFile(filename: string): boolean {
   const ext = filename.split('.').pop()?.toLowerCase() ?? '';
   return VIDEO_EXTENSIONS.has(ext);
 }
+
+/**
+ * Normalize a path delivered by an OS drag-and-drop event.
+ *
+ * On Windows, wry (Tauri's webview) can hand back extended-length "verbatim"
+ * paths prefixed with `\\?\` (or `\\?\UNC\` for shares) plus stray whitespace.
+ * ffmpeg rejects the `\\?\` form with "Invalid argument", which is exactly why
+ * drag-dropped videos failed to extract while the browse dialog (plain paths)
+ * worked. Strip the prefix so drag-drop behaves identically to browsing.
+ */
+export function normalizeOsPath(p: string): string {
+  let s = p.trim().replace(/^"+|"+$/g, '');
+  if (s.startsWith('\\\\?\\UNC\\')) s = '\\\\' + s.slice('\\\\?\\UNC\\'.length);
+  else if (s.startsWith('\\\\?\\')) s = s.slice('\\\\?\\'.length);
+  return s;
+}

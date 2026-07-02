@@ -22,12 +22,20 @@ export function normalizePath(p: string): string {
  */
 async function extractVideosToAudio(
   videoPaths: string[],
-): Promise<{ audioPaths: string[]; sourceVideoMap: Record<string, string>; failures: number }> {
+  isCancelled: () => boolean,
+): Promise<{
+  audioPaths: string[];
+  sourceVideoMap: Record<string, string>;
+  failures: number;
+  lastError: string | null;
+}> {
   const audioPaths: string[] = [];
   const sourceVideoMap: Record<string, string> = {};
   let failures = 0;
+  let lastError: string | null = null;
 
   for (const vp of videoPaths) {
+    if (isCancelled()) break;
     try {
       const res = await invokeExtractVideoAudio(vp, 'mp3');
       if (res.success && res.data) {
@@ -35,18 +43,24 @@ async function extractVideosToAudio(
         sourceVideoMap[normalizePath(res.data.audio_path)] = vp;
       } else {
         failures += 1;
+        lastError = res.error ?? lastError;
       }
     } catch (err) {
       console.error('Video audio extraction failed:', vp, err);
       failures += 1;
+      lastError = err instanceof Error ? err.message : String(err);
     }
   }
 
-  return { audioPaths, sourceVideoMap, failures };
+  return { audioPaths, sourceVideoMap, failures, lastError };
 }
 
 export async function handleImportFiles(paths: string[]): Promise<void> {
   const ui = useUIStore.getState();
+  // Snapshot the cancel counter; if the user hits Esc mid-import it changes and
+  // we abort remaining work and skip enqueueing.
+  const startSeq = useUIStore.getState().importCancelSeq;
+  const isCancelled = (): boolean => useUIStore.getState().importCancelSeq !== startSeq;
   ui.setIsImporting(true);
   try {
     const tab = ui.audioSubTab;
@@ -83,15 +97,22 @@ export async function handleImportFiles(paths: string[]): Promise<void> {
     let sourceVideoMap: Record<string, string> = {};
     let extractedAudioPaths: string[] = [];
     if (videoPaths.length > 0) {
-      const result = await extractVideosToAudio(videoPaths);
+      const result = await extractVideosToAudio(videoPaths, isCancelled);
       extractedAudioPaths = result.audioPaths;
       sourceVideoMap = result.sourceVideoMap;
-      if (result.failures > 0) {
+      if (result.failures > 0 && !isCancelled()) {
+        const detail = result.lastError ? ` (${result.lastError})` : '';
         ui.setImportError(
-          `${result.failures} video file(s) had no audio track or failed to extract.`,
+          `${result.failures} video file(s) had no audio track or failed to extract.${detail}`,
         );
-        setTimeout(() => ui.setImportError(null), 3000);
+        setTimeout(() => ui.setImportError(null), 5000);
       }
+    }
+
+    // User aborted the import (Esc / Cancel) — stop before enqueueing anything.
+    if (isCancelled()) {
+      ui.setIsImporting(false);
+      return;
     }
 
     const allAudioPaths = [...audioPaths, ...extractedAudioPaths];
@@ -145,12 +166,15 @@ export async function submitAddFilesDirect(
   sourceVideoMap: Record<string, string> = {},
 ): Promise<void> {
   const ui = useUIStore.getState();
+  const startSeq = useUIStore.getState().importCancelSeq;
   ui.setIsImporting(true);
   try {
     const capped = paths;
     if (capped.length === 0) return;
 
     const res = await invokeAddFiles(capped);
+    // Aborted (Esc) while the backend was inserting — don't enqueue.
+    if (useUIStore.getState().importCancelSeq !== startSeq) return;
     if (res.success && res.data) {
       // Route to the currently active sub-tab
       const tab = useUIStore.getState().audioSubTab;

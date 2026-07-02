@@ -7,6 +7,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { clsx } from 'clsx';
 import { useTranslation } from 'react-i18next';
 import { invokeListFolderFiles } from '@/lib/ipc';
+import { normalizeOsPath } from '@/lib/fileValidation';
 import { useQueueStore } from '@/stores/useQueueStore';
 import { useUIStore } from '@/stores/useUIStore';
 import { handleImportFiles, submitAddFilesDirect } from '@/lib/importHelper';
@@ -34,10 +35,13 @@ export default function DropZone(): JSX.Element {
 
   const resolveDroppedPaths = useCallback(async (paths: string[]): Promise<string[]> => {
     const resolved: string[] = [];
-    for (const p of paths) {
+    for (const raw of paths) {
+      // Strip any Windows `\\?\` verbatim prefix so drag-dropped files (esp.
+      // videos handed to ffmpeg) behave identically to browse-dialog paths.
+      const p = normalizeOsPath(raw);
       const folderRes = await invokeListFolderFiles(p);
       if (folderRes.success && folderRes.data && folderRes.data.length > 0) {
-        resolved.push(...folderRes.data);
+        resolved.push(...folderRes.data.map(normalizeOsPath));
       } else {
         resolved.push(p);
       }
