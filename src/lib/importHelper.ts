@@ -71,7 +71,9 @@ async function processImportItem(
     let sourceVideo: string | undefined;
 
     if (item.isVideo) {
-      const res = await invokeExtractVideoAudio(item.path, 'mp3');
+      // Pass the placeholder id so the backend streams extraction progress back
+      // as `queue://progress` events that light up this exact row.
+      const res = await invokeExtractVideoAudio(item.path, 'mp3', placeholder.id);
       if (!res.success || !res.data) {
         store.removePlaceholder(placeholder.id, tab);
         toast(res.error ?? `Failed to extract audio from "${getFilename(item.path)}".`, 'error');

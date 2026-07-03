@@ -4,7 +4,9 @@ import logging
 import os
 import pathlib
 import tempfile
+from typing import Optional
 
+import httpx
 from fastapi import APIRouter
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
@@ -22,6 +24,12 @@ _extract_lock = asyncio.Lock()
 class ExtractRequest(BaseModel):
     input_path: str
     fmt: str = "mp3"
+    # Optional real-time progress plumbing. When both are supplied the extraction
+    # thread streams percent updates to the Rust callback server, which re-emits
+    # them to the frontend as `queue://progress` keyed by this job_id (the
+    # placeholder row's id). Omitted for callers that don't need live feedback.
+    job_id: Optional[str] = None
+    callback_url: Optional[str] = None
 
 
 def _normalize_input_path(raw: str) -> str:
@@ -77,9 +85,24 @@ async def extract_audio_endpoint(req: ExtractRequest) -> JSONResponse:
 
     out_path = out_dir / f"{base_name}.{fmt}"
 
+    job_id = req.job_id
+    callback_url = (req.callback_url or "").rstrip("/")
+
     def _run() -> None:
-        def _cb(_pct: int) -> None:
-            pass
+        def _cb(pct: int) -> None:
+            # Stream real extraction progress back to the UI (best-effort; a
+            # failed callback must never abort the extraction itself).
+            if not job_id or not callback_url:
+                return
+            try:
+                httpx.post(
+                    f"{callback_url}/callback/progress",
+                    json={"job_id": job_id, "percent": pct},
+                    timeout=3,
+                )
+            except Exception as cb_err:
+                logger.debug("extract progress callback failed at %d%%: %s", pct, cb_err)
+
         extract_audio(str(src), str(out_path), _cb, fmt=fmt)
 
     async with _extract_lock:

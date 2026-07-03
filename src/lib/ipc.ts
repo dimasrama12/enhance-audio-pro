@@ -164,6 +164,7 @@ export interface ExtractedAudio {
 export async function invokeExtractVideoAudio(
   inputPath: string,
   fmt = 'mp3',
+  jobId?: string,
 ): Promise<IpcResponse<ExtractedAudio>> {
-  return invoke<IpcResponse<ExtractedAudio>>('extract_video_audio', { inputPath, fmt });
+  return invoke<IpcResponse<ExtractedAudio>>('extract_video_audio', { inputPath, fmt, jobId });
 }

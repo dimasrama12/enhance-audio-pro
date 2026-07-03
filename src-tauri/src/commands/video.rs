@@ -33,11 +33,17 @@ pub async fn extract_video_audio(
     state: State<'_, AppState>,
     input_path: String,
     fmt: Option<String>,
+    job_id: Option<String>,
 ) -> Result<IpcResponse<ExtractedAudio>, String> {
     let backend_port = state.backend_port;
+    let callback_port = state.callback_port;
+    // Pass the placeholder row's id + callback server URL so the Python side can
+    // stream real extraction progress back as `queue://progress` events.
     let payload = json!({
         "input_path": input_path,
         "fmt": fmt.unwrap_or_else(|| "mp3".to_string()),
+        "job_id": job_id,
+        "callback_url": format!("http://127.0.0.1:{}", callback_port),
     });
     let url = format!("http://127.0.0.1:{}/extract_audio", backend_port);
 

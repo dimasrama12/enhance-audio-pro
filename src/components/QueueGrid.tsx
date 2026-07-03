@@ -146,6 +146,36 @@ function StatusBadge({ status, progress, errorMessage, onErrorClick }: {
   );
 }
 
+// ─── Background-import (video extraction) status ───────────────────────────────
+// Shown while a dropped/browsed video is being demuxed in the background. Listens
+// (indirectly, via job.progress fed by `queue://progress`) to the backend
+// extraction thread and renders a live bar — determinate once a real percentage
+// arrives, indeterminate marquee until then.
+
+function ImportingStatus({ progress }: { progress: number }): JSX.Element {
+  const determinate = progress > 0;
+  return (
+    <div className="flex flex-col items-center justify-center w-full gap-1">
+      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium bg-violet-400/10 text-violet-600 dark:text-violet-300 mx-auto">
+        <span className="w-1.5 h-1.5 rounded-full bg-violet-400 status-processing-dot shrink-0" />
+        {determinate ? `${progress}%` : 'Extracting'}
+      </span>
+      <div className="relative mt-0.5 h-[3px] w-full max-w-[100px] mx-auto rounded-full bg-slate-200 dark:bg-white/[0.08] overflow-hidden">
+        {determinate ? (
+          <motion.div
+            className="h-full rounded-full bg-violet-500"
+            initial={{ width: 0 }}
+            animate={{ width: `${progress}%` }}
+            transition={{ duration: 0.3, ease: 'easeOut' }}
+          />
+        ) : (
+          <span className="import-bar-indeterminate" />
+        )}
+      </div>
+    </div>
+  );
+}
+
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 const FORMAT_OPTIONS = ['wav', 'mp3', 'flac', 'aac', 'ogg', 'opus', 'm4a'];
@@ -445,7 +475,7 @@ function SortableJobRow({
       className={clsx(
         'group border-b border-slate-100 dark:border-white/[0.04] last:border-0 transition-colors duration-100',
         isImporting
-          ? 'opacity-40 pointer-events-none cursor-default bg-slate-50 dark:bg-white/[0.02]'
+          ? 'import-row-pulse pointer-events-none cursor-default bg-violet-50/40 dark:bg-violet-500/[0.04]'
           : clsx(
               'cursor-pointer',
               isSelected
@@ -478,7 +508,8 @@ function SortableJobRow({
           </button>
           <span onClick={(e) => { e.stopPropagation(); setFilenameExpanded((v) => !v); }}
             className={clsx('flex-1 cursor-pointer hover:text-violet-600 dark:hover:text-violet-400 transition-colors',
-              filenameExpanded ? 'break-all whitespace-normal' : 'truncate')}
+              filenameExpanded ? 'break-all whitespace-normal' : 'truncate',
+              isImporting && 'import-shimmer-text')}
             title={filenameExpanded ? undefined : job.filename}>
             {job.filename}
           </span>
@@ -513,6 +544,7 @@ function SortableJobRow({
       )}
 
       <td className="px-1.5 py-2 text-xs font-medium whitespace-nowrap text-center relative" style={{ width: colWidths.status }}>
+        {isImporting ? <ImportingStatus progress={job.progress} /> : (
         <StatusBadge status={job.status} progress={job.progress} errorMessage={job.error_message}
           onErrorClick={(e) => {
             e.stopPropagation();
@@ -524,6 +556,7 @@ function SortableJobRow({
               onErrorClick(job.filename, job.error_message || fallbackMsg, isConvert);
             }
           }} />
+        )}
         <ResizeHandle colKey="status" onResize={onResize} disabled={false} />
       </td>
       <td className="px-1.5 py-2 relative" style={{ width: colWidths.tools }}>
@@ -607,7 +640,7 @@ function SortableJobCard({ job, isSelected, onSelect, isImporting, activeDragId,
     <div ref={setNodeRef} style={cardStyle} onClick={isImporting ? undefined : onSelect} data-job-id={job.id}
       className={clsx('rounded-xl p-3 border transition-all duration-150 select-none',
         isImporting
-          ? 'opacity-40 pointer-events-none cursor-default bg-slate-50 dark:bg-white/[0.02] border-slate-100 dark:border-white/[0.04]'
+          ? 'import-row-pulse pointer-events-none cursor-default bg-violet-50/40 dark:bg-violet-500/[0.04] border-violet-200/60 dark:border-violet-500/20'
           : clsx('cursor-pointer', isDragging ? 'scale-[0.98]' : '',
               isSelected ? 'bg-violet-50 dark:bg-violet-500/[0.08] border-violet-300 dark:border-violet-500/40'
                 : isEnhanced ? 'bg-emerald-50/40 dark:bg-emerald-500/[0.05] border-emerald-200 dark:border-emerald-500/15 hover:bg-emerald-50 dark:hover:bg-emerald-500/[0.08]'
@@ -622,7 +655,7 @@ function SortableJobCard({ job, isSelected, onSelect, isImporting, activeDragId,
             className="p-1 rounded bg-violet-500/10 hover:bg-violet-500/20 text-violet-600 dark:text-violet-400 transition shrink-0">
             <Play size={10} fill="currentColor" />
           </button>
-          <span className="text-sm text-slate-800 dark:text-slate-100 font-medium truncate flex-1">{job.filename}</span>
+          <span className={clsx('text-sm text-slate-800 dark:text-slate-100 font-medium truncate flex-1', isImporting && 'import-shimmer-text')}>{job.filename}</span>
         </div>
         <div className="flex items-center gap-1.5 shrink-0">
           <button onClick={(e) => { e.stopPropagation(); if (isLocked) unlockJobs([job.id]); else useQueueStore.getState().lockJobs([job.id]); }}
@@ -631,6 +664,12 @@ function SortableJobCard({ job, isSelected, onSelect, isImporting, activeDragId,
               isLocked ? 'text-blue-500 dark:text-blue-400' : 'text-slate-400 dark:text-white/25 hover:text-slate-600 dark:hover:text-white/50')}>
             <Lock size={12} />
           </button>
+          {isImporting ? (
+            <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[10px] font-medium bg-violet-400/10 text-violet-600 dark:text-violet-300">
+              <span className="w-1 h-1 rounded-full bg-violet-400 status-processing-dot" />
+              {job.progress > 0 ? `${job.progress}%` : 'Extracting'}
+            </span>
+          ) : (
           <span onClick={() => {
             if (job.status === 'error' && job.error_message && onErrorClick) {
               const rowToolMode = useQueueStore.getState().tabJobOpTypes[audioSubTab as 'enhance'|'convert'][job.id] ?? 'enhance';
@@ -646,6 +685,7 @@ function SortableJobCard({ job, isSelected, onSelect, isImporting, activeDragId,
             {job.status === 'processing' && <span className="w-1 h-1 rounded-full bg-amber-400 status-processing-dot" />}
             {job.status}
           </span>
+          )}
         </div>
       </div>
       <div className="flex items-center gap-2 text-[10px] text-slate-400 dark:text-white/35 flex-wrap">
@@ -654,7 +694,16 @@ function SortableJobCard({ job, isSelected, onSelect, isImporting, activeDragId,
         <span className="uppercase font-medium text-slate-500 dark:text-white/50">{job.output_format}</span>
         {job.bitrate && <span>{job.bitrate}</span>}
       </div>
-      {job.status === 'processing' && (
+      {isImporting ? (
+        <div className="mt-2 relative h-[3px] w-full rounded-full bg-slate-200 dark:bg-white/[0.08] overflow-hidden">
+          {job.progress > 0 ? (
+            <motion.div className="h-full rounded-full bg-violet-500" initial={{ width: 0 }}
+              animate={{ width: `${job.progress}%` }} transition={{ duration: 0.3, ease: 'easeOut' }} />
+          ) : (
+            <span className="import-bar-indeterminate" />
+          )}
+        </div>
+      ) : job.status === 'processing' && (
         <div className="mt-2 h-[3px] w-full rounded-full bg-slate-100 dark:bg-white/[0.08] overflow-hidden">
           <motion.div className="h-full rounded-full bg-violet-500" initial={{ width: 0 }}
             animate={{ width: `${job.progress}%` }} transition={{ duration: 0.3, ease: 'easeOut' }} />
