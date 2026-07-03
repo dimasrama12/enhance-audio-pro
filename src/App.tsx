@@ -19,7 +19,7 @@ import { useKeyboardShortcuts } from '@/hooks/useKeyboardShortcuts';
 export default function App(): JSX.Element {
   const { theme, language, setSettings, setInitialized } = useSettingsStore();
   const { setJobs } = useQueueStore();
-  const { sidebarVisible, settingsOpen, closeSettings, isImporting, cancelImport } = useUIStore();
+  const { sidebarVisible, settingsOpen, closeSettings } = useUIStore();
 
   useKeyboardShortcuts();
 
@@ -60,19 +60,6 @@ export default function App(): JSX.Element {
     if (language && i18n.language !== language) i18n.changeLanguage(language);
   }, [language]);
 
-  // Allow aborting the "Importing files..." overlay with Esc.
-  useEffect(() => {
-    if (!isImporting) return;
-    const onKey = (e: KeyboardEvent): void => {
-      if (e.key === 'Escape') {
-        e.preventDefault();
-        cancelImport();
-      }
-    };
-    window.addEventListener('keydown', onKey, true);
-    return () => window.removeEventListener('keydown', onKey, true);
-  }, [isImporting, cancelImport]);
-
   return (
     <div className="flex flex-col h-screen overflow-hidden transition-colors duration-200 bg-[#F8FAFC] text-slate-900 dark:bg-[#0B0F1A] dark:text-slate-100">
       <TitleBar />
@@ -89,22 +76,6 @@ export default function App(): JSX.Element {
       <SettingsPanel open={settingsOpen} onClose={closeSettings} />
       <ContextMenu />
       <ToastContainer />
-      {isImporting && (
-        <div className="fixed inset-0 z-[10000] flex flex-col items-center justify-center bg-black/60 backdrop-blur-sm">
-          <div className="flex flex-col items-center gap-4 bg-white/10 dark:bg-black/40 border border-white/10 p-8 rounded-2xl shadow-2xl backdrop-blur-md">
-            <div className="w-10 h-10 border-4 border-violet-500 border-t-transparent rounded-full animate-spin" />
-            <span className="text-sm font-semibold text-white tracking-wide">
-              {language === 'id' ? 'Memasukkan file...' : 'Importing files...'}
-            </span>
-            <button
-              onClick={cancelImport}
-              className="mt-1 px-4 py-1.5 rounded-lg text-xs font-medium bg-white/10 hover:bg-white/20 text-white/90 border border-white/15 transition-colors"
-            >
-              {language === 'id' ? 'Batal (Esc)' : 'Cancel (Esc)'}
-            </button>
-          </div>
-        </div>
-      )}
     </div>
   );
 }

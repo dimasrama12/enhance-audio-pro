@@ -3,19 +3,17 @@ import { useState } from 'react';
 import { getCurrentWindow } from '@tauri-apps/api/window';
 import { open as openDialog } from '@tauri-apps/plugin-dialog';
 import { Music, Video, Upload } from 'lucide-react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion } from 'framer-motion';
 import { clsx } from 'clsx';
 import { useTranslation } from 'react-i18next';
 import { invokeListFolderFiles } from '@/lib/ipc';
 import { normalizeOsPath } from '@/lib/fileValidation';
 import { useQueueStore } from '@/stores/useQueueStore';
 import { useUIStore } from '@/stores/useUIStore';
-import { handleImportFiles, submitAddFilesDirect } from '@/lib/importHelper';
+import { handleImportFiles, startBackgroundImport } from '@/lib/importHelper';
 
 export default function DropZone(): JSX.Element {
   const [isDragging, setIsDragging] = useState(false);
-  const error = useUIStore((s) => s.importError);
-  const limitWarning = useUIStore((s) => s.importLimitWarning);
   const duplicatePending = useUIStore((s) => s.duplicatePending);
   const setDuplicatePending = useUIStore((s) => s.setDuplicatePending);
   const playerOpen = useUIStore((s) => s.playerOpen);
@@ -147,25 +145,25 @@ export default function DropZone(): JSX.Element {
           </ul>
           <div className="flex flex-col gap-2 mt-1">
             <button
-              onClick={async () => {
+              onClick={() => {
                 const pending = duplicatePending;
                 setDuplicatePending(null);
-                await submitAddFilesDirect(pending.newPaths, pending.skippedInvalid, pending.sourceVideoMap);
+                startBackgroundImport(pending.allItems, pending.skippedInvalid, audioSubTab);
               }}
               className="px-3 py-1.5 rounded-lg text-xs font-medium bg-violet-600 hover:bg-violet-500 text-white transition-colors"
             >
-              Add All (re-add {duplicatePending.duplicateNames.length === 1 ? 'duplicate' : 'duplicates'})
+              Add All (Re-add {duplicatePending.duplicateNames.length === 1 ? 'Duplicate' : 'Duplicates'})
             </button>
-            {duplicatePending.uniquePaths.length > 0 && (
+            {duplicatePending.uniqueItems.length > 0 && (
               <button
-                onClick={async () => {
+                onClick={() => {
                   const pending = duplicatePending;
                   setDuplicatePending(null);
-                  await submitAddFilesDirect(pending.uniquePaths, pending.skippedInvalid, pending.sourceVideoMap);
+                  startBackgroundImport(pending.uniqueItems, pending.skippedInvalid, audioSubTab);
                 }}
                 className="px-3 py-1.5 rounded-lg text-xs font-medium bg-slate-200 dark:bg-white/10 hover:bg-slate-300 dark:hover:bg-white/20 text-slate-700 dark:text-white transition-colors"
               >
-                Add New Only ({duplicatePending.uniquePaths.length} file{duplicatePending.uniquePaths.length !== 1 ? 's' : ''})
+                Add {duplicatePending.uniqueItems.length} New Only (No Duplicate)
               </button>
             )}
             <button
@@ -239,25 +237,6 @@ export default function DropZone(): JSX.Element {
           </p>
         </div>
       </motion.div>
-
-      <AnimatePresence>
-        {error && (
-          <motion.p
-            initial={{ opacity: 0, y: 4 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0 }}
-            className="absolute bottom-2 text-xs text-red-400 dark:text-red-400"
-          >
-            {error}
-          </motion.p>
-        )}
-      </AnimatePresence>
-
-      {limitWarning && (
-        <p className="absolute bottom-2 px-3 py-1.5 bg-amber-500/15 border border-amber-500/30 rounded-lg text-amber-600 dark:text-amber-400 text-xs text-center">
-          {limitWarning}
-        </p>
-      )}
     </motion.div>
     </>
   );

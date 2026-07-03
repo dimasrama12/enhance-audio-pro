@@ -3,14 +3,22 @@ import { create } from 'zustand';
 export type AppTab = 'audio' | 'video';
 export type AudioSubTab = 'enhance' | 'convert';
 
+// A single file selected for import. Videos are extracted to audio in the
+// background; audio files are added directly. Duplicate detection runs on the
+// source path BEFORE any background work so re-adds surface the duplicate modal.
+export interface ImportItem {
+  path: string;
+  isVideo: boolean;
+}
+
 export interface DuplicatePending {
-  newPaths: string[];
-  uniquePaths: string[];
+  // Every valid item from the drop (used by "Add All / re-add duplicates").
+  allItems: ImportItem[];
+  // Only the items whose source path is not already in the queue.
+  uniqueItems: ImportItem[];
+  // Display names of the duplicate items, shown in the modal list.
   duplicateNames: string[];
   skippedInvalid: number;
-  // Maps a (normalized) extracted-audio path → its source video path, so jobs
-  // created from video drops keep their provenance through duplicate resolution.
-  sourceVideoMap?: Record<string, string>;
 }
 
 interface UIState {
@@ -23,14 +31,6 @@ interface UIState {
   playerOpen: boolean;
   activePlayerJobId: string | null;
   duplicatePending: DuplicatePending | null;
-  importError: string | null;
-  importLimitWarning: string | null;
-  isImporting: boolean;
-  setIsImporting: (v: boolean) => void;
-  // Incremented every time the user aborts an in-progress import (Esc / Cancel).
-  // Import routines capture its value at start and bail out if it changes.
-  importCancelSeq: number;
-  cancelImport: () => void;
   toggleSidebar: () => void;
   setSidebarVisible: (v: boolean) => void;
   setActiveTab: (tab: AppTab) => void;
@@ -45,8 +45,6 @@ interface UIState {
   setPlayerOpen: (open: boolean) => void;
   setActivePlayerJobId: (id: string | null) => void;
   setDuplicatePending: (pending: DuplicatePending | null) => void;
-  setImportError: (err: string | null) => void;
-  setImportLimitWarning: (warn: string | null) => void;
 }
 
 export const useUIStore = create<UIState>((set) => ({
@@ -59,13 +57,6 @@ export const useUIStore = create<UIState>((set) => ({
   playerOpen: false,
   activePlayerJobId: null,
   duplicatePending: null,
-  importError: null,
-  importLimitWarning: null,
-  isImporting: false,
-  setIsImporting: (isImporting) => set({ isImporting }),
-  importCancelSeq: 0,
-  cancelImport: () =>
-    set((s) => ({ isImporting: false, importCancelSeq: s.importCancelSeq + 1 })),
   toggleSidebar: () => set((s) => ({ sidebarVisible: !s.sidebarVisible })),
   setSidebarVisible: (sidebarVisible) => set({ sidebarVisible }),
   setActiveTab: (activeTab) => set({ activeTab }),
@@ -80,7 +71,5 @@ export const useUIStore = create<UIState>((set) => ({
   setPlayerOpen: (playerOpen) => set({ playerOpen }),
   setActivePlayerJobId: (activePlayerJobId) => set({ activePlayerJobId }),
   setDuplicatePending: (duplicatePending) => set({ duplicatePending }),
-  setImportError: (importError) => set({ importError }),
-  setImportLimitWarning: (importLimitWarning) => set({ importLimitWarning }),
 }));
 

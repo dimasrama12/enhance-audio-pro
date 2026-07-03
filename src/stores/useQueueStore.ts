@@ -64,6 +64,13 @@ interface QueueState {
   setJobs: (jobs: QueueJob[], tab?: AudioSubTab) => void;
   addJobs: (jobs: QueueJob[], tab?: AudioSubTab) => void;
 
+  // ── Background import placeholders ─────────────────────────────────────────
+  // Rows that appear immediately (dimmed / non-interactive) while their audio is
+  // extracted or verified in the background, then get swapped for the real job.
+  addPlaceholders: (jobs: QueueJob[], tab?: AudioSubTab) => void;
+  resolvePlaceholder: (tempId: string, realJob: QueueJob, tab?: AudioSubTab) => void;
+  removePlaceholder: (tempId: string, tab?: AudioSubTab) => void;
+
   // ── Job mutations (search all tabs by ID) ──────────────────────────────────
   setProgress: (id: string, percent: number) => void;
   setStatus: (id: string, status: JobStatus, errorMessage?: string) => void;
@@ -200,6 +207,52 @@ export const useQueueStore = create<QueueState>()(
             tabImportingIds: {
               ...s.tabImportingIds,
               [t]: [...new Set([...s.tabImportingIds[t], ...newIds])],
+            },
+          };
+        }),
+
+      // ── Background import placeholders ─────────────────────────────────────
+      addPlaceholders: (jobs, tab) =>
+        set((s) => {
+          const t = getActiveSubTab(tab);
+          const ids = jobs.map((j) => j.id);
+          return {
+            tabQueues: { ...s.tabQueues, [t]: [...s.tabQueues[t], ...jobs] },
+            tabImportingIds: {
+              ...s.tabImportingIds,
+              [t]: [...new Set([...s.tabImportingIds[t], ...ids])],
+            },
+          };
+        }),
+
+      resolvePlaceholder: (tempId, realJob, tab) =>
+        set((s) => {
+          const t = getActiveSubTab(tab);
+          return {
+            tabQueues: {
+              ...s.tabQueues,
+              [t]: s.tabQueues[t].map((j) => (j.id === tempId ? realJob : j)),
+            },
+            // Illuminate the swapped-in real row immediately.
+            tabImportingIds: {
+              ...s.tabImportingIds,
+              [t]: s.tabImportingIds[t].filter((id) => id !== tempId && id !== realJob.id),
+            },
+          };
+        }),
+
+      removePlaceholder: (tempId, tab) =>
+        set((s) => {
+          const t = getActiveSubTab(tab);
+          return {
+            tabQueues: { ...s.tabQueues, [t]: s.tabQueues[t].filter((j) => j.id !== tempId) },
+            tabImportingIds: {
+              ...s.tabImportingIds,
+              [t]: s.tabImportingIds[t].filter((id) => id !== tempId),
+            },
+            tabSelectedIds: {
+              ...s.tabSelectedIds,
+              [t]: s.tabSelectedIds[t].filter((id) => id !== tempId),
             },
           };
         }),

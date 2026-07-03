@@ -104,10 +104,16 @@ export default function QueueToolbar(): JSX.Element {
 
   async function handleProcess(): Promise<void> {
     const tab = useUIStore.getState().audioSubTab;
-    const tabJobs = useQueueStore.getState().tabQueues[tab];
-    const enhIds = tabJobs.filter((j) => j.status === 'pending' || j.status === 'error').map((j) => j.id);
-    const isActive = tabJobs.some((j) => j.status === 'processing' || j.status === 'queued');
-    if (!enhIds.length || isActive) return;
+    const { tabQueues, tabImportingIds } = useQueueStore.getState();
+    const tabJobs = tabQueues[tab];
+    // Exclude rows still importing (dimmed placeholders) — they aren't in the DB yet.
+    const importingIds = new Set(tabImportingIds[tab]);
+    const enhIds = tabJobs
+      .filter((j) => (j.status === 'pending' || j.status === 'error') && !importingIds.has(j.id))
+      .map((j) => j.id);
+    // Do NOT bail when something is already processing/queued: queue the rest so a
+    // manual per-row run doesn't lock the global "Enhance All" action.
+    if (!enhIds.length) return;
 
     abortProcessRef.current = false;
     const { setStatus } = useQueueStore.getState();
@@ -152,10 +158,14 @@ export default function QueueToolbar(): JSX.Element {
 
   async function handleConvert(): Promise<void> {
     const tab = useUIStore.getState().audioSubTab;
-    const tabJobs = useQueueStore.getState().tabQueues[tab];
-    const ids = tabJobs.filter((j) => j.status === 'pending').map((j) => j.id);
-    const isActive = tabJobs.some((j) => j.status === 'processing' || j.status === 'queued');
-    if (!ids.length || isActive) return;
+    const { tabQueues, tabImportingIds } = useQueueStore.getState();
+    const tabJobs = tabQueues[tab];
+    const importingIds = new Set(tabImportingIds[tab]);
+    const ids = tabJobs
+      .filter((j) => j.status === 'pending' && !importingIds.has(j.id))
+      .map((j) => j.id);
+    // Queue the rest even while one is converting so per-row runs don't lock "Convert All".
+    if (!ids.length) return;
 
     abortProcessRef.current = false;
     const { setStatus, setJobOperationMode } = useQueueStore.getState();

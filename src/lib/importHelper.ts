@@ -7,222 +7,211 @@ import {
 } from '@/lib/ipc';
 import { useQueueStore } from '@/stores/useQueueStore';
 import { useSettingsStore } from '@/stores/useSettingsStore';
-import { useUIStore } from '@/stores/useUIStore';
+import { useUIStore, type ImportItem, type AudioSubTab } from '@/stores/useUIStore';
+import { useToastStore } from '@/stores/useToastStore';
 import { prewarmAudio } from '@/lib/audioPreload';
+import type { QueueJob } from '@/types/queue';
 
 export function normalizePath(p: string): string {
   return p.replace(/\\/g, '/').toLowerCase();
 }
 
-/**
- * Extract audio from each dropped video (background demux → default .mp3) and
- * return the resulting audio paths plus a map of extracted-audio → source-video.
- * Video drops bypass all size/duration limits. Failures (e.g. no audio stream)
- * are counted and reported by the caller.
- */
-async function extractVideosToAudio(
-  videoPaths: string[],
-  isCancelled: () => boolean,
-): Promise<{
-  audioPaths: string[];
-  sourceVideoMap: Record<string, string>;
-  failures: number;
-  lastError: string | null;
-}> {
-  const audioPaths: string[] = [];
-  const sourceVideoMap: Record<string, string> = {};
-  let failures = 0;
-  let lastError: string | null = null;
+function toast(message: string, type: 'success' | 'error' | 'info'): void {
+  useToastStore.getState().addToast(message, type);
+}
 
-  for (const vp of videoPaths) {
-    if (isCancelled()) break;
-    try {
-      const res = await invokeExtractVideoAudio(vp, 'mp3');
-      if (res.success && res.data) {
-        audioPaths.push(res.data.audio_path);
-        sourceVideoMap[normalizePath(res.data.audio_path)] = vp;
-      } else {
-        failures += 1;
-        lastError = res.error ?? lastError;
+// Build a dimmed placeholder row shown immediately while the real audio is
+// extracted / verified in the background. The temp id is swapped for the real
+// backend job once ready (see resolvePlaceholder). media_type is always 'audio'
+// — even for videos, the eventual job is the extracted audio track, and the
+// Audio media tab only shows audio rows.
+function makePlaceholder(path: string): QueueJob {
+  const now = new Date().toISOString();
+  const rnd =
+    typeof crypto !== 'undefined' && 'randomUUID' in crypto
+      ? crypto.randomUUID()
+      : `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+  return {
+    id: `placeholder-${rnd}`,
+    filename: getFilename(path),
+    filepath: path,
+    destination: '',
+    size_bytes: 0,
+    media_type: 'audio',
+    status: 'pending',
+    progress: 0,
+    error_message: null,
+    output_format: 'wav',
+    bitrate: '',
+    output_filepath: null,
+    sample_rate: '',
+    created_at: now,
+    updated_at: now,
+    download_path: null,
+  };
+}
+
+/**
+ * Import a single dropped item in the background:
+ *   video → extract audio (ffmpeg) → add to DB
+ *   audio → add to DB
+ * The placeholder row is swapped for the real job on success, or removed (with
+ * a toast) on failure. Runs independently per item so each row illuminates the
+ * moment its own work finishes.
+ */
+async function processImportItem(
+  item: ImportItem,
+  placeholder: QueueJob,
+  tab: AudioSubTab,
+  outputFolder: string | null,
+): Promise<void> {
+  const store = useQueueStore.getState();
+  try {
+    let audioPath = item.path;
+    let sourceVideo: string | undefined;
+
+    if (item.isVideo) {
+      const res = await invokeExtractVideoAudio(item.path, 'mp3');
+      if (!res.success || !res.data) {
+        store.removePlaceholder(placeholder.id, tab);
+        toast(res.error ?? `Failed to extract audio from "${getFilename(item.path)}".`, 'error');
+        return;
       }
-    } catch (err) {
-      console.error('Video audio extraction failed:', vp, err);
-      failures += 1;
-      lastError = err instanceof Error ? err.message : String(err);
+      audioPath = res.data.audio_path;
+      sourceVideo = item.path;
     }
+
+    const addRes = await invokeAddFiles([audioPath]);
+    if (!addRes.success || !addRes.data || addRes.data.length === 0) {
+      store.removePlaceholder(placeholder.id, tab);
+      toast(addRes.error ?? `Failed to add "${getFilename(item.path)}".`, 'error');
+      return;
+    }
+
+    const dbJob = addRes.data[0];
+    const realJob: QueueJob = sourceVideo ? { ...dbJob, source_video_path: sourceVideo } : dbJob;
+    store.resolvePlaceholder(placeholder.id, realJob, tab);
+
+    prewarmAudio(realJob.filepath);
+
+    // Convert tab: pre-select the opposite of the input format (mp3 ⇄ wav).
+    if (tab === 'convert') {
+      const inputExt = realJob.filename.split('.').pop()?.toLowerCase();
+      const targetFmt = inputExt === 'mp3' ? 'wav' : 'mp3';
+      store.setOutputFormat(realJob.id, targetFmt);
+      void invokeSetOutputFormat(realJob.id, targetFmt);
+    }
+
+    // Default destination so the Python side always has a real output folder.
+    if (outputFolder && !realJob.destination) {
+      store.setDestination(realJob.id, outputFolder);
+      void invokeSetDestination(realJob.id, outputFolder);
+    }
+  } catch (err) {
+    console.error('Background import failed:', item.path, err);
+    store.removePlaceholder(placeholder.id, tab);
+    toast(`Failed to import "${getFilename(item.path)}".`, 'error');
+  }
+}
+
+/**
+ * Kick off a non-blocking import: drop placeholder rows in immediately, then
+ * process each item in the background. No blocking overlay — the queue fills up
+ * instantly with dimmed rows that illuminate one-by-one as work completes.
+ */
+export function startBackgroundImport(
+  items: ImportItem[],
+  skippedInvalid: number,
+  tab: AudioSubTab,
+): void {
+  if (items.length === 0) {
+    if (skippedInvalid > 0) {
+      toast(`${skippedInvalid} unsupported file(s) skipped.`, 'info');
+    }
+    return;
   }
 
-  return { audioPaths, sourceVideoMap, failures, lastError };
+  const outputFolder = useSettingsStore.getState().outputFolder ?? null;
+
+  const placeholders = items.map((item) => ({
+    item,
+    ph: makePlaceholder(item.path),
+  }));
+
+  useQueueStore.getState().addPlaceholders(
+    placeholders.map((p) => p.ph),
+    tab,
+  );
+
+  if (skippedInvalid > 0) {
+    toast(`${skippedInvalid} unsupported file(s) skipped.`, 'info');
+  }
+
+  for (const { item, ph } of placeholders) {
+    void processImportItem(item, ph, tab, outputFolder);
+  }
 }
 
 export async function handleImportFiles(paths: string[]): Promise<void> {
   const ui = useUIStore.getState();
-  // Snapshot the cancel counter; if the user hits Esc mid-import it changes and
-  // we abort remaining work and skip enqueueing.
-  const startSeq = useUIStore.getState().importCancelSeq;
-  const isCancelled = (): boolean => useUIStore.getState().importCancelSeq !== startSeq;
-  ui.setIsImporting(true);
-  try {
-    const tab = ui.audioSubTab;
-    const valid = paths.filter((p) => validateFile(getFilename(p)).valid);
+  const tab = ui.audioSubTab;
 
-    // Partition by media kind. Videos flow through the extraction pipeline on
-    // BOTH tabs; direct audio inputs follow the existing path.
-    let videoPaths = valid.filter((p) => isVideoFile(getFilename(p)));
-    let audioPaths = valid.filter((p) => !isVideoFile(getFilename(p)));
+  const valid = paths.filter((p) => validateFile(getFilename(p)).valid);
+  const skipped = paths.length - valid.length;
 
-    // Convert-tab audio inputs stay restricted to mp3/wav; video is always OK
-    // (it becomes mp3 after extraction).
-    if (tab === 'convert') {
-      audioPaths = audioPaths.filter((p) => {
-        const ext = getFilename(p).split('.').pop()?.toLowerCase() ?? '';
-        return ext === 'mp3' || ext === 'wav';
-      });
-    }
-
-    // Skip videos already extracted into the active tab (dedupe by source video)
-    const existingVideoSources = new Set(
-      useQueueStore
-        .getState()
-        .tabQueues[tab].map((j) => j.source_video_path)
-        .filter((p): p is string => !!p)
-        .map((p) => normalizePath(p)),
-    );
-    videoPaths = videoPaths.filter((p) => !existingVideoSources.has(normalizePath(p)));
-
-    const skipped = paths.length - valid.length;
-
-    // Run extraction for videos (may take a while for large files — the
-    // importing overlay stays up throughout).
-    let sourceVideoMap: Record<string, string> = {};
-    let extractedAudioPaths: string[] = [];
-    if (videoPaths.length > 0) {
-      const result = await extractVideosToAudio(videoPaths, isCancelled);
-      extractedAudioPaths = result.audioPaths;
-      sourceVideoMap = result.sourceVideoMap;
-      if (result.failures > 0 && !isCancelled()) {
-        const detail = result.lastError ? ` (${result.lastError})` : '';
-        ui.setImportError(
-          `${result.failures} video file(s) had no audio track or failed to extract.${detail}`,
-        );
-        setTimeout(() => ui.setImportError(null), 5000);
-      }
-    }
-
-    // User aborted the import (Esc / Cancel) — stop before enqueueing anything.
-    if (isCancelled()) {
-      ui.setIsImporting(false);
-      return;
-    }
-
-    const allAudioPaths = [...audioPaths, ...extractedAudioPaths];
-
-    if (allAudioPaths.length === 0) {
-      // Only show the generic "unsupported" message when nothing (including
-      // failed extractions) produced anything importable.
-      if (extractedAudioPaths.length === 0 && videoPaths.length === 0) {
-        if (tab === 'convert') {
-          ui.setImportError('Only MP3, WAV, or video files are supported in the Convert tab.');
-        } else {
-          ui.setImportError('No supported audio or video files found.');
-        }
-        setTimeout(() => ui.setImportError(null), 3000);
-      }
-      ui.setIsImporting(false);
-      return;
-    }
-
-    // Duplicate detection against the ACTIVE tab's queue only
-    const existingPaths = new Set(
-      useQueueStore.getState().tabQueues[tab].map((j) => normalizePath(j.filepath)),
-    );
-    const uniquePaths = allAudioPaths.filter((p) => !existingPaths.has(normalizePath(p)));
-    const duplicateNames = allAudioPaths
-      .filter((p) => existingPaths.has(normalizePath(p)))
-      .map((p) => getFilename(p));
-
-    if (duplicateNames.length > 0) {
-      ui.setDuplicatePending({
-        newPaths: allAudioPaths,
-        uniquePaths,
-        duplicateNames,
-        skippedInvalid: skipped,
-        sourceVideoMap,
-      });
-      ui.setIsImporting(false);
-      return;
-    }
-
-    await submitAddFilesDirect(allAudioPaths, skipped, sourceVideoMap);
-  } catch (err) {
-    console.error('Import files failed:', err);
-    ui.setIsImporting(false);
+  // Build import items. Videos are always allowed (they become mp3); Convert-tab
+  // audio inputs stay restricted to mp3/wav.
+  let items: ImportItem[] = valid.map((p) => ({ path: p, isVideo: isVideoFile(getFilename(p)) }));
+  if (tab === 'convert') {
+    items = items.filter((it) => {
+      if (it.isVideo) return true;
+      const ext = getFilename(it.path).split('.').pop()?.toLowerCase() ?? '';
+      return ext === 'mp3' || ext === 'wav';
+    });
   }
-}
 
-export async function submitAddFilesDirect(
-  paths: string[],
-  skippedInvalid: number,
-  sourceVideoMap: Record<string, string> = {},
-): Promise<void> {
-  const ui = useUIStore.getState();
-  const startSeq = useUIStore.getState().importCancelSeq;
-  ui.setIsImporting(true);
-  try {
-    const capped = paths;
-    if (capped.length === 0) return;
-
-    const res = await invokeAddFiles(capped);
-    // Aborted (Esc) while the backend was inserting — don't enqueue.
-    if (useUIStore.getState().importCancelSeq !== startSeq) return;
-    if (res.success && res.data) {
-      // Route to the currently active sub-tab
-      const tab = useUIStore.getState().audioSubTab;
-      // Tag jobs that came from a video extraction with their source video path.
-      const jobs = res.data.map((job) => {
-        const src = sourceVideoMap[normalizePath(job.filepath)];
-        return src ? { ...job, source_video_path: src } : job;
-      });
-      useQueueStore.getState().addJobs(jobs, tab);
-
-      if (tab === 'convert') {
-        for (const job of res.data) {
-          const inputExt = job.filename.split('.').pop()?.toLowerCase();
-          const targetFmt = inputExt === 'mp3' ? 'wav' : 'mp3';
-          useQueueStore.getState().setOutputFormat(job.id, targetFmt);
-          void invokeSetOutputFormat(job.id, targetFmt);
-        }
-      }
-
-      for (const job of res.data) {
-        prewarmAudio(job.filepath);
-      }
-
-      const outputFolder = useSettingsStore.getState().outputFolder;
-      if (outputFolder) {
-        const emptyDestIds = res.data.filter((j) => !j.destination).map((j) => j.id);
-        if (emptyDestIds.length > 0) {
-          useQueueStore.getState().setDestinationBatch(emptyDestIds, outputFolder);
-          for (const id of emptyDestIds) {
-            void invokeSetDestination(id, outputFolder);
-          }
-        }
-      }
-      if (skippedInvalid > 0) {
-        ui.setImportError(`${skippedInvalid} unsupported file(s) skipped.`);
-        setTimeout(() => ui.setImportError(null), 3000);
-      }
-    } else {
-      ui.setImportError(res.error ?? 'Failed to add files.');
-      setTimeout(() => ui.setImportError(null), 3000);
+  if (items.length === 0) {
+    // Nothing importable — either genuinely unsupported files, or valid audio
+    // that the Convert tab rejects (only mp3/wav/video allowed there).
+    if (skipped > 0 || valid.length > 0) {
+      toast(
+        tab === 'convert'
+          ? 'Only MP3, WAV, or video files are supported in the Convert tab.'
+          : 'No supported audio or video files found.',
+        'info',
+      );
     }
-    if (res.success && res.error) {
-      ui.setImportLimitWarning(res.error);
-      setTimeout(() => ui.setImportLimitWarning(null), 5000);
-    }
-  } catch (err) {
-    console.error('submitAddFilesDirect failed:', err);
-  } finally {
-    ui.setIsImporting(false);
+    return;
   }
+
+  // Duplicate detection against the ACTIVE tab's queue. Audio matches by source
+  // filepath; video matches by the recorded source_video_path so re-dropping an
+  // already-extracted video surfaces the duplicate modal instead of a red error.
+  const tabJobs = useQueueStore.getState().tabQueues[tab];
+  const existingAudio = new Set(tabJobs.map((j) => normalizePath(j.filepath)));
+  const existingVideo = new Set(
+    tabJobs
+      .map((j) => j.source_video_path)
+      .filter((p): p is string => !!p)
+      .map(normalizePath),
+  );
+  const isDuplicate = (it: ImportItem): boolean =>
+    it.isVideo
+      ? existingVideo.has(normalizePath(it.path))
+      : existingAudio.has(normalizePath(it.path));
+
+  const duplicateItems = items.filter(isDuplicate);
+  const uniqueItems = items.filter((it) => !isDuplicate(it));
+
+  if (duplicateItems.length > 0) {
+    ui.setDuplicatePending({
+      allItems: items,
+      uniqueItems,
+      duplicateNames: duplicateItems.map((it) => getFilename(it.path)),
+      skippedInvalid: skipped,
+    });
+    return;
+  }
+
+  startBackgroundImport(items, skipped, tab);
 }

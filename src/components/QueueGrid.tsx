@@ -358,17 +358,20 @@ function QueueActionBar(): JSX.Element {
   const audioSubTab = useUIStore((s) => s.audioSubTab);
   const jobs = useQueueStore((s) => s.tabQueues[audioSubTab]);
   const jobOpTypes = useQueueStore((s) => s.tabJobOpTypes[audioSubTab]);
+  const importingIds = useQueueStore((s) => s.tabImportingIds[audioSubTab]);
 
-
+  const importing = new Set(importingIds);
   const activeJobs = jobs.filter((j) => j.status === 'processing' || j.status === 'queued');
-  const isAnyActive = activeJobs.length > 0;
   const isAnyConverting = activeJobs.some((j) => jobOpTypes[j.id] === 'convert');
   const isAnyEnhancing = activeJobs.some((j) => jobOpTypes[j.id] !== 'convert');
 
+  // "Enhance/Convert All" stays available while a per-row job runs — it queues
+  // the remaining pending rows. Dimmed import placeholders are excluded (not in DB).
   const canEnhance =
-    jobs.filter((j) => j.status === 'pending' || j.status === 'error').length > 0 && !isAnyActive;
+    jobs.filter((j) => (j.status === 'pending' || j.status === 'error') && !importing.has(j.id))
+      .length > 0;
   const canConvert =
-    jobs.filter((j) => j.status === 'pending').length > 0 && !isAnyActive;
+    jobs.filter((j) => j.status === 'pending' && !importing.has(j.id)).length > 0;
 
   const ghostBtn =
     'flex items-center justify-center gap-1.5 px-3.5 py-1.5 rounded-md text-xs font-medium transition-all duration-150 bg-slate-200 dark:bg-white/[0.06] text-slate-700 dark:text-slate-300 hover:bg-slate-300 dark:hover:bg-white/[0.10] disabled:opacity-40 disabled:cursor-not-allowed';
@@ -381,7 +384,7 @@ function QueueActionBar(): JSX.Element {
           disabled={!canEnhance}
           className="flex items-center justify-center gap-1.5 px-3.5 py-1.5 rounded-md text-xs font-medium transition-all duration-150 bg-violet-600 hover:bg-violet-500 text-white shadow-sm disabled:opacity-40 disabled:cursor-not-allowed"
         >
-          {isAnyEnhancing ? 'Enhancing…' : 'Enhance All'}
+          {canEnhance ? 'Enhance All' : isAnyEnhancing ? 'Enhancing…' : 'Enhance All'}
         </button>
       )}
       {audioSubTab === 'convert' && (
@@ -390,7 +393,7 @@ function QueueActionBar(): JSX.Element {
           disabled={!canConvert}
           className={ghostBtn}
         >
-          {isAnyConverting ? 'Converting…' : 'Convert All'}
+          {canConvert ? 'Convert All' : isAnyConverting ? 'Converting…' : 'Convert All'}
         </button>
       )}
     </div>
