@@ -47,9 +47,15 @@ pub async fn extract_video_audio(
     });
     let url = format!("http://127.0.0.1:{}/extract_audio", backend_port);
 
-    // Retry a few times to tolerate sidecar cold-start; each attempt allows up to
-    // 30 minutes for the actual extraction of very large videos.
-    const MAX_ATTEMPTS: u32 = 8;
+    // Retry to tolerate the PyInstaller sidecar's cold-start. Video extraction is
+    // triggered at *import* time — often seconds after app launch while the frozen
+    // backend is still unpacking/initialising (empirically 35–60 s on first boot).
+    // The old 8-attempt / ~16 s window expired before the sidecar answered, so the
+    // first video drop after launch failed with "Backend unavailable after 8
+    // attempts". Match the enhance command's 45-attempt (~90 s) window so the
+    // extraction endpoint stays stable during cold-start. Each attempt still allows
+    // up to 30 minutes for the actual demux of very large videos.
+    const MAX_ATTEMPTS: u32 = 45;
     let mut attempts = 0u32;
     loop {
         let result = reqwest::Client::new()

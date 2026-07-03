@@ -416,6 +416,102 @@ Turned the dimmed background-import placeholder rows (video → audio extraction
 - **Tests:** `backend/tests/test_extract_audio.py` rewritten for the Popen streaming path (mocks `subprocess.Popen` + the `subprocess.run` duration probe, stubs `imageio_ffmpeg.get_ffmpeg_exe` since it shells out); asserts a real intermediate percentage is streamed and `-progress` is in the ffmpeg cmd. **67/67 Pytest, 38/38 Vitest, `tsc --noEmit` 0 errors.**
 - **Packaging:** fresh clean sidecar `backend.exe` (376 MB) → `src-tauri/binaries/backend-x86_64-pc-windows-gnu.exe`; standalone release exe rebuilt (`npm run tauri build -- --no-bundle`, Rust 10m38s, exit 0, only the 2 known dead-code warnings) at `D:\cargo_build\enhance-audio-pro\release\enhance-audio-pro.exe` (7.8 MB, 2026-07-03 13:32) with the fresh sidecar (359 MB) copied beside it. Installer NOT regenerated — user manual-tests the exe first, then we build the `--target x86_64-pc-windows-gnu` NSIS installer.
 
+# Import-Row Animation Trim + CRITICAL Video-Extraction Cold-Start Fix (2026-07-03)
+Two revisions on the background video-extraction feature (frontend + Rust; no Python change → no sidecar rebuild).
+- **Fix 1 — Removed pulse/shimmer from disabled import rows, kept only the progress bar:** The `import-row-pulse` (breathing-opacity) class and the `import-shimmer-text` (gradient-swept filename) class were dropped from both the table row (`SortableJobRow`) and the grid card (`SortableJobCard`) in `src/components/QueueGrid.tsx`. Rows still stay disabled during extraction (`pointer-events-none cursor-default` + the subtle violet bg tint retained), and the only motion is now the linear extraction progress bar (`ImportingStatus` component / card bar — determinate fill once a real percent arrives, indeterminate `import-bar-indeterminate` marquee before that). The unused `import-row-pulse`/`import-shimmer`/`import-shimmer-text` keyframes + classes were deleted from `src/index.css` (kept `import-bar-indeterminate`).
+- **Fix 2 (CRITICAL) — "Backend unavailable after 8 attempts …/extract_audio" on video drop:** Root cause was a too-short cold-start retry window in `src-tauri/src/commands/video.rs::extract_video_audio`. Video extraction fires at *import* time — often seconds after launch while the frozen PyInstaller sidecar is still unpacking/initialising (empirically 35–60 s first boot). The extract loop only retried `MAX_ATTEMPTS = 8` × 2 s = ~16 s, expiring before the sidecar answered → reqwest "error sending request" (connection refused) surfaced as the toast. Enhance/convert worked because they run later once the backend is warm (their `process.rs` loop already uses 45 attempts). **Fix:** bumped extract `MAX_ATTEMPTS` from 8 → **45** (~90 s window, matching enhance), each attempt still allowing 1800 s for the actual demux. Tab-independent, so it fixes both Enhance and Convert tabs.
+- **Verification:** `tsc --noEmit` 0 errors. Standalone release exe rebuilt (`npm run tauri build -- --no-bundle`, frontend vite 49.7 s, Rust 6m03s, exit 0, only the 2 known dead-code warnings) at `D:\cargo_build\enhance-audio-pro\release\enhance-audio-pro.exe` (7.8 MB, 2026-07-03 14:52). Existing sidecar `backend.exe` (359 MB, unchanged) sits beside it. Installer NOT regenerated — user manual-tests the exe first.
+
+# Project Folder Cleanup — Planning Docs & Scratch Archived to trash/ (2026-07-03)
+Housekeeping pass (no code/build change). Moved obsolete/planning items into `trash/archived-2026-07-03/` (trash/ is gitignored, so this un-tracks the copies; nothing deleted — staged for the user's manual review/deletion). NOT committed.
+- **`scratch-scripts/`** — `clean_up.ps1`, `deep_scan.py`, `deep_scan_fast.py`, `scan_output.txt` (untracked home-dir disk-scan scratch, unrelated to the project).
+- **`planning-docs/`** — `plan_video.md` (video feature now implemented), `PRD_Enhance_Audio_Pro.txt`, and the **entire `docs/` folder** (`docs/superpowers/plans/claude.md` + the 9 `docs/superpowers/specs/*.md` phase design docs). Root `docs/` no longer exists.
+- **Note:** Section 13 / 18 references to `docs/superpowers/specs/…` and `…/plans/…` paths are now historical — those files live under `trash/archived-2026-07-03/planning-docs/docs/` until the user deletes them. Root is now trimmed to active files only (configs, src, src-tauri, backend, scripts, public, dist, releases, node_modules, CHANGELOG.md, CLAUDE.md).
+- **`stale-build/`** — `Enhance Audio Pro_0.1.0_x64-setup.exe` (46.63 MB, the stale lightweight installer, git-tracked; superseded by the 367 MB full build in `D:\tes`). The now-empty root `releases/` folder was removed.
+
+# Final Full NSIS Installer Built (post cold-start fix) (2026-07-03)
+After the user confirmed the standalone exe (import-row animation trim + video-extraction cold-start fix) tested correctly, built the comprehensive production installer bundling the full backend sidecar.
+- **Build:** `CARGO_TARGET_DIR=D:\cargo_build\enhance-audio-pro; npm run tauri build -- --target x86_64-pc-windows-gnu` (per the CRITICAL BUILD RULE — a plain `npm run tauri build` bundles the stale ~46 MB msvc stub). Frontend vite 5.1 s, Rust release 6m19s, exit 0, only the 2 known dead-code warnings; makensis produced the bundle. Cleared `backend`/`enhance-audio-pro` process locks first. Bundled sidecar `binaries\backend-x86_64-pc-windows-gnu.exe` verified current (359 MB, unchanged — no Python change this round).
+- **Output:** `Enhance Audio Pro_0.1.0_x64-setup.exe` (**367.46 MB**, 2026-07-03 15:24) at `D:\cargo_build\enhance-audio-pro\x86_64-pc-windows-gnu\release\bundle\nsis\`. Size confirms the full uncompressed sidecar payload (`nsis.compression: "none"`), not the lightweight stub. Copied to `D:\tes\Enhance Audio Pro_0.1.0_x64-setup.exe` for distribution/install testing on the user's friend's machine.
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# PROJECT PROCESS BOOK — COMPLETE CHRONOLOGICAL TASK HISTORY (compiled 2026-07-03)
+# ═══════════════════════════════════════════════════════════════════════════════
+> This is the consolidated, strictly chronological timeline of every task, feature
+> request, and programming instruction executed on Enhance Audio Pro — from the very
+> first scaffold task to the final installer. Compiled from the archived planning
+> docs now in `trash/archived-2026-07-03/` (master implementation plan, PRD update
+> log `prd_update_eng.md`, the UI-overhaul `task.md`, and per-feature plans) plus
+> the dated progress logs above. Original task numbering is preserved verbatim,
+> including gaps (e.g. PRD #26, #61 were skipped in the source; #67 logged after #68).
+
+## STAGE I — FOUNDATIONAL BUILD: Phases 1–9 (2026-05-20 → 2026-05-23)
+Built test-first (TDD) across React + Tauri/Rust + Python FastAPI sidecar.
+
+### Phase 1 — App Scaffold (2026-05-20)
+1. Project scaffold (package.json, vite, tailwind, postcss, npm install)
+2. TypeScript types — ipc.ts, queue.ts, settings.ts
+3. File validation utility + 8 Vitest tests (TDD)
+4. Zustand stores (useQueueStore, useSettingsStore) + 8 Vitest tests
+5. IPC wrappers + React entry (ipc.ts, main.tsx, App.tsx, index.css)
+6. All 7 UI components (TitleBar, Sidebar, DropZone, QueueToolbar, QueueGrid, SettingsPanel, SetupWizard) — 16/16 Vitest
+7. Tauri v2 Rust scaffold (Cargo.toml, tauri.conf.json, capabilities, main.rs, lib.rs, commands/db/sidecar mods)
+8. SQLite DB layer — migrations.rs (queue_jobs), queue.rs (insert/get)
+9. Tauri IPC commands — add_files, get_queue, get/save_settings, IpcResponse<T>
+10. Python sidecar lifecycle manager — available_port + spawn
+11. Python FastAPI backend — /health, /queue/process (501 stub); 2/2 Pytest
+12. Binaries dir + sidecar wiring (externalBin, full spawn+health-poll)
+13. First dev run + integration test — all green
+
+### Phase 2 — Speech Enhancement (2026-05-21)
+1. Cargo axum/tokio/reqwest deps · 2. DB progress/error migration + Rust unit tests · 3. Rust axum callback server (progress/status/wizard) · 4. AppState callback_port wiring · 5. process_queue + start_model_download commands · 6. Python requirements + conftest mocks · 7. enhance_speech.py DeepFilterNet3 lazy loader (CUDA/CPU) · 8. routers/enhance.py · 9. routers/wizard.py streaming HF download · 10. main.py router registration · 11. QueueJob progress/error + store · 12. IPC wrappers · 13. QueueGrid progress bar + event subs · 14. QueueToolbar Enhance dispatch · 15. SetupWizard real download · 16. Integration (19/19 Vitest, 11/11 Pytest)
+
+### Phase 3 — Stem Separation (2026-05-21)
+1. Demucs mocks in conftest · 2. separate_stems.py htdemucs_ft lazy loader · 3. routers/separate.py + demucs dep · 4. commands/separate.rs · 5. invokeSeparateStems + Separate button (Enhance renamed from Process) · 6. Integration (19/19 Vitest, 18/18 Pytest)
+
+### Phase 4 — Packaging, Conversion, Batch Limits (2026-05-22)
+1. output_format column/type/store · 2. convert_audio.py ffmpeg wrapper (7 formats) · 3. routers/convert.py · 4. commands/convert.rs + set_output_format · 5. per-row format select + global override/Apply All + Convert button · 6. 30 audio/10 video batch limits + DropZone warning · 7. PyInstaller build.spec · 8. MSI bundle target · 9. Integration (20/20 Vitest, 25/25 Pytest)
+
+### Phase 5 — Audio Manipulation Tools (2026-05-22)
+1. manipulate_audio.py (trim/speed/pitch/volume/fade) + merge_audio.py + equalizer.py (18 presets) · 2. routers/manipulate.py (/manipulate,/merge,/loop,/eq) · 3. commands/manipulate.rs · 4. IPC wrappers + row-select state · 5. EQPanel 11-band · 6. ManipulationPanel 8-tab · 7. design spec · 8. docs/commit (20/20 Vitest, 51/51 Pytest)
+
+### Phase 6 — Polish, UX, Localization (2026-05-22)
+1. WaveformPlayer (WaveSurfer) · 2. A/B toggle · 3. enhancement strength slider · 4. multi-select (Ctrl/Shift click) · 5. Grid/List toggle · 6. i18next + 17 languages · 7. useKeyboardShortcuts (Ctrl+A/Esc/Del/E/S/C) · 8. HelpPanel · 9. per-row BitrateSelect · 10. output_filepath tracking · 11. backend strength/bitrate (31/31 Vitest, 56/56 Pytest)
+
+### Phase 7 — Extended Features (2026-05-22)
+1. Zustand persist auto-save · 2. Spectrogram view · 3. 10 more locales (17 total) · 4. macOS bundle targets · 5. output folder picker · 6. HistoryPanel (last 50) · 7. drag-to-reorder (@dnd-kit) (33/33 Vitest)
+
+### Phase 8 — Quality, Recording, PRD Completion (2026-05-22)
+1. QueueStatusBar pill counters · 2. per-job sample rate selector · 3. filename template · 4. Reset All Editing · 5. in-app recording (MediaRecorder) · 6. rebindable keyboard shortcuts panel · 7. group-by-format · 8. filename template end-to-end (38/38 Vitest, 65/65 Pytest)
+
+### Phase 9 — Build Pipeline & Release Distribution (2026-05-23)
+1. build-backend.ps1 · 2. build-app.ps1 orchestration · 3. build:backend/build:full npm scripts · 4. release.yml GitHub Actions (v* tags → MSI) · 5. CHANGELOG v0.1.0 · 6. phase spec docs · 7. commit — **PROJECT FEATURE-COMPLETE (v0.1.0)**
+
+## STAGE II — PRD ITERATIVE REFINEMENT (Tasks 1–68, 2026-05-24 → 2026-06-08)
+Numbered user feature requests from `prd_update_eng.md`, executed in order (numbering gaps preserved):
+1. Light Mode Improvements · 2. Settings Persistence & Global Changes · 3. User Guide & Settings UI Changes · 4. Scroll & Background Interaction Prevention · 5. Main Screen Table UI Enhancements · 6. Dropzone Text & Interaction Adjustments · 7. Grid View & Shortcuts · 8. Deselecting Queue Files · 9. Recent Files Shortcut · 10. Toolbar Layout Reordering · 11. Settings Persistence Bug Fix · 12. File Import Enhancements (Folder Import & Drag-and-Drop) · 13. Light Theme Color Palette Update · 14. Settings Modal Width Adjustment · 15. Dynamic User Guide Localization · 16. Table View Column Dividers · 17. Process Isolation · 18. Sequential Queue Processing & Status Indicators · 19. Format Group Collapsible Toggle · 20. Lock Queue Items Feature · 21. Theme-Specific Icon and Button Colors · 22. Thicken Table Column Dividers · 23. Lock Queue Items Update · 24. Queue Separation by Media Tab · 25. Remove "Open files" Icon · 27. Active Tab Stroke Indicator · 28. Queue Background Contrast · 29. Default Destination Display · 30. Lock Header Icon · 31. Manipulation Tools Visibility · 32. Global Lock Shortcut (Shift+L) · 33. Toolbar Buttons Width · 34. Sidebar Active Tab Border · 35. Manipulation Tools Visibility refinement · 36. Queue Selection Color · 37. Queue Table Header Contrast & Borders · 38. Record Button Visibility · 39. Fix Drag & Drop Axis Constraints · 40. Waveform Visibility in Light Theme · 41. Audio Recording Implementation & Custom Naming · 42. Remove Play Icon Column · 43. Revamp Manipulation Tools (Focus on Waveform) · 44. Waveform Interaction, Zoom & Style Upgrades (2026-06-01) · 45. Waveform Timeline, Zoom, Volume, Shortcuts & Dropzone Layout · 46. Translation of Task 45 request · 47. Waveform Visual/Zoom Responsiveness, Vertical Gain Stretch, Frame-Level Zoom · 48. Fast Dropzone Transition, Initial Fit Zoom, Volume Cap, Crash Fix, W Shortcut, Reset · 49. Dropzone Sync Bug, 'L' Lock vs Speed Split, Rewind Fix, Volume Gain Playback · 50. Playback Shortcuts Logic & Frame-by-Frame Navigation · 51. Waveform Playback, Zoom, Smooth Cursor & Clean App Shutdown (2026-06-03) · 52. Instant Backward Playback, Capped Zoom, Load Caching, Timeline Navigation · 53. Shortcut Adjustments, Fully-Loaded Caching, Loading Cancellation · 54. Waveform Opening Refactor, Marquee Drag Selection, Delete Shortcuts, Clear Queue · 55. Marquee Selection Bounds, Lock Safeguards, Import Loading Indicators, Switching Fixes · 56. Locked Deletion Safeguards, Right-Click Overrides, Lock Header Toggle, Rapid Switching, Multi-Row Drag Reorder, Tauri Compile · 57. Ctrl+R Shortcut, Delete Key Fix, Waveform Rapid-Switch Error, Multi-Item Drag, Rebuild · 58. Multi-Item Drag Visual Union, Waveform Auto-Focus & Preservation, Playback Switch Fixes, Recompile · 59. Multi-Drag Placeholder Preservation, Continuous Autofocus, Playback Interruption Fixes, Compile · 60. Multi-Drag Gap, Reopen Audio Playback, Rebuild · 62. Dynamic Default Output Format · 63. UI Refinements, Deletion Warnings & Directory Persistence (destination-path bug, Done badge, cache cleanup, column alignment, delete confirmation, seamless A/B, history reveal) · 64. Enhance Pipeline Improvements & Output-Format Fix (non-native MP3/AAC/etc via temp WAV) · 65. Enhance Process Fix (asyncio lock, heartbeat, 30-min timeout), Delete Warning, History Upgrades · 66. Queue Enhancements, Resizable Size Column, Sequential Queueing, History Reveal Fix, Unique Naming, Rebuild · 67. Backend-Unavailable Retry Fix, Enhance-All First-Row Transition, Scratch-Disk/Cache Setting, Rebuild (2026-06-06) · 68. Delete Confirmation Re-verify, History Error Fix, Enhance Cold-Start Fix, Background Audio Preload, Debug Error Logger
+
+## STAGE III — UNLIMITED QUEUE & PER-TAB ARCHITECTURE (2026-06-09 → 2026-06-15)
+- **Task 74 (2026-06-09)** — Unlimited file input (removed MAX_QUEUE_JOBS), per-row Enhance/Convert mode dropdown, sequential Convert All, toolbar reorder, completion toast + Download All, Python convert lock/heartbeat.
+- **Queue Column Width Calibration (2026-06-13)** — root-caused the resize overflow bug (adjustWidth only handled filename/destination), calibrated + locked 12 column widths (955px total).
+- **Columns Non-Resizable (2026-06-14)** — removed the resize system entirely; hardcoded COL_WIDTHS.
+- **Audio Sub-Tab System (2026-06-14)** — Enhance | Convert | Separate sub-tabs; per-tab column visibility.
+- **UI Overhaul — task.md Tasks 1–9 (2026-06-14):** (1) tab label rename, (2) per-tab independent queues (major useQueueStore refactor — tabQueues + all per-tab state), (3) Record button left of search, (4) neutral tab-pill styling, (5) bottom QueueActionBar, (6) resizable columns w/ Copy Width Log, (7) Shift+1/2 view + 1/2/3 tab-switch shortcuts, (8) strict tab isolation audit, (9) tsc + rebuild.
+- **task.md Tasks 10–15 (2026-06-15):** (10) empty queues on startup + shutdown cleanup order (kill sidecar → sleep → delete cache), (11) disable Separate sub-tab, (12) shrink bottom action buttons, (13) modifier-aware unique shortcut recording, (14) full manual column resizing w/ localStorage persistence + toast, (15) verify + build.
+- **Task 16 — Bundle FFmpeg with sidecar (2026-06-15):** fixed "Export failed [WinError 2]" — switched manipulate/convert/merge/equalizer processors to `imageio_ffmpeg.get_ffmpeg_exe()`; build.spec bundles the static binary. 65/65 Pytest.
+
+## STAGE IV — VIDEO PIPELINE & DISTRIBUTION HARDENING (2026-07-02 → 2026-07-03)
+- **Installer builds + sidecar PyInstaller crash fix (2026-07-02):** diagnosed installed-app "Unknown error during enhancement" → stale `backend/build/` cache mixed PyInstaller runtime-hook versions (`PyiFrozenImporter` vs `PyiFrozenLoader`); clean `--clean` rebuild fixed it. Established build-hygiene rule (always `--clean`).
+- **Tab-isolated Cancel All + Convert-tab A/B hidden + video roadmap (2026-07-02):** `plan_video.md` blueprint created.
+- **Video drag-drop → audio extraction implemented (2026-07-02):** extract_audio.py (ffmpeg `-vn` demux), routers/video.py (/extract_audio), commands/video.rs, frontend import partitioning, live verification.
+- **Video drag-drop fix, exact filename, Esc-to-cancel (2026-07-03):** stripped Windows `\\?\` verbatim prefix (drag == browse), moved collision hash into directory (exact base filename), cancelable import overlay.
+- **CRITICAL installer wrong-sidecar fix (2026-07-03):** plain `npm run tauri build` bundled the stale msvc stub → **MANDATORY RULE: build installer with `--target x86_64-pc-windows-gnu`**; set `nsis.compression: "none"` (367 MB full payload).
+- **Non-blocking background import + global action unlock + duplicate modal for videos (2026-07-03):** removed isAnyActive gate, up-front duplicate detection for videos, fully non-blocking import with dimmed placeholder rows.
+- **Real-time video-extraction progress (2026-07-03):** true ffmpeg `-progress` streaming → `/callback/progress` → `queue://progress` → skeleton shimmer + live bar.
+- **Import-row animation trim + CRITICAL cold-start fix (2026-07-03):** removed pulse/shimmer (kept only the linear progress bar); bumped extract retry 8→45 attempts (~90 s) to cover sidecar cold-start (was failing with "Backend unavailable after 8 attempts").
+- **Final full NSIS installer (2026-07-03):** 367.46 MB `Enhance Audio Pro_0.1.0_x64-setup.exe` → `D:\tes\`.
+- **Project folder cleanup (2026-07-03):** archived scratch scripts, planning docs, `docs/`, stale installer → `trash/archived-2026-07-03/`. This process book compiled from those archives.
+
 # Test Coverage (final)
 - 38/38 Vitest (frontend) — test file updated for new per-tab store API
 - 67/67 Pytest (backend) — includes test_extract_audio.py (Popen streaming progress) + test_video_normalize.py (verbatim-prefix stripping)

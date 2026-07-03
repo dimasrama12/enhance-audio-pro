@@ -4,6 +4,61 @@ All notable changes to Enhance Audio Pro are documented in this file.
 
 ---
 
+## [0.2.0] — 2026-07-03
+
+> Accumulated feature, UX, and stability release covering all work since v0.1.0
+> (PRD refinement Tasks 1–68, per-tab architecture, the video-extraction pipeline,
+> and distribution hardening). Version bumped to `0.2.0` in `package.json`,
+> `src-tauri/tauri.conf.json`, and `src-tauri/Cargo.toml`. The already-distributed
+> installer (`Enhance Audio Pro_0.1.0_x64-setup.exe`, 367 MB) was built before this
+> bump; the next installer build will carry the `0.2.0` filename.
+
+### Added
+
+#### Video → Audio Extraction Pipeline
+- Drag-and-drop or browse **video files** (`.mp4`, `.mov`, `.mkv`, …) on the Enhance and Convert tabs — audio is demuxed in the background via bundled ffmpeg (`-vn -map 0:a:0 -c:a libmp3lame`), no size/duration limits
+- Real-time extraction progress: non-blocking dimmed placeholder rows with a live linear progress bar (true ffmpeg `-progress` streamed to the UI)
+- Extracted file preserves the exact original base filename (collision-avoidance hash moved into the cache directory)
+- Windows drag-drop `\\?\` verbatim-path normalization so drag matches browse
+- Duplicate-video detection modal (Add All / Add New Only / Cancel)
+
+#### Per-Tab Queue Architecture
+- Independent **Enhance / Convert / Separate** sub-tabs, each with a fully isolated queue, filter, search, selection, lock state, view mode, and group-by-format
+- **Unlimited** file input (removed the 30 audio / 10 video batch cap)
+- Per-row Enhance/Convert mode dropdown; sequential "Convert All" (one processing, rest queued, auto-advance)
+- Bottom action bar (Enhance All violet / Convert All neutral); Record button relocated left of the search bar
+- Completion toast with a "Download All" batch action
+
+#### Waveform Player & Editing (PRD Tasks 43–60)
+- Premiere-Pro-style continuous waveform: drag-to-seek, Alt+Scroll zoom, frame-level max zoom, manual zoom slider, hover-pan
+- J/L 5-step bidirectional speed ladder with real reversed-buffer backward audio; RAF-smoothed ~60 fps playhead
+- Marquee drag-selection, multi-row drag reordering, waveform auto-focus, A/B toggle in player (Enhance tab only)
+- Lockable queue items (Shift+L global lock), locked-deletion safeguards, right-click overrides
+
+#### Settings, Shortcuts & Persistence
+- Modifier-aware, duplicate-free rebindable keyboard shortcuts; `Shift+1/2` view toggle, `1/2/3` tab switch, `Ctrl+R` reload
+- Scratch-disk / cache directory setting; destination-path persistence; filename uniqueness
+- Manual column resizing with `localStorage` persistence + Copy Width Log
+
+### Changed
+- Removed the AI-model download section from Settings (model assumed pre-bundled)
+- Light mode overhauled across all major components (zinc palette, `dark:` prefixes)
+- User Guide converted to plain paragraph layout with dynamic localization
+- Done status badge replaces inline A/B toggle in queue rows
+- Installer bundling: `nsis.compression: "none"` → full ~367 MB payload with the complete backend
+
+### Fixed
+- **Video import "Backend unavailable after 8 attempts"** — extraction retry window raised 8→45 attempts (~90 s) to cover PyInstaller sidecar cold-start
+- **Installer bundled the wrong (stale msvc) sidecar** — mandated `--target x86_64-pc-windows-gnu` for full-payload installers
+- **Installed-app "Unknown error during enhancement"** — clean `--clean` PyInstaller rebuild fixed mixed runtime-hook versions
+- **"Export failed [WinError 2]"** — manipulate/convert/merge/equalizer processors now use bundled `imageio_ffmpeg`
+- Enhance stuck/parallel process (asyncio lock, per-job heartbeat, 30-min timeout), non-native format handling (MP3/AAC via temp WAV), backend HTTP error recovery
+- "Enhance All / Convert All" no longer lock when a single row is run manually
+- Clean app shutdown: sidecar killed first, cache/temp swept, no orphaned backend processes
+- Removed placeholder-row pulse/shimmer animation (kept only the linear progress bar)
+
+---
+
 ## [0.1.0] — 2026-05-23
 
 ### Added

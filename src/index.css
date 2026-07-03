@@ -116,46 +116,9 @@ html.light input.eq-slider {
   animation: amber-pulse 1.5s ease-in-out infinite;
 }
 
-/* ── Background-import (video extraction) skeleton feedback ─────────────────── */
-
-/* Slow, smooth breathing pulse applied to the whole placeholder row/card so it
-   reads as an active background operation without being distracting. */
-@keyframes import-row-pulse {
-  0%, 100% { opacity: 0.72; }
-  50% { opacity: 0.42; }
-}
-.import-row-pulse {
-  animation: import-row-pulse 1.8s ease-in-out infinite;
-}
-
-/* Shimmering sweep over placeholder text (skeleton-loading effect). The text
-   itself is clipped to the moving gradient. */
-@keyframes import-shimmer {
-  0% { background-position: -180% 0; }
-  100% { background-position: 180% 0; }
-}
-.import-shimmer-text {
-  background-image: linear-gradient(
-    100deg,
-    rgba(148, 163, 184, 0.85) 20%,
-    rgba(196, 181, 253, 0.95) 50%,
-    rgba(148, 163, 184, 0.85) 80%
-  );
-  background-size: 200% 100%;
-  -webkit-background-clip: text;
-  background-clip: text;
-  -webkit-text-fill-color: transparent;
-  color: transparent;
-  animation: import-shimmer 1.6s linear infinite;
-}
-html.dark .import-shimmer-text {
-  background-image: linear-gradient(
-    100deg,
-    rgba(148, 163, 184, 0.55) 20%,
-    rgba(196, 181, 253, 0.95) 50%,
-    rgba(148, 163, 184, 0.55) 80%
-  );
-}
+/* ── Background-import (video extraction) feedback ──────────────────────────── */
+/* Placeholder rows stay visually disabled (no pulse/shimmer) — the only motion
+   is the linear extraction progress bar below. */
 
 /* Indeterminate marquee used before the backend reports a real percentage. */
 @keyframes import-indeterminate {

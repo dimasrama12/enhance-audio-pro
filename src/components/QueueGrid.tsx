@@ -475,7 +475,7 @@ function SortableJobRow({
       className={clsx(
         'group border-b border-slate-100 dark:border-white/[0.04] last:border-0 transition-colors duration-100',
         isImporting
-          ? 'import-row-pulse pointer-events-none cursor-default bg-violet-50/40 dark:bg-violet-500/[0.04]'
+          ? 'pointer-events-none cursor-default bg-violet-50/40 dark:bg-violet-500/[0.04]'
           : clsx(
               'cursor-pointer',
               isSelected
@@ -508,8 +508,7 @@ function SortableJobRow({
           </button>
           <span onClick={(e) => { e.stopPropagation(); setFilenameExpanded((v) => !v); }}
             className={clsx('flex-1 cursor-pointer hover:text-violet-600 dark:hover:text-violet-400 transition-colors',
-              filenameExpanded ? 'break-all whitespace-normal' : 'truncate',
-              isImporting && 'import-shimmer-text')}
+              filenameExpanded ? 'break-all whitespace-normal' : 'truncate')}
             title={filenameExpanded ? undefined : job.filename}>
             {job.filename}
           </span>
@@ -640,7 +639,7 @@ function SortableJobCard({ job, isSelected, onSelect, isImporting, activeDragId,
     <div ref={setNodeRef} style={cardStyle} onClick={isImporting ? undefined : onSelect} data-job-id={job.id}
       className={clsx('rounded-xl p-3 border transition-all duration-150 select-none',
         isImporting
-          ? 'import-row-pulse pointer-events-none cursor-default bg-violet-50/40 dark:bg-violet-500/[0.04] border-violet-200/60 dark:border-violet-500/20'
+          ? 'pointer-events-none cursor-default bg-violet-50/40 dark:bg-violet-500/[0.04] border-violet-200/60 dark:border-violet-500/20'
           : clsx('cursor-pointer', isDragging ? 'scale-[0.98]' : '',
               isSelected ? 'bg-violet-50 dark:bg-violet-500/[0.08] border-violet-300 dark:border-violet-500/40'
                 : isEnhanced ? 'bg-emerald-50/40 dark:bg-emerald-500/[0.05] border-emerald-200 dark:border-emerald-500/15 hover:bg-emerald-50 dark:hover:bg-emerald-500/[0.08]'
@@ -655,7 +654,7 @@ function SortableJobCard({ job, isSelected, onSelect, isImporting, activeDragId,
             className="p-1 rounded bg-violet-500/10 hover:bg-violet-500/20 text-violet-600 dark:text-violet-400 transition shrink-0">
             <Play size={10} fill="currentColor" />
           </button>
-          <span className={clsx('text-sm text-slate-800 dark:text-slate-100 font-medium truncate flex-1', isImporting && 'import-shimmer-text')}>{job.filename}</span>
+          <span className="text-sm text-slate-800 dark:text-slate-100 font-medium truncate flex-1">{job.filename}</span>
         </div>
         <div className="flex items-center gap-1.5 shrink-0">
           <button onClick={(e) => { e.stopPropagation(); if (isLocked) unlockJobs([job.id]); else useQueueStore.getState().lockJobs([job.id]); }}
