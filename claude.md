@@ -536,6 +536,15 @@ Driven by `do_this.md` (STEP 3 + STEP 3 TAMBAHAN 3A–3D). App scope narrowed to
 - TypeScript tsc --noEmit: 0 errors
 ```
 
+# v0.2.3 — Settings Format Display Fix & GitHub Release (2026-07-09)
+- [x] **Format display verification:** Confirmed FLAC is natively supported by both the DeepFilterNet enhance pipeline (soundfile) and the convert pipeline (ffmpeg). M4A is also technically supported via ffmpeg but not a primary advertised format.
+- [x] **Settings Formats tab trimmed:** `src/components/SettingsPanel.tsx` — `AUDIO_FORMATS` array reduced from 7 entries (MP3, WAV, FLAC, AAC, OGG, OPUS, M4A) to **4 entries (MP3, WAV, FLAC, OPUS)** matching the product's official supported set.
+- [x] **Version bumped 0.1.0 → 0.2.3** across `src-tauri/tauri.conf.json`, `src-tauri/Cargo.toml`, `package.json`, and `CLAUDE.md`.
+- [x] **Installer rebuilt:** `npm run tauri build -- --target x86_64-pc-windows-gnu` (Rust 2m30s, exit 0, 2 known dead-code warnings) → `Enhance Audio Pro_0.2.3_x64-setup.exe` **366.62 MB** at `D:\cargo_build\enhance-audio-pro\x86_64-pc-windows-gnu\release\bundle\nsis\`. Copied to `D:\tes\`.
+- [x] **`.gitignore` updated:** Added `installer/`, `releases/`, `*.exe`, `stale-build/` exclusions so installer binaries are never committed to git.
+- [x] **Source pushed to GitHub (`dimasrama12/enhance-audio-pro` master):** Initialized git in v3 via clone-and-overlay strategy (preserves v1 history). Commit `badbae1` — 39 files changed, 4439 insertions, 1365 deletions. Includes entire v3 evolution since the May 2026 v1 backup.
+- [x] **GitHub Release v0.2.3 created:** https://github.com/dimasrama12/enhance-audio-pro/releases/tag/v0.2.3 — installer uploaded as release asset (366.62 MB).
+
 ---
 ## 14. Testing
 ```
