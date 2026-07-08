@@ -10,7 +10,7 @@
 - Description : A professional desktop application designed to assist audio and video editors in enhancing, separating, and manipulating audio tracks effortlessly.
 - Goal : To provide offline AI-powered speech enhancement, stem separation, and audio manipulation without upload/download limits.
 - Target Users: Audio & Video Editors, Podcasters, Musicians, Content Creators.
-- Version : v0.1.0 (Initial Setup)
+- Version : v0.2.3
 - Status : Active development
 
 ---
