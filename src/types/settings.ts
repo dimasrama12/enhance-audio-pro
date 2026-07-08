@@ -101,7 +101,7 @@ export interface AppSettings {
   keyboardShortcuts: KeyboardShortcutMap;
   customDefaultShortcuts?: KeyboardShortcutMap;
   recordingPrefix?: string;
-  aiModel: 'deepfilternet' | 'lavasr';
+  aiModel: 'deepfilternet';
   scratchDiskDir?: string;
 }
 

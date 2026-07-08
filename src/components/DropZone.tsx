@@ -232,7 +232,7 @@ export default function DropZone(): JSX.Element {
             {t('dropzone.browse')}
             {' · '}
             <span className="text-slate-400 dark:text-zinc-200">
-              {isAudio ? (audioSubTab === 'convert' ? 'MP3, WAV' : 'MP3, WAV, FLAC, AAC +7') : 'MP4, MKV, MOV, AVI +2'}
+              {isAudio ? (audioSubTab === 'convert' ? 'MP3, WAV' : 'MP3, WAV, FLAC') : 'MP4, MKV, MOV, AVI +2'}
             </span>
           </p>
         </div>

@@ -8,10 +8,9 @@ All notable changes to Enhance Audio Pro are documented in this file.
 
 > Accumulated feature, UX, and stability release covering all work since v0.1.0
 > (PRD refinement Tasks 1–68, per-tab architecture, the video-extraction pipeline,
-> and distribution hardening). Version bumped to `0.2.0` in `package.json`,
-> `src-tauri/tauri.conf.json`, and `src-tauri/Cargo.toml`. The already-distributed
-> installer (`Enhance Audio Pro_0.1.0_x64-setup.exe`, 367 MB) was built before this
-> bump; the next installer build will carry the `0.2.0` filename.
+> and distribution hardening). Note: the built installer/bundle identifier is still
+> `0.1.0` (`Enhance Audio Pro_0.1.0_x64-setup.exe`, 367 MB) pending a formal version
+> bump in `package.json` / `tauri.conf.json`.
 
 ### Added
 

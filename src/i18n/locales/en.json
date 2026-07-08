@@ -80,26 +80,22 @@
   },
   "guide": {
     "title": "Getting Started",
-    "content": "Drop audio or video files onto the drop zone, or click the drop area to browse your files. Files are added to the queue ready for processing. Select pending files and click Enhance to apply AI-powered noise removal using DeepFilterNet3 — adjust the strength in General settings. Click Separate Stems to split audio into vocals, drums, bass, and other parts via Demucs. Convert between MP3, WAV, FLAC, AAC, OGG, OPUS, and M4A using the toolbar or per-file format selector. Click any queue row to open the manipulation panel for Trim, Speed, Pitch, Volume, Fade, Merge, Loop, and an 11-band EQ. Select a completed file to open the waveform player with A/B toggle to compare original and enhanced audio. Click the microphone icon to record directly from your input device."
+    "content": "Drop audio or video files onto the drop zone, or click the drop area to browse your files. Files are added to the queue ready for processing. Select pending files and click Enhance All to remove background noise using DeepFilterNet3 — adjust Enhancement Strength in General settings. Select a processed file to open the waveform player with A/B toggle to compare original and enhanced audio. Click the microphone icon to record directly from your input device."
   },
   "help": {
     "title": "User Guide",
     "close": "Close",
     "sections": {
       "gettingStarted": "Getting Started",
-      "gettingStartedContent": "Drop audio or video files onto the drop zone. Files are added to the queue. Click a row to select it and access manipulation tools.",
+      "gettingStartedContent": "Drop audio or video files onto the drop zone. Files are added to the queue. Click a row to select it.",
       "enhance": "Speech Enhancement",
-      "enhanceContent": "Select pending files and click Enhance to remove background noise using DeepFilterNet3 (AI). Adjust Enhancement Strength in Settings.",
-      "separate": "Stem Separation",
-      "separateContent": "Click Separate Stems to split audio into vocals, drums, bass, and other parts using Demucs.",
+      "enhanceContent": "Select pending files and click Enhance All to remove background noise using DeepFilterNet3 (AI). Adjust Enhancement Strength in Settings.",
       "convert": "Format Conversion",
-      "convertContent": "Choose an output format per file (or apply globally) then click Convert. Supports WAV, MP3, FLAC, AAC, OGG, OPUS, M4A.",
-      "manipulation": "Audio Manipulation",
-      "manipulationContent": "Click any queue row to open the manipulation panel. Use tabs to Trim, adjust Speed/Pitch/Volume, apply Fades, Merge files, Loop, or apply EQ.",
+      "convertContent": "Choose an output format per file (or apply globally) then click Convert All. Supports MP3, WAV, FLAC, AAC, OGG, OPUS, M4A.",
       "waveform": "Waveform Preview",
-      "waveformContent": "Select a processed file to see its waveform. Use A/B toggle to compare original vs enhanced audio.",
+      "waveformContent": "Select a processed file to see its waveform. Use A/B toggle to compare original vs enhanced audio. Adjust gain and zoom with the controls below the waveform.",
       "keyboard": "Keyboard Shortcuts",
-      "keyboardContent": "Ctrl+A: Select all | Escape: Deselect | Delete: Remove selected | E: Enhance | S: Separate | C: Convert"
+      "keyboardContent": "Ctrl+A: Select all | Escape: Deselect | Delete: Remove selected | E: Enhance All | C: Convert All"
     }
   }
 }

@@ -142,7 +142,6 @@ async def _process_jobs(job_ids: List[str], callback_url: str, strength: float =
                 _cb_url = callback_url
                 _job_id = job_id
                 _strength = strength
-                _model_type = model_type
 
                 def _sync_enhance(out: str) -> None:
                     def _progress(pct: int) -> None:
@@ -155,11 +154,7 @@ async def _process_jobs(job_ids: List[str], callback_url: str, strength: float =
                         except Exception as cb_err:
                             logger.warning(f"[{_job_id}] Progress callback failed at {pct}%: {cb_err}")
 
-                    if _model_type == "lavasr":
-                        from processors.enhance_lavasr import enhance_file_lavasr
-                        enhance_file_lavasr(filepath, out, _progress, strength=_strength, job_id=_job_id)
-                    else:
-                        enhance_file(filepath, out, _progress, strength=_strength, job_id=_job_id)
+                    enhance_file(filepath, out, _progress, strength=_strength, job_id=_job_id)
 
                 # Per-job hard timeout: trigger cancellation event after _JOB_TIMEOUT_SECONDS
                 # so the enhance thread exits cleanly instead of hanging forever.

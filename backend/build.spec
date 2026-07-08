@@ -3,14 +3,13 @@ from PyInstaller.utils.hooks import collect_all, collect_data_files, collect_sub
 
 torch_datas, torch_binaries, torch_hidden = collect_all('torch')
 torchaudio_datas, torchaudio_binaries, torchaudio_hidden = collect_all('torchaudio')
-LavaSR_datas, LavaSR_binaries, LavaSR_hidden = collect_all('LavaSR')
 
 a = Analysis(
     ['main.py'],
     pathex=['.'],
-    binaries=torch_binaries + torchaudio_binaries + LavaSR_binaries,
+    binaries=torch_binaries + torchaudio_binaries,
     datas=(
-        torch_datas + torchaudio_datas + LavaSR_datas
+        torch_datas + torchaudio_datas
         + collect_data_files('df')
         + collect_data_files('scipy')
         # Bundle the static ffmpeg binary shipped with imageio-ffmpeg so the
@@ -19,9 +18,8 @@ a = Analysis(
         + collect_data_files('imageio_ffmpeg')
     ),
     hiddenimports=(
-        torch_hidden + torchaudio_hidden + LavaSR_hidden
+        torch_hidden + torchaudio_hidden
         + collect_submodules('df')
-        + collect_submodules('LavaSR')
         + collect_submodules('numpy')
         + collect_submodules('scipy')
         + [

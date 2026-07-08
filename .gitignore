@@ -1,6 +1,12 @@
 # Local scratch / archived files (excluded from backup)
 trash/
 
+# Installer binaries (distributed via GitHub Releases, not committed)
+installer/
+releases/
+*.exe
+stale-build/
+
 # Dependencies
 node_modules/
 .pnp

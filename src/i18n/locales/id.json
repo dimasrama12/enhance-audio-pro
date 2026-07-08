@@ -63,26 +63,22 @@
   },
   "guide": {
     "title": "Memulai",
-    "content": "Seret file audio atau video ke zona drop, atau klik area drop untuk menjelajah file Anda. File akan ditambahkan ke antrean dan siap diproses. Pilih file tertunda dan klik Tingkatkan untuk menerapkan penghapusan noise AI menggunakan DeepFilterNet3 — sesuaikan kekuatan di pengaturan Umum. Klik Pisahkan Stem untuk memisahkan audio menjadi vokal, drum, bass, dan bagian lainnya via Demucs. Konversi antara MP3, WAV, FLAC, AAC, OGG, OPUS, dan M4A menggunakan toolbar atau pemilih format per file. Klik baris antrean mana pun untuk membuka panel manipulasi: Potong, Kecepatan, Nada, Volume, Fade, Gabung, Loop, dan EQ 11-band. Pilih file yang selesai untuk membuka pemutar gelombang dengan toggle A/B untuk membandingkan audio asli dan yang ditingkatkan. Klik ikon mikrofon untuk merekam langsung dari perangkat input Anda."
+    "content": "Seret file audio atau video ke zona drop, atau klik area drop untuk menjelajah file Anda. File akan ditambahkan ke antrean dan siap diproses. Pilih file tertunda dan klik Tingkatkan Semua untuk menghapus kebisingan latar belakang menggunakan DeepFilterNet3 — sesuaikan Kekuatan Peningkatan di pengaturan Umum. Pilih file yang selesai untuk membuka pemutar gelombang dengan toggle A/B untuk membandingkan audio asli dan yang ditingkatkan. Klik ikon mikrofon untuk merekam langsung dari perangkat input Anda."
   },
   "help": {
     "title": "Panduan Pengguna",
     "close": "Tutup",
     "sections": {
       "gettingStarted": "Memulai",
-      "gettingStartedContent": "Seret file audio atau video ke zona drop.",
+      "gettingStartedContent": "Seret file audio atau video ke zona drop. File ditambahkan ke antrean. Klik baris untuk memilihnya.",
       "enhance": "Peningkatan Suara",
-      "enhanceContent": "Pilih file tertunda dan klik Tingkatkan untuk menghapus kebisingan latar belakang.",
-      "separate": "Pemisahan Stem",
-      "separateContent": "Klik Pisahkan Stem untuk memisahkan audio menjadi vokal, drum, bass, dan lainnya.",
+      "enhanceContent": "Pilih file tertunda dan klik Tingkatkan Semua untuk menghapus kebisingan latar belakang menggunakan DeepFilterNet3 (AI). Sesuaikan Kekuatan Peningkatan di Pengaturan.",
       "convert": "Konversi Format",
-      "convertContent": "Pilih format output lalu klik Konversi.",
-      "manipulation": "Manipulasi Audio",
-      "manipulationContent": "Klik baris antrean untuk membuka panel manipulasi.",
+      "convertContent": "Pilih format output per file (atau terapkan secara global) lalu klik Konversi Semua. Mendukung MP3, WAV, FLAC, AAC, OGG, OPUS, M4A.",
       "waveform": "Pratinjau Gelombang",
-      "waveformContent": "Pilih file yang diproses untuk melihat gelombangnya.",
+      "waveformContent": "Pilih file yang diproses untuk melihat gelombangnya. Gunakan toggle A/B untuk membandingkan audio asli dan yang ditingkatkan. Sesuaikan gain dan zoom dengan kontrol di bawah gelombang.",
       "keyboard": "Pintasan Keyboard",
-      "keyboardContent": "Ctrl+A: Pilih semua | Escape: Batalkan pilihan | Delete: Hapus | E: Tingkatkan | S: Pisahkan | C: Konversi"
+      "keyboardContent": "Ctrl+A: Pilih semua | Escape: Batalkan pilihan | Delete: Hapus | E: Tingkatkan Semua | C: Konversi Semua"
     }
   }
 }

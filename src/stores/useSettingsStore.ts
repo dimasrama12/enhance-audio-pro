@@ -15,7 +15,7 @@ interface SettingsState extends AppSettings {
   setKeyboardShortcuts: (shortcuts: KeyboardShortcutMap) => void;
   setCustomDefaultShortcuts: (shortcuts: KeyboardShortcutMap) => void;
   setRecordingPrefix: (prefix: string) => void;
-  setAiModel: (model: 'deepfilternet' | 'lavasr') => void;
+  setAiModel: (model: 'deepfilternet') => void;
   setScratchDiskDir: (dir: string) => void;
   markSetupComplete: () => void;
   setInitialized: (v: boolean) => void;
@@ -36,7 +36,7 @@ export const useSettingsStore = create<SettingsState>()(
       setKeyboardShortcuts: (keyboardShortcuts) => set({ keyboardShortcuts }),
       setCustomDefaultShortcuts: (customDefaultShortcuts) => set({ customDefaultShortcuts }),
       setRecordingPrefix: (recordingPrefix) => set({ recordingPrefix }),
-      setAiModel: (aiModel: 'deepfilternet' | 'lavasr') => set({ aiModel }),
+      setAiModel: (aiModel: 'deepfilternet') => set({ aiModel }),
       setScratchDiskDir: (scratchDiskDir) => set({ scratchDiskDir }),
       markSetupComplete: () => set({ setupComplete: true }),
       setInitialized: (initialized) => set({ initialized }),
