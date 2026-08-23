@@ -561,6 +561,27 @@ Driven by `do this.md` (Fase 1 investigasi → Fase 2 `PLAN.md` → implementasi
 - **Build (DONE 2026-08-01):** Followed build-hygiene rules. Killed orphaned `backend` PIDs, deleted `backend/build/`+`dist/`, clean sidecar rebuild `py -3.11 -m PyInstaller build.spec --clean --noconfirm` → `dist/backend.exe` **375.8 MB** (exit 0). **Live-verified the frozen exe (not just build success):** started with real env → `/health` 200 after ~90 s cold start; then a real `POST /enhance` on a generated 3 s tone+hiss WAV completed `status=done`, output written, and measured HF-energy ratio dropped in→out (`scripts/smoke_enhance_frozen.py`) — proving `torchaudio.functional.treble_biquad` + numpy envelope smoothing execute inside the PyInstaller bundle (no collection gap). Copied `backend.exe` → BOTH `src-tauri/binaries/backend-x86_64-pc-windows-gnu.exe` AND `-msvc.exe` (358.4 MB each). Installer `npm run tauri build -- --target x86_64-pc-windows-gnu` (CARGO_TARGET_DIR=`D:\cargo_build\enhance-audio-pro`, exit 0, 2 known dead-code warnings) → **`Enhance Audio Pro_0.2.4_x64-setup.exe` 366.63 MB** at `...\x86_64-pc-windows-gnu\release\bundle\nsis\`, copied to `D:\tes\` for install/manual-listening test.
 - Frontend untouched (no tsc run needed). Full details + before/after tables in `PLAN.md`. New harness scripts: `scripts/regen_enhanced_benchmark.py`, `scripts/smoke_enhance_frozen.py`.
 
+# HF De-hiss Slider — Settings UI + Full IPC Wiring (2026-08-24)
+Exposes the existing `EAP_HF_SHELF_DB` env-var control as a first-class UI slider in Settings → Enhancement, so users can tune HF hiss attenuation without needing environment variables or a rebuild.
+
+- **`src/types/settings.ts`** — `hfDeHissDb?: number` added to `AppSettings` interface; default `−4` in `DEFAULT_SETTINGS`.
+- **`src/stores/useSettingsStore.ts`** — `setHfDeHissDb` action added; field included in `partialize` (persisted to localStorage).
+- **`src/lib/ipc.ts`** — `invokeProcessQueue` gains 4th param `hfDeHissDb = -4`; forwarded to Rust as `hfDeHissDb`.
+- **`src-tauri/src/commands/process.rs`** — `hf_de_hiss_db: Option<f64>` added to `process_queue`; included in JSON payload to Python as `hf_shelf_db` (default `−4.0`).
+- **`backend/routers/enhance.py`** — `EnhanceRequest.hf_shelf_db: float = -4.0` added; threaded through `_process_jobs` → `_sync_enhance` → `enhance_file(hf_shelf_db=...)`.
+- **`backend/processors/enhance_speech.py`** — `enhance_file` gains `hf_shelf_db: Optional[float] = None`; `_apply_hf_shelf` gains `gain_db_override` param (per-call value takes precedence over `EAP_HF_SHELF_DB` env var); `_post_process` passes it through.
+- **`src/components/SettingsPanel.tsx`** — Slider added in Enhancement section below Strength: range `−12` to `0` dB, step `0.5`, live dB readout, hint text. Calls `store.setHfDeHissDb(v)` + `save({ hfDeHissDb: v })`.
+- **All 4 `invokeProcessQueue` call sites updated** (`QueueToolbar.tsx`, `QueueGrid.tsx` ×2, `useKeyboardShortcuts.ts`) to pass `hfDeHissDb ?? -4` from `useSettingsStore.getState()`.
+- **Verification:** `tsc --noEmit` → 0 errors; **41/41 Pytest** passing.
+- **Sidecar rebuilt (2026-08-24):** clean `py -3.11 -m PyInstaller build.spec --clean --noconfirm` → `dist/backend.exe` **358 MB** (exit 0, ~27 min build time on this machine). Copied to BOTH `backend-x86_64-pc-windows-gnu.exe` AND `-msvc.exe`.
+- **Installer rebuilt (2026-08-24):** `npm run tauri build -- --target x86_64-pc-windows-gnu` (CARGO_TARGET_DIR=`D:\cargo_build\enhance-audio-pro`, Rust ~6 min, exit 0, 2 known dead-code warnings) → **`Enhance Audio Pro_0.2.4_x64-setup.exe` 366.6 MB** → copied to `D:\enhance audio\`.
+- **GitHub:** commit `f24a7c5` pushed to `dimasrama12/enhance-audio-pro` master (20 files changed). README.md created and pushed (commit `c45ed58`). **GitHub Release v0.2.4** created at https://github.com/dimasrama12/enhance-audio-pro/releases/tag/v0.2.4 — installer uploaded as release asset (366.6 MB). Previous releases v0.2.3 and v0.2.0 untouched.
+
+# README.md Created (2026-08-24)
+- `README.md` added to project root — auto-displays on the GitHub repository page.
+- Contents: project description, feature list, quality benchmark table (vs Adobe Podcast), installation instructions, tech stack table, build-from-source guide, project structure overview.
+- Committed and pushed as commit `c45ed58`.
+
 ---
 ## 14. Testing
 ```
