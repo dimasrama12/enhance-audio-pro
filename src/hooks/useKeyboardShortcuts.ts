@@ -128,7 +128,7 @@ export function useKeyboardShortcuts(): void {
         if (!isAnyProcessing) {
           const nextQueued = freshJobs.find((j) => j.status === 'queued');
           if (nextQueued) {
-            invokeProcessQueue([nextQueued.id], s.enhancementStrength, s.aiModel ?? 'deepfilternet').catch(
+            invokeProcessQueue([nextQueued.id], s.enhancementStrength, s.aiModel ?? 'deepfilternet', s.hfDeHissDb ?? -4).catch(
               console.error,
             );
           }

@@ -400,6 +400,26 @@ export default function SettingsPanel({ open, onClose }: Props): JSX.Element {
                         </span>
                       </div>
                       <p className="text-[10px] text-slate-400 dark:text-white/30">{t('settings.strengthHint')}</p>
+
+                      <label className="text-sm text-slate-900 dark:text-slate-100 mt-2">HF De-hiss</label>
+                      <div className="flex items-center gap-3">
+                        <input
+                          type="range" min={-12} max={0} step={0.5}
+                          value={store.hfDeHissDb ?? -4}
+                          onChange={(e) => {
+                            const v = Number(e.target.value);
+                            store.setHfDeHissDb(v);
+                            save({ hfDeHissDb: v });
+                          }}
+                          className="flex-1 accent-violet-500"
+                        />
+                        <span className="text-sm text-slate-500 dark:text-white/60 w-14 text-right tabular-nums">
+                          {(store.hfDeHissDb ?? -4).toFixed(1)} dB
+                        </span>
+                      </div>
+                      <p className="text-[10px] text-slate-400 dark:text-white/30">
+                        Attenuates residual high-frequency hiss after DeepFilterNet. 0 = off, −4 dB = default, −12 dB = most aggressive.
+                      </p>
                     </Section>
 
                     <Section title={t('settings.output')}>

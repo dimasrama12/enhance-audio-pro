@@ -128,7 +128,7 @@ export default function QueueToolbar(): JSX.Element {
     if (!isAnyProcessing) {
       const nextQueued = freshJobs.find((j) => j.status === 'queued');
       if (nextQueued) {
-        invokeProcessQueue([nextQueued.id], enhancementStrength, aiModel).catch((err) => {
+        invokeProcessQueue([nextQueued.id], enhancementStrength, aiModel, useSettingsStore.getState().hfDeHissDb ?? -4).catch((err) => {
           console.error('Failed to auto-start queued job', err);
         });
       }

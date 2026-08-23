@@ -262,7 +262,7 @@ function EnhanceRowButton({ job }: { job: QueueJob }): JSX.Element | null {
         addToast(`Queued "${job.filename}"`, 'info');
       } catch (err) { console.error('Failed to queue job', err); }
     } else {
-      await invokeProcessQueue([job.id], enhancementStrength, aiModel);
+      await invokeProcessQueue([job.id], enhancementStrength, aiModel, useSettingsStore.getState().hfDeHissDb ?? -4);
     }
   }
 
@@ -917,9 +917,9 @@ export default function QueueGrid(): JSX.Element {
               const nextQueued = tabJobs.find((j) => j.status === 'queued');
               if (nextQueued) {
                 const opType = tabJobOpTypes[jobTab][nextQueued.id] ?? 'enhance';
-                const { aiModel, enhancementStrength, filenameTemplateConverted } = useSettingsStore.getState();
+                const { aiModel, enhancementStrength, filenameTemplateConverted, hfDeHissDb } = useSettingsStore.getState();
                 if (opType === 'enhance') {
-                  invokeProcessQueue([nextQueued.id], enhancementStrength, aiModel).catch(console.error);
+                  invokeProcessQueue([nextQueued.id], enhancementStrength, aiModel, hfDeHissDb ?? -4).catch(console.error);
                 } else {
                   invokeConvertFiles([nextQueued.id], filenameTemplateConverted).catch(console.error);
                 }

@@ -32,6 +32,7 @@ class EnhanceRequest(BaseModel):
     callback_url: str
     strength: float = 1.0
     model_type: str = "deepfilternet"
+    hf_shelf_db: float = -4.0
 
 class CancelRequest(BaseModel):
     job_ids: List[str]
@@ -45,7 +46,7 @@ async def enhance_jobs(
         for j_id in req.job_ids:
             cancellation_events[j_id] = threading.Event()
         logger.info(f"Queuing {len(req.job_ids)} job(s) for enhancement (model={req.model_type})")
-        background_tasks.add_task(_process_jobs, req.job_ids, req.callback_url, req.strength, req.model_type)
+        background_tasks.add_task(_process_jobs, req.job_ids, req.callback_url, req.strength, req.model_type, req.hf_shelf_db)
     return JSONResponse(status_code=202, content={"detail": "Processing started."})
 
 @router.post("/cancel")
@@ -59,7 +60,7 @@ async def cancel_jobs(req: CancelRequest) -> JSONResponse:
     return JSONResponse(status_code=200, content={"detail": "Cancellation signals sent."})
 
 
-async def _process_jobs(job_ids: List[str], callback_url: str, strength: float = 1.0, model_type: str = "deepfilternet") -> None:
+async def _process_jobs(job_ids: List[str], callback_url: str, strength: float = 1.0, model_type: str = "deepfilternet", hf_shelf_db: float = -4.0) -> None:
     loop = asyncio.get_running_loop()
 
     db_path_env = os.environ.get("DATABASE_PATH")
@@ -142,6 +143,7 @@ async def _process_jobs(job_ids: List[str], callback_url: str, strength: float =
                 _cb_url = callback_url
                 _job_id = job_id
                 _strength = strength
+                _hf_shelf_db = hf_shelf_db
 
                 def _sync_enhance(out: str) -> None:
                     def _progress(pct: int) -> None:
@@ -154,7 +156,7 @@ async def _process_jobs(job_ids: List[str], callback_url: str, strength: float =
                         except Exception as cb_err:
                             logger.warning(f"[{_job_id}] Progress callback failed at {pct}%: {cb_err}")
 
-                    enhance_file(filepath, out, _progress, strength=_strength, job_id=_job_id)
+                    enhance_file(filepath, out, _progress, strength=_strength, job_id=_job_id, hf_shelf_db=_hf_shelf_db)
 
                 # Per-job hard timeout: trigger cancellation event after _JOB_TIMEOUT_SECONDS
                 # so the enhance thread exits cleanly instead of hanging forever.

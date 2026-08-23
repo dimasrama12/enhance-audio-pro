@@ -1,10 +1,19 @@
+import os
 import sys
 import pytest
 
 
 @pytest.fixture(autouse=True)
-def reset_model_cache():
-    """Clear module-level model cache between tests."""
+def reset_model_cache(monkeypatch):
+    """Clear module-level model cache between tests.
+
+    Also disable the post-DFN DSP stages (HF shelf + envelope smoothing): these
+    operate on real audio tensors and would fail against the session-wide torch/
+    torchaudio MagicMocks. Their behaviour is validated separately via the
+    real-model benchmark (scripts/regen_enhanced_benchmark.py + PLAN.md).
+    """
+    monkeypatch.setenv("EAP_HF_SHELF_DB", "0")   # gain >= 0 disables the shelf
+    monkeypatch.setenv("EAP_ENV_SMOOTH", "0")     # disables envelope smoothing
     mod = sys.modules.get("processors.enhance_speech")
     if mod:
         mod._model = None

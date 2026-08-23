@@ -14,6 +14,7 @@ pub fn process_queue(
     job_ids: Vec<String>,
     enhancement_strength: Option<f64>,
     ai_model: Option<String>,
+    hf_de_hiss_db: Option<f64>,
 ) -> IpcResponse<()> {
     if job_ids.is_empty() {
         return IpcResponse {
@@ -56,12 +57,15 @@ pub fn process_queue(
 
     // Normalize strength: frontend sends 0-100, Python expects 0.0-1.0
     let strength = enhancement_strength.unwrap_or(50.0).clamp(0.0, 100.0) / 100.0;
+    // HF de-hiss shelf gain in dB (negative = cut, 0 = off). Default -4 dB.
+    let hf_shelf_db = hf_de_hiss_db.unwrap_or(-4.0);
 
     let payload = json!({
         "job_ids": updated_ids,
         "callback_url": format!("http://127.0.0.1:{}", callback_port),
         "strength": strength,
         "model_type": ai_model.unwrap_or_else(|| "deepfilternet".to_string()),
+        "hf_shelf_db": hf_shelf_db,
     });
 
     // Clone handles needed for async error recovery (if Python is unreachable)

@@ -10,6 +10,7 @@ interface SettingsState extends AppSettings {
   setOutputFolder: (folder: string) => void;
   setLanguage: (language: string) => void;
   setEnhancementStrength: (v: number) => void;
+  setHfDeHissDb: (v: number) => void;
   setFilenameTemplate: (t: string) => void;
   setFilenameTemplateConverted: (t: string) => void;
   setKeyboardShortcuts: (shortcuts: KeyboardShortcutMap) => void;
@@ -31,6 +32,7 @@ export const useSettingsStore = create<SettingsState>()(
       setOutputFolder: (outputFolder) => set({ outputFolder }),
       setLanguage: (language) => set({ language }),
       setEnhancementStrength: (enhancementStrength) => set({ enhancementStrength }),
+      setHfDeHissDb: (hfDeHissDb) => set({ hfDeHissDb }),
       setFilenameTemplate: (filenameTemplate) => set({ filenameTemplate }),
       setFilenameTemplateConverted: (filenameTemplateConverted) => set({ filenameTemplateConverted }),
       setKeyboardShortcuts: (keyboardShortcuts) => set({ keyboardShortcuts }),
@@ -48,6 +50,7 @@ export const useSettingsStore = create<SettingsState>()(
         outputFolder: state.outputFolder,
         language: state.language,
         enhancementStrength: state.enhancementStrength,
+        hfDeHissDb: state.hfDeHissDb,
         filenameTemplate: state.filenameTemplate,
         filenameTemplateConverted: state.filenameTemplateConverted,
         keyboardShortcuts: state.keyboardShortcuts,

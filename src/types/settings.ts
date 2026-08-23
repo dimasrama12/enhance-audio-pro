@@ -96,6 +96,7 @@ export interface AppSettings {
   language: string;
   setupComplete: boolean;
   enhancementStrength: number;
+  hfDeHissDb?: number;
   filenameTemplate: string;
   filenameTemplateConverted: string;
   keyboardShortcuts: KeyboardShortcutMap;
@@ -111,6 +112,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   language: 'en',
   setupComplete: true,
   enhancementStrength: 50,
+  hfDeHissDb: -4,
   filenameTemplate: '{name}_enhanced',
   filenameTemplateConverted: '{name}_converted',
   keyboardShortcuts: { ...DEFAULT_KEYBOARD_SHORTCUTS },

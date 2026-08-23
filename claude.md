@@ -10,7 +10,7 @@
 - Description : A professional desktop application designed to assist audio and video editors in enhancing, separating, and manipulating audio tracks effortlessly.
 - Goal : To provide offline AI-powered speech enhancement, stem separation, and audio manipulation without upload/download limits.
 - Target Users: Audio & Video Editors, Podcasters, Musicians, Content Creators.
-- Version : v0.2.3
+- Version : v0.2.4
 - Status : Active development
 
 ---
@@ -544,6 +544,22 @@ Driven by `do_this.md` (STEP 3 + STEP 3 TAMBAHAN 3A–3D). App scope narrowed to
 - [x] **`.gitignore` updated:** Added `installer/`, `releases/`, `*.exe`, `stale-build/` exclusions so installer binaries are never committed to git.
 - [x] **Source pushed to GitHub (`dimasrama12/enhance-audio-pro` master):** Initialized git in v3 via clone-and-overlay strategy (preserves v1 history). Commit `badbae1` — 39 files changed, 4439 insertions, 1365 deletions. Includes entire v3 evolution since the May 2026 v1 backup.
 - [x] **GitHub Release v0.2.3 created:** https://github.com/dimasrama12/enhance-audio-pro/releases/tag/v0.2.3 — installer uploaded as release asset (366.62 MB).
+
+# Enhance Quality — Post-DFN HF De-hiss + De-pumping (perceptual parity with Adobe Podcast) (2026-08-01)
+Driven by `do this.md` (Fase 1 investigasi → Fase 2 `PLAN.md` → implementasi setelah user "continue process"). Root problem (from a 5-sample quantitative benchmark `audio_quality_benchmark.py`): app output loses perceptually to Adobe Podcast because DeepFilterNet **does not attenuate HF hiss** (ΔHF ≈ 0% vs Adobe −56%) and produces **musical-noise pumping** (jitter +55–64% vs Adobe +20%); STOI was already competitive (S50 0.858 > web 0.786).
+- **Investigation findings (see `PLAN.md` Fase 1):** whole enhance DSP lives ONLY in `backend/processors/enhance_speech.py:enhance_file`. "Strength" maps to DeepFilterNet's `atten_lim_db` (NOT linear wet/dry): `atten_lim_db = strength*40`, and DFN mixes `noisy*lim + enhanced*(1-lim)`, `lim=10^(-atten/20)` — higher strength = more aggressive. **Quirk:** `atten_lim_db==0` is falsy in DFN → full effect (not pass-through). NO post-processing existed (no EQ/shelf/limiter/gate), 48 kHz, hard 5 s chunks, no external gate.
+- **Implemented (3 modules, each env-flagged so measurable independently):**
+  - **Module 1 — HF de-hiss shelf** (`_apply_hf_shelf`): `torchaudio.functional.treble_biquad`, default **−4 dB @ 3500 Hz, Q 0.707**. No new dep (torchaudio already required), no ffmpeg round-trip.
+  - **Module 2b — envelope de-pumping** (`_apply_envelope_smoothing`): asymmetric one-pole on frame-RMS envelope, bounded corrective gain. Default ON, **attack 5 ms / release 50 ms / ±3 dB**. (Module 2a chunk-overlap NOT needed — jitter target met by 2b alone.)
+  - **Module 3 — Strength**: confirmed default **50** (data: STOI/jitter/naturalness all better at 50 than 100 — do NOT raise). Fixed the `atten_lim_db==0` semantic (guard `≥1 dB` for strength>0; only strength==0 is true pass-through) + accurate docstring.
+  - Wired via `_post_process(enhanced_audio, sr)` between `torch.cat` and `save_audio` in `enhance_file`.
+- **Testing harness (Module 4):** `scripts/regen_enhanced_benchmark.py` (NEW) drives the REAL DeepFilterNet3 (system Python 3.11 + inline torchaudio compat shim mirroring the PyInstaller rthook) to regenerate the `aplikasi(baru)` variant on the same 5 `*_asli.wav`; `audio_quality_benchmark.py` extended to recognize it. Note: the `.venv` is empty — the model + torch/df live in system Python `C:\Users\User\AppData\Local\Programs\Python\Python311`; DFN weights auto-cache to `%LOCALAPPDATA%\DeepFilterNet\...\DeepFilterNet3`.
+- **Validated result (avg of 5 samples, real model) — ALL `do this.md` targets met:** ΔHF **−0.8% → −40%** (target −30..−45%, strong hiss masking, still more natural than Adobe's −56%); jitter **+55% → +16.6%** (BELOW Adobe's +19.5%); STOI **0.847** (kept, still > Adobe 0.786); LTAS distance 7.19 (< Adobe 11.75 = more natural); envelope corr 0.814 (≥0.80). Per-sample every clip improved on jitter (parah_1 +108→+52, parah_2 +106→+60). Alt config (max 4 dB/rel 60 ms) reaches jitter +7.9% but trades away HF masking/noise-floor — rejected since hiss is the primary complaint.
+- **Tuning without code rebuild (env vars, read per-run):** `EAP_HF_SHELF_DB`, `EAP_HF_SHELF_FREQ`, `EAP_HF_SHELF_Q`, `EAP_ENV_SMOOTH`(0/1), `EAP_ENV_ATTACK_MS`, `EAP_ENV_RELEASE_MS`, `EAP_ENV_MAX_DB`.
+- **Tests:** **41/41 Pytest** (backend) green — `test_enhance_speech.py` autouse fixture now sets `EAP_HF_SHELF_DB=0`+`EAP_ENV_SMOOTH=0` so the DSP (needs real tensors) is skipped under the session-wide torch/torchaudio MagicMocks (DSP is validated via the real-model benchmark instead).
+- **Version bump 0.2.3 → 0.2.4** (package.json, tauri.conf.json, Cargo.toml, CLAUDE.md).
+- **Build (DONE 2026-08-01):** Followed build-hygiene rules. Killed orphaned `backend` PIDs, deleted `backend/build/`+`dist/`, clean sidecar rebuild `py -3.11 -m PyInstaller build.spec --clean --noconfirm` → `dist/backend.exe` **375.8 MB** (exit 0). **Live-verified the frozen exe (not just build success):** started with real env → `/health` 200 after ~90 s cold start; then a real `POST /enhance` on a generated 3 s tone+hiss WAV completed `status=done`, output written, and measured HF-energy ratio dropped in→out (`scripts/smoke_enhance_frozen.py`) — proving `torchaudio.functional.treble_biquad` + numpy envelope smoothing execute inside the PyInstaller bundle (no collection gap). Copied `backend.exe` → BOTH `src-tauri/binaries/backend-x86_64-pc-windows-gnu.exe` AND `-msvc.exe` (358.4 MB each). Installer `npm run tauri build -- --target x86_64-pc-windows-gnu` (CARGO_TARGET_DIR=`D:\cargo_build\enhance-audio-pro`, exit 0, 2 known dead-code warnings) → **`Enhance Audio Pro_0.2.4_x64-setup.exe` 366.63 MB** at `...\x86_64-pc-windows-gnu\release\bundle\nsis\`, copied to `D:\tes\` for install/manual-listening test.
+- Frontend untouched (no tsc run needed). Full details + before/after tables in `PLAN.md`. New harness scripts: `scripts/regen_enhanced_benchmark.py`, `scripts/smoke_enhance_frozen.py`.
 
 ---
 ## 14. Testing
