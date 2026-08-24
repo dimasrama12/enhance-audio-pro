@@ -3,6 +3,7 @@ import { persist } from 'zustand/middleware';
 import type { QueueJob, JobStatus } from '@/types/queue';
 import type { AudioSubTab } from '@/stores/useUIStore';
 import { useUIStore } from '@/stores/useUIStore';
+import { evictPrewarm } from '@/lib/audioPreload';
 
 export type ViewMode = 'table' | 'grid';
 
@@ -12,10 +13,6 @@ const ALL_TABS: AudioSubTab[] = ['enhance', 'convert'];
 
 function emptyPerTab<T>(factory: () => T): Record<AudioSubTab, T> {
   return { enhance: factory(), convert: factory() };
-}
-
-function getActiveSubTab(tab?: AudioSubTab): AudioSubTab {
-  return tab ?? useUIStore.getState().audioSubTab;
 }
 
 // Update a job by ID searching across all tab queues
@@ -177,7 +174,7 @@ export const useQueueStore = create<QueueState>()(
           }
           const unmatchedJobs = jobs.filter((j) => !matchedIds.has(j.id));
           if (unmatchedJobs.length > 0) {
-            const activeTab = getActiveSubTab();
+            const activeTab = useUIStore.getState().audioSubTab;
             updatedQueues[activeTab] = [...updatedQueues[activeTab], ...unmatchedJobs];
           }
           const dbJobIds = new Set(jobs.map((j) => j.id));
@@ -187,21 +184,17 @@ export const useQueueStore = create<QueueState>()(
           return { tabQueues: updatedQueues };
         }),
 
-      addJobs: (newJobs, tab) =>
+      addJobs: (newJobs, tab) => {
+        let capturedTab: AudioSubTab = 'enhance';
+        let newIds: string[] = [];
+
         set((s) => {
-          const t = getActiveSubTab(tab);
+          const t = tab ?? useUIStore.getState().audioSubTab;
+          capturedTab = t;
           const existing = new Set(s.tabQueues[t].map((j) => j.id));
           const unique = newJobs.filter((j) => !existing.has(j.id));
           if (!unique.length) return s;
-          const newIds = unique.map((j) => j.id);
-          setTimeout(() => {
-            useQueueStore.setState((prev) => ({
-              tabImportingIds: {
-                ...prev.tabImportingIds,
-                [t]: prev.tabImportingIds[t].filter((id) => !newIds.includes(id)),
-              },
-            }));
-          }, 1500);
+          newIds = unique.map((j) => j.id);
           return {
             tabQueues: { ...s.tabQueues, [t]: [...s.tabQueues[t], ...unique] },
             tabImportingIds: {
@@ -209,12 +202,26 @@ export const useQueueStore = create<QueueState>()(
               [t]: [...new Set([...s.tabImportingIds[t], ...newIds])],
             },
           };
-        }),
+        });
+
+        if (newIds.length) {
+          setTimeout(() => {
+            useQueueStore.setState((prev) => ({
+              tabImportingIds: {
+                ...prev.tabImportingIds,
+                [capturedTab]: prev.tabImportingIds[capturedTab].filter(
+                  (id) => !newIds.includes(id),
+                ),
+              },
+            }));
+          }, 1500);
+        }
+      },
 
       // ── Background import placeholders ─────────────────────────────────────
       addPlaceholders: (jobs, tab) =>
         set((s) => {
-          const t = getActiveSubTab(tab);
+          const t = tab ?? useUIStore.getState().audioSubTab;
           const ids = jobs.map((j) => j.id);
           return {
             tabQueues: { ...s.tabQueues, [t]: [...s.tabQueues[t], ...jobs] },
@@ -227,7 +234,7 @@ export const useQueueStore = create<QueueState>()(
 
       resolvePlaceholder: (tempId, realJob, tab) =>
         set((s) => {
-          const t = getActiveSubTab(tab);
+          const t = tab ?? useUIStore.getState().audioSubTab;
           return {
             tabQueues: {
               ...s.tabQueues,
@@ -243,7 +250,7 @@ export const useQueueStore = create<QueueState>()(
 
       removePlaceholder: (tempId, tab) =>
         set((s) => {
-          const t = getActiveSubTab(tab);
+          const t = tab ?? useUIStore.getState().audioSubTab;
           return {
             tabQueues: { ...s.tabQueues, [t]: s.tabQueues[t].filter((j) => j.id !== tempId) },
             tabImportingIds: {
@@ -320,14 +327,14 @@ export const useQueueStore = create<QueueState>()(
 
       // ── Per-tab UI state ─────────────────────────────────────────────────────
       setFilter: (filter, tab) =>
-        set((s) => ({ tabFilters: { ...s.tabFilters, [getActiveSubTab(tab)]: filter } })),
+        set((s) => ({ tabFilters: { ...s.tabFilters, [tab ?? useUIStore.getState().audioSubTab]: filter } })),
 
       setSearchQuery: (query, tab) =>
-        set((s) => ({ tabSearches: { ...s.tabSearches, [getActiveSubTab(tab)]: query } })),
+        set((s) => ({ tabSearches: { ...s.tabSearches, [tab ?? useUIStore.getState().audioSubTab]: query } })),
 
       clearQueue: (tab) =>
         set((s) => {
-          const t = getActiveSubTab(tab);
+          const t = tab ?? useUIStore.getState().audioSubTab;
           const locked = s.tabLockedIds[t];
           return {
             tabQueues: { ...s.tabQueues, [t]: s.tabQueues[t].filter((j) => locked.includes(j.id)) },
@@ -340,14 +347,14 @@ export const useQueueStore = create<QueueState>()(
         }),
 
       setViewMode: (mode, tab) =>
-        set((s) => ({ tabViewModes: { ...s.tabViewModes, [getActiveSubTab(tab)]: mode } })),
+        set((s) => ({ tabViewModes: { ...s.tabViewModes, [tab ?? useUIStore.getState().audioSubTab]: mode } })),
 
       setGroupByFormat: (v, tab) =>
-        set((s) => ({ tabGroupByFormat: { ...s.tabGroupByFormat, [getActiveSubTab(tab)]: v } })),
+        set((s) => ({ tabGroupByFormat: { ...s.tabGroupByFormat, [tab ?? useUIStore.getState().audioSubTab]: v } })),
 
       setJobOperationMode: (id, mode, tab) =>
         set((s) => {
-          const t = getActiveSubTab(tab);
+          const t = tab ?? useUIStore.getState().audioSubTab;
           return {
             tabJobOpTypes: {
               ...s.tabJobOpTypes,
@@ -359,13 +366,13 @@ export const useQueueStore = create<QueueState>()(
       // ── Selection ────────────────────────────────────────────────────────────
       setSelectedJob: (id, tab) =>
         set((s) => {
-          const t = getActiveSubTab(tab);
+          const t = tab ?? useUIStore.getState().audioSubTab;
           return { tabSelectedIds: { ...s.tabSelectedIds, [t]: id ? [id] : [] } };
         }),
 
       toggleSelectJob: (id, tab) =>
         set((s) => {
-          const t = getActiveSubTab(tab);
+          const t = tab ?? useUIStore.getState().audioSubTab;
           const cur = s.tabSelectedIds[t];
           return {
             tabSelectedIds: {
@@ -376,7 +383,7 @@ export const useQueueStore = create<QueueState>()(
         }),
 
       rangeSelectJobs: (targetId, tab) => {
-        const t = getActiveSubTab(tab);
+        const t = tab ?? useUIStore.getState().audioSubTab;
         const { tabQueues, tabSelectedIds } = get();
         const jobs = tabQueues[t];
         const selectedIds = tabSelectedIds[t];
@@ -400,7 +407,7 @@ export const useQueueStore = create<QueueState>()(
 
       selectAllJobs: (tab) =>
         set((s) => {
-          const t = getActiveSubTab(tab);
+          const t = tab ?? useUIStore.getState().audioSubTab;
           return {
             tabSelectedIds: {
               ...s.tabSelectedIds,
@@ -410,17 +417,17 @@ export const useQueueStore = create<QueueState>()(
         }),
 
       clearSelection: (tab) =>
-        set((s) => ({ tabSelectedIds: { ...s.tabSelectedIds, [getActiveSubTab(tab)]: [] } })),
+        set((s) => ({ tabSelectedIds: { ...s.tabSelectedIds, [tab ?? useUIStore.getState().audioSubTab]: [] } })),
 
       primarySelectedId: (tab) => {
-        const t = getActiveSubTab(tab);
+        const t = tab ?? useUIStore.getState().audioSubTab;
         return get().tabSelectedIds[t][0] ?? null;
       },
 
       // ── Lock ─────────────────────────────────────────────────────────────────
       lockJobs: (ids, tab) =>
         set((s) => {
-          const t = getActiveSubTab(tab);
+          const t = tab ?? useUIStore.getState().audioSubTab;
           return {
             tabLockedIds: {
               ...s.tabLockedIds,
@@ -431,7 +438,7 @@ export const useQueueStore = create<QueueState>()(
 
       unlockJobs: (ids, tab) =>
         set((s) => {
-          const t = getActiveSubTab(tab);
+          const t = tab ?? useUIStore.getState().audioSubTab;
           return {
             tabLockedIds: {
               ...s.tabLockedIds,
@@ -442,7 +449,7 @@ export const useQueueStore = create<QueueState>()(
 
       lockAllJobs: (tab) =>
         set((s) => {
-          const t = getActiveSubTab(tab);
+          const t = tab ?? useUIStore.getState().audioSubTab;
           return {
             tabLockedIds: {
               ...s.tabLockedIds,
@@ -452,12 +459,12 @@ export const useQueueStore = create<QueueState>()(
         }),
 
       unlockAllJobs: (tab) =>
-        set((s) => ({ tabLockedIds: { ...s.tabLockedIds, [getActiveSubTab(tab)]: [] } })),
+        set((s) => ({ tabLockedIds: { ...s.tabLockedIds, [tab ?? useUIStore.getState().audioSubTab]: [] } })),
 
       // ── Reorder ──────────────────────────────────────────────────────────────
       reorderJobs: (activeId, overId, tab) =>
         set((s) => {
-          const t = getActiveSubTab(tab);
+          const t = tab ?? useUIStore.getState().audioSubTab;
           const jobs = s.tabQueues[t];
           const selected = s.tabSelectedIds[t];
           const isMulti = selected.includes(activeId) && selected.length > 1;
@@ -495,7 +502,9 @@ export const useQueueStore = create<QueueState>()(
       // ── Delete ───────────────────────────────────────────────────────────────
       deleteJobs: (ids, tab) =>
         set((s) => {
-          const t = getActiveSubTab(tab);
+          const t = tab ?? useUIStore.getState().audioSubTab;
+          const deleted = s.tabQueues[t].filter((j) => ids.includes(j.id));
+          deleted.forEach((j) => evictPrewarm(j.filepath));
           return {
             tabQueues: { ...s.tabQueues, [t]: s.tabQueues[t].filter((j) => !ids.includes(j.id)) },
             tabSelectedIds: {

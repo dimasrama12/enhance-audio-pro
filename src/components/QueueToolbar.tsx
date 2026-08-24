@@ -3,6 +3,7 @@ import { Search, Trash2, LayoutList, LayoutGrid, Layers } from 'lucide-react';
 import { clsx } from 'clsx';
 
 import { useTranslation } from 'react-i18next';
+import i18n from '@/i18n';
 import RecordButton from '@/components/RecordButton';
 import { useQueueStore } from '@/stores/useQueueStore';
 import { useSettingsStore } from '@/stores/useSettingsStore';
@@ -82,15 +83,11 @@ export default function QueueToolbar(): JSX.Element {
           j !== undefined && (j.status === 'processing' || j.status === 'queued'),
       );
     if (activeJobs.length > 0) {
-      const isIndonesian = useSettingsStore.getState().language === 'id';
-      const fallbackMsg = isIndonesian
-        ? activeJobs.length === 1
-          ? 'Apakah Anda yakin ingin menghapus file ini? File ini sedang proses.'
-          : 'Apakah Anda yakin ingin menghapus? File sedang diproses.'
-        : activeJobs.length === 1
-        ? 'Are you sure you want to delete this file? The file is currently being processed.'
-        : `Are you sure you want to delete ${activeJobs.length} files? Some files are currently being processed.`;
-      if (!window.confirm(fallbackMsg)) return;
+      const msg = i18n.t(
+        activeJobs.length === 1 ? 'queue.confirmDeleteSingle' : 'queue.confirmDeleteMultiple',
+        { count: activeJobs.length },
+      );
+      if (!window.confirm(msg)) return;
     }
 
     const activePlayerJobId = useUIStore.getState().activePlayerJobId;
@@ -119,10 +116,8 @@ export default function QueueToolbar(): JSX.Element {
     const { setStatus } = useQueueStore.getState();
     const { aiModel } = useSettingsStore.getState();
     log.info(`Enhance All: queuing ${enhIds.length} job(s)`);
-    for (const id of enhIds) {
-      setStatus(id, 'queued');
-      await invokeSetJobStatus(id, 'queued');
-    }
+    enhIds.forEach((id) => setStatus(id, 'queued'));
+    await Promise.all(enhIds.map((id) => invokeSetJobStatus(id, 'queued')));
     const freshJobs = useQueueStore.getState().tabQueues[tab];
     const isAnyProcessing = freshJobs.some((j) => j.status === 'processing');
     if (!isAnyProcessing) {
@@ -170,11 +165,8 @@ export default function QueueToolbar(): JSX.Element {
     abortProcessRef.current = false;
     const { setStatus, setJobOperationMode } = useQueueStore.getState();
     log.info(`Convert All: queuing ${ids.length} job(s)`);
-    for (const id of ids) {
-      setJobOperationMode(id, 'convert', tab);
-      setStatus(id, 'queued');
-      await invokeSetJobStatus(id, 'queued');
-    }
+    ids.forEach((id) => { setJobOperationMode(id, 'convert', tab); setStatus(id, 'queued'); });
+    await Promise.all(ids.map((id) => invokeSetJobStatus(id, 'queued')));
     const freshJobs = useQueueStore.getState().tabQueues[tab];
     const isAnyProcessing = freshJobs.some((j) => j.status === 'processing');
     if (!isAnyProcessing) {

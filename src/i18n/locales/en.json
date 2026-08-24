@@ -19,6 +19,12 @@
   "queue": {
     "empty": "No files in queue. Drop audio or video files above to get started.",
     "confirmDeleteProcessing": "Are you sure you want to delete? The file is currently being processed.",
+    "confirmDeleteSingle": "Are you sure you want to delete this file? The file is currently being processed.",
+    "confirmDeleteMultiple": "Are you sure you want to delete {{count}} files? Some files are currently being processed.",
+    "confirmClearProcessing": "Are you sure you want to delete? File is currently being processed.",
+    "confirmClear": "Are you sure you want to clear the entire queue? Locked files will not be deleted.",
+    "confirmClearWarning": "Warning: Some files are currently being processed!",
+    "confirmExit": "Files are still being processed. Exit and discard progress?",
     "col": {
       "index": "#",
       "filename": "Filename",

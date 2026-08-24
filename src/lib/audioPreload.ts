@@ -1,26 +1,20 @@
 import { invoke } from '@tauri-apps/api/core';
+import { getMimeType } from '@/lib/mime';
 
-function getMimeType(filepath: string): string {
-  const ext = filepath.split('.').pop()?.toLowerCase() ?? '';
-  const map: Record<string, string> = {
-    mp3: 'audio/mpeg', wav: 'audio/wav', flac: 'audio/flac',
-    aac: 'audio/aac', ogg: 'audio/ogg', opus: 'audio/opus',
-    m4a: 'audio/mp4', wma: 'audio/x-ms-wma', aiff: 'audio/aiff',
-  };
-  return map[ext] ?? 'audio/mpeg';
-}
+const MAX_PREWARM = 50;
 
 // Blob URLs created during preload, keyed by original filepath
 const prewarmCache = new Map<string, string>();
 const inFlight = new Set<string>();
 
-/**
- * Kick off a background read of the audio file so the Blob URL is ready
- * when WaveformPlayer opens. Also gives the Python sidecar extra startup
- * time after a cold launch.
- */
 export function prewarmAudio(filepath: string): void {
   if (prewarmCache.has(filepath) || inFlight.has(filepath)) return;
+
+  if (prewarmCache.size >= MAX_PREWARM) {
+    const oldest = prewarmCache.keys().next().value;
+    if (oldest) evictPrewarm(oldest);
+  }
+
   inFlight.add(filepath);
 
   void (async () => {

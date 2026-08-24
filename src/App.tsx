@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useEffect } from 'react';
 import { useSettingsStore } from '@/stores/useSettingsStore';
 import { useQueueStore } from '@/stores/useQueueStore';
 import { useUIStore } from '@/stores/useUIStore';
@@ -23,8 +23,6 @@ export default function App(): JSX.Element {
 
   useKeyboardShortcuts();
 
-  const settingsRef = useRef(useSettingsStore.getState);
-
   useEffect(() => {
     async function init(): Promise<void> {
       const [settingsRes, queueRes] = await Promise.all([
@@ -32,11 +30,22 @@ export default function App(): JSX.Element {
         invokeGetQueue(),
       ]);
       if (settingsRes.success && settingsRes.data) {
-        const persisted = settingsRef.current();
-        // Merge: Zustand localStorage is the source of truth for UI state.
+        // Only pull UI-preference fields from localStorage (mirrors partialize).
+        // Backend-authoritative fields (setupComplete, aiModel) always come from Rust.
+        const cached = useSettingsStore.getState();
         setSettings({
           ...settingsRes.data,
-          ...persisted,
+          theme: cached.theme,
+          outputFolder: cached.outputFolder,
+          language: cached.language,
+          enhancementStrength: cached.enhancementStrength,
+          hfDeHissDb: cached.hfDeHissDb,
+          filenameTemplate: cached.filenameTemplate,
+          filenameTemplateConverted: cached.filenameTemplateConverted,
+          keyboardShortcuts: cached.keyboardShortcuts,
+          customDefaultShortcuts: cached.customDefaultShortcuts,
+          recordingPrefix: cached.recordingPrefix,
+          scratchDiskDir: cached.scratchDiskDir,
         });
       }
       if (queueRes.success && queueRes.data) setJobs(queueRes.data);

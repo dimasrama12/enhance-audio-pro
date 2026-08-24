@@ -27,12 +27,16 @@ import {
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { useQueueStore } from '@/stores/useQueueStore';
+import { useShallow } from 'zustand/react/shallow';
 import { useUIStore, type AudioSubTab } from '@/stores/useUIStore';
 import { useSettingsStore } from '@/stores/useSettingsStore';
 import { invokeSetOutputFormat, invokeArchiveJobs, invokeProcessQueue, invokeCancelJobs, invokeSetJobStatus, invokeCopyEnhancedFile, invokeConvertFiles, invokeDeleteFile } from '@/lib/ipc';
 import { useToastStore } from '@/stores/useToastStore';
 import { logError } from '@/lib/errorLogger';
+import i18n from '@/i18n';
 import type { QueueJob, JobStatus } from '@/types/queue';
+
+const VALID_JOB_STATUSES = new Set<string>(['pending', 'queued', 'processing', 'done', 'error']);
 
 // ─── Column widths ────────────────────────────────────────────────────────────
 
@@ -444,7 +448,7 @@ function SortableJobRow({
   onErrorClick?: (filename: string, errorMessage: string, isConvert: boolean) => void;
   colWidths: Record<ColKey, number>;
   onResize: (key: ColKey, delta: number) => void;
-  audioSubTab: string;
+  audioSubTab: AudioSubTab;
 }): JSX.Element {
   const [filenameExpanded, setFilenameExpanded] = useState(false);
   const [destExpanded, setDestExpanded] = useState(false);
@@ -582,11 +586,7 @@ function SortableJobRow({
             e.stopPropagation();
             if (isLocked) return;
             if (job.status === 'processing' || job.status === 'queued') {
-              const isIndonesian = useSettingsStore.getState().language === 'id';
-              const msg = isIndonesian
-                ? 'Apakah Anda yakin ingin menghapus file ini? File ini sedang proses.'
-                : 'Are you sure you want to delete this file? The file is currently being processed.';
-              if (!window.confirm(msg)) return;
+              if (!window.confirm(i18n.t('queue.confirmDeleteSingle'))) return;
             }
             const tab = useUIStore.getState().audioSubTab;
             useQueueStore.getState().deleteJobs([job.id], tab);
@@ -617,7 +617,7 @@ function SortableJobCard({ job, isSelected, onSelect, isImporting, activeDragId,
   isImporting?: boolean;
   activeDragId: string | null;
   onErrorClick?: (filename: string, errorMessage: string, isConvert: boolean) => void;
-  audioSubTab: string;
+  audioSubTab: AudioSubTab;
 }): JSX.Element {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: job.id });
   const selectedJobIds = useQueueStore((s) => s.tabSelectedIds[audioSubTab as 'enhance'|'convert']);
@@ -717,8 +717,12 @@ function SortableJobCard({ job, isSelected, onSelect, isImporting, activeDragId,
 export default function QueueGrid(): JSX.Element {
   const activeTab = useUIStore((s) => s.activeTab);
   const audioSubTab = useUIStore((s) => s.audioSubTab) as AudioSubTab;
-  const jobs = useQueueStore((s) => s.filteredJobs(audioSubTab, activeTab));
-  const groups = useQueueStore((s) => s.groupedFilteredJobs(audioSubTab, activeTab));
+  const { jobs, groups } = useQueueStore(
+    useShallow((s) => ({
+      jobs: s.filteredJobs(audioSubTab, activeTab),
+      groups: s.groupedFilteredJobs(audioSubTab, activeTab),
+    })),
+  );
   const visibleJobIds = jobs.map((j) => j.id);
   const selectedJobIds = useQueueStore((s) => s.tabSelectedIds[audioSubTab]).filter((id) => visibleJobIds.includes(id));
   const reorderJobs = useQueueStore((s) => s.reorderJobs);
@@ -803,6 +807,8 @@ export default function QueueGrid(): JSX.Element {
     const containerRect = (e.currentTarget as HTMLElement).getBoundingClientRect();
     let dragStarted = false;
 
+    let rafId: number | null = null;
+
     const onMouseMove = (ev: MouseEvent): void => {
       const clampedX = Math.max(containerRect.left, Math.min(containerRect.right, ev.clientX));
       const clampedY = Math.max(containerRect.top, Math.min(containerRect.bottom, ev.clientY));
@@ -815,8 +821,13 @@ export default function QueueGrid(): JSX.Element {
         dragStarted = true;
       }
 
-      if (dragStarted) {
-        setSelectionBox({ left, top, width, height });
+      if (!dragStarted) return;
+      setSelectionBox({ left, top, width, height });
+
+      if (rafId !== null) return;
+      const useShift = ev.shiftKey || ev.ctrlKey || ev.metaKey;
+      rafId = requestAnimationFrame(() => {
+        rafId = null;
         const elements = document.querySelectorAll('[data-job-id]');
         const intersectedIds: string[] = [];
         elements.forEach((el) => {
@@ -829,7 +840,7 @@ export default function QueueGrid(): JSX.Element {
         const { tabSelectedIds } = useQueueStore.getState();
         const curTab = useUIStore.getState().audioSubTab;
         const curSelected = tabSelectedIds[curTab];
-        if (ev.shiftKey || ev.ctrlKey || ev.metaKey) {
+        if (useShift) {
           useQueueStore.setState((s) => ({
             tabSelectedIds: { ...s.tabSelectedIds, [curTab]: [...new Set([...curSelected, ...intersectedIds])] },
           }));
@@ -838,10 +849,11 @@ export default function QueueGrid(): JSX.Element {
             tabSelectedIds: { ...s.tabSelectedIds, [curTab]: intersectedIds },
           }));
         }
-      }
+      });
     };
 
     const onMouseUp = (): void => {
+      if (rafId !== null) { cancelAnimationFrame(rafId); rafId = null; }
       setSelectionBox(null);
       window.removeEventListener('mousemove', onMouseMove);
       window.removeEventListener('mouseup', onMouseUp);
@@ -880,7 +892,10 @@ export default function QueueGrid(): JSX.Element {
       'queue://status-change',
       (e) => {
         const { jobId, status, error_message, outputFilepath } = e.payload;
-        setStatus(jobId, status as JobStatus, error_message);
+        const safeStatus: JobStatus = VALID_JOB_STATUSES.has(status)
+          ? (status as JobStatus)
+          : 'error';
+        setStatus(jobId, safeStatus, error_message ?? `Unexpected status: ${status}`);
         if (outputFilepath) {
           setOutputFilepath(jobId, outputFilepath);
           if (status === 'done') setAbMode(jobId, 'enhanced');
@@ -1128,11 +1143,7 @@ export default function QueueGrid(): JSX.Element {
               const nonLocked = tabQueues[tab].filter((j) => !tabLockedIds[tab].includes(j.id));
               const hasProcessing = nonLocked.some((j) => j.status === 'processing' || j.status === 'queued');
               if (hasProcessing) {
-                const isIndonesian = useSettingsStore.getState().language === 'id';
-                const msg = isIndonesian
-                  ? 'Apakah Anda yakin ingin menghapus? File sedang diproses.'
-                  : 'Are you sure you want to delete? File is currently being processed.';
-                if (!window.confirm(msg)) return;
+                if (!window.confirm(i18n.t('queue.confirmClearProcessing'))) return;
               }
               setShowClearConfirm(true);
             }}
@@ -1239,19 +1250,16 @@ export default function QueueGrid(): JSX.Element {
         const { tabQueues, tabLockedIds } = useQueueStore.getState();
         const nonLocked = tabQueues[tab].filter((j) => !tabLockedIds[tab].includes(j.id));
         const hasProcessing = nonLocked.some((j) => j.status === 'processing' || j.status === 'queued');
-        const isIndonesian = useSettingsStore.getState().language === 'id';
         return (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
             <div className="bg-slate-900 border border-white/10 p-6 rounded-2xl max-w-sm w-full shadow-2xl flex flex-col gap-4">
               <h3 className="text-sm font-semibold text-white uppercase tracking-wider">Confirm Clear Queue</h3>
               <p className="text-xs text-white/60 leading-relaxed">
-                {isIndonesian
-                  ? 'Apakah Anda yakin ingin menghapus seluruh antrean? File yang terkunci tidak akan dihapus.'
-                  : 'Are you sure you want to clear the entire queue? Locked files will not be deleted.'}
+                {i18n.t('queue.confirmClear')}
               </p>
               {hasProcessing && (
                 <p className="text-xs text-red-400 font-semibold leading-relaxed">
-                  {isIndonesian ? 'Peringatan: Beberapa file sedang diproses!' : 'Warning: Some files are currently being processed!'}
+                  {i18n.t('queue.confirmClearWarning')}
                 </p>
               )}
               <div className="flex justify-end gap-2 mt-2">

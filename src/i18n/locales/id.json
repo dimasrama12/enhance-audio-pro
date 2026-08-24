@@ -17,6 +17,12 @@
   "queue": {
     "empty": "Tidak ada file dalam antrean. Seret file audio atau video ke sini.",
     "confirmDeleteProcessing": "Apakah Anda yakin ingin menghapus? File sedang diproses.",
+    "confirmDeleteSingle": "Apakah Anda yakin ingin menghapus file ini? File ini sedang diproses.",
+    "confirmDeleteMultiple": "Apakah Anda yakin ingin menghapus {{count}} file? Beberapa file sedang diproses.",
+    "confirmClearProcessing": "Apakah Anda yakin ingin menghapus? File sedang diproses.",
+    "confirmClear": "Apakah Anda yakin ingin menghapus seluruh antrean? File yang terkunci tidak akan dihapus.",
+    "confirmClearWarning": "Peringatan: Beberapa file sedang diproses!",
+    "confirmExit": "File masih sedang diproses. Keluar dan batalkan proses?",
     "col": {
       "index": "#",
       "filename": "Nama File",

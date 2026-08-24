@@ -6,6 +6,14 @@ function getAudio(): HTMLAudioElement {
   if (!_audio) {
     _audio = new Audio();
     _audio.preload = 'none';
+    _audio.addEventListener('ended', () => {
+      useAudioPlayer.setState({ isPlaying: false });
+    });
+    _audio.addEventListener('pause', () => {
+      if (useAudioPlayer.getState().playingJobId) {
+        useAudioPlayer.setState({ isPlaying: false });
+      }
+    });
   }
   return _audio;
 }
@@ -37,11 +45,6 @@ export const useAudioPlayer = create<AudioPlayerState>()((set, get) => ({
       audio.src = src;
       audio.load();
     }
-
-    audio.onended = () => set({ isPlaying: false });
-    audio.onpause = () => {
-      if (get().playingJobId === jobId) set({ isPlaying: false });
-    };
 
     audio.play().catch(() => set({ isPlaying: false }));
     set({ playingJobId: jobId, isPlaying: true });

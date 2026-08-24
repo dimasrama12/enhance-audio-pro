@@ -1,6 +1,7 @@
 import { useEffect } from 'react';
 import { getCurrentWindow } from '@tauri-apps/api/window';
 import { open } from '@tauri-apps/plugin-dialog';
+import i18n from '@/i18n';
 import { useQueueStore } from '@/stores/useQueueStore';
 import { useSettingsStore } from '@/stores/useSettingsStore';
 import { useUIStore } from '@/stores/useUIStore';
@@ -119,10 +120,8 @@ export function useKeyboardShortcuts(): void {
         const enhIds = tabJobs.filter((j) => j.status === 'pending' || j.status === 'error').map((j) => j.id);
         const isActive = tabJobs.some((j) => j.status === 'processing' || j.status === 'queued');
         if (!enhIds.length || isActive) return;
-        for (const id of enhIds) {
-          q.setStatus(id, 'queued');
-          await invokeSetJobStatus(id, 'queued');
-        }
+        enhIds.forEach((id) => q.setStatus(id, 'queued'));
+        await Promise.all(enhIds.map((id) => invokeSetJobStatus(id, 'queued')));
         const freshJobs = useQueueStore.getState().tabQueues[tab];
         const isAnyProcessing = freshJobs.some((j) => j.status === 'processing');
         if (!isAnyProcessing) {
@@ -144,11 +143,8 @@ export function useKeyboardShortcuts(): void {
         const ids = tabJobs.filter((j) => j.status === 'pending').map((j) => j.id);
         const isActive = tabJobs.some((j) => j.status === 'processing' || j.status === 'queued');
         if (!ids.length || isActive) return;
-        for (const id of ids) {
-          q.setJobOperationMode(id, 'convert', tab);
-          q.setStatus(id, 'queued');
-          await invokeSetJobStatus(id, 'queued');
-        }
+        ids.forEach((id) => { q.setJobOperationMode(id, 'convert', tab); q.setStatus(id, 'queued'); });
+        await Promise.all(ids.map((id) => invokeSetJobStatus(id, 'queued')));
         const freshJobs = useQueueStore.getState().tabQueues[tab];
         const nextQueued = freshJobs.find((j) => j.status === 'queued');
         if (nextQueued) {
@@ -192,15 +188,11 @@ export function useKeyboardShortcuts(): void {
                   j !== undefined && (j.status === 'processing' || j.status === 'queued'),
               );
             if (activeJobs.length > 0) {
-              const isIndonesian = useSettingsStore.getState().language === 'id';
-              const fallbackMsg = isIndonesian
-                ? activeJobs.length === 1
-                  ? 'Apakah Anda yakin ingin menghapus file ini? File ini sedang proses.'
-                  : 'Apakah Anda yakin ingin menghapus? File sedang diproses.'
-                : activeJobs.length === 1
-                ? 'Are you sure you want to delete this file? The file is currently being processed.'
-                : `Are you sure you want to delete ${activeJobs.length} files? Some files are currently being processed.`;
-              if (!window.confirm(fallbackMsg)) return;
+              const msg = i18n.t(
+                activeJobs.length === 1 ? 'queue.confirmDeleteSingle' : 'queue.confirmDeleteMultiple',
+                { count: activeJobs.length },
+              );
+              if (!window.confirm(msg)) return;
             }
             const activePlayerJobId = ui.activePlayerJobId;
             if (activePlayerJobId && idsToDelete.includes(activePlayerJobId)) {
@@ -265,7 +257,16 @@ export function useKeyboardShortcuts(): void {
         return;
       }
       if (matches(e, sc.openSettings)) { e.preventDefault(); ui.toggleSettings(); return; }
-      if (matches(e, sc.exit)) { await win.close(); return; }
+      if (matches(e, sc.exit)) {
+        const allJobs = Object.values(useQueueStore.getState().tabQueues).flat();
+        const hasActive = allJobs.some((j) => j.status === 'processing' || j.status === 'queued');
+        if (hasActive) {
+          const ok = window.confirm(i18n.t('queue.confirmExit'));
+          if (!ok) return;
+        }
+        await win.close();
+        return;
+      }
 
       // ── View (Shift+1 / Shift+2) ──────────────────────────────────────────
       if (matches(e, sc.tableView)) { q.setViewMode('table', tab); return; }

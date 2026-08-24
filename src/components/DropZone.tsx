@@ -47,11 +47,6 @@ export default function DropZone(): JSX.Element {
     return resolved;
   }, []);
 
-  const handleFilesRef = useRef(handleFiles);
-  handleFilesRef.current = handleFiles;
-  const resolveRef = useRef(resolveDroppedPaths);
-  resolveRef.current = resolveDroppedPaths;
-
   useEffect(() => {
     let cancelled = false;
     let unlisten: (() => void) | null = null;
@@ -64,8 +59,8 @@ export default function DropZone(): JSX.Element {
         setIsDragging(false);
         const paths = (event.payload as { type: 'drop'; paths: string[]; position: unknown }).paths;
         if (paths?.length) {
-          const resolved = await resolveRef.current(paths);
-          if (resolved.length) handleFilesRef.current(resolved);
+          const resolved = await resolveDroppedPaths(paths);
+          if (resolved.length) handleFiles(resolved);
         }
       } else {
         setIsDragging(false);
@@ -79,7 +74,7 @@ export default function DropZone(): JSX.Element {
       cancelled = true;
       unlisten?.();
     };
-  }, []);
+  }, [handleFiles, resolveDroppedPaths]);
 
   const onDragEnter = (e: React.DragEvent): void => {
     e.preventDefault();

@@ -7,6 +7,7 @@ import { useSettingsStore } from '@/stores/useSettingsStore';
 import { save as saveDialog } from '@tauri-apps/plugin-dialog';
 import { invokeExportVolumeAdjustedAudio } from '@/lib/ipc';
 import { useToastStore } from '@/stores/useToastStore';
+import { getMimeType } from '@/lib/mime';
 
 interface Props {
   filepath: string;
@@ -28,17 +29,6 @@ function formatTimeHHMMSSFF(sec: number): string {
   const seconds = Math.floor(sec % 60);
   const frames = Math.floor((sec % 1) * 30);
   return `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}:${frames.toString().padStart(2, '0')}`;
-}
-
-function getMimeType(path: string): string {
-  const ext = path.split('.').pop()?.toLowerCase() ?? '';
-  const map: Record<string, string> = {
-    mp3: 'audio/mpeg', wav: 'audio/wav', flac: 'audio/flac', aac: 'audio/aac',
-    ogg: 'audio/ogg', opus: 'audio/ogg', m4a: 'audio/mp4', wma: 'audio/x-ms-wma',
-    aiff: 'audio/aiff', mp4: 'video/mp4', webm: 'video/webm',
-    mov: 'video/quicktime', avi: 'video/x-msvideo', mkv: 'video/x-matroska',
-  };
-  return map[ext] ?? 'audio/mpeg';
 }
 
 interface AudioCacheItem {
