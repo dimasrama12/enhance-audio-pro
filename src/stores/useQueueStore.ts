@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import type { QueueJob, JobStatus } from '@/types/queue';
+import type { QueueJob, JobStatus, EnhanceVersion } from '@/types/queue';
 import type { AudioSubTab } from '@/stores/useUIStore';
 import { useUIStore } from '@/stores/useUIStore';
 import { evictPrewarm } from '@/lib/audioPreload';
@@ -52,6 +52,16 @@ interface QueueState {
   tabViewModes: Record<AudioSubTab, ViewMode>;
   tabGroupByFormat: Record<AudioSubTab, boolean>;
   tabJobOpTypes: Record<AudioSubTab, Record<string, 'enhance' | 'convert'>>;
+
+  // ── Version history (terminal-children, session-scoped) ────────────────────
+  // Past enhanced outputs saved when a done job is re-enhanced.
+  // Keys are parent job IDs; values are ordered oldest→newest.
+  jobVersionHistory: Record<string, EnhanceVersion[]>;
+  expandedVersionIds: Set<string>;   // which parent rows show version sub-rows
+  saveVersion: (jobId: string, version: EnhanceVersion) => void;
+  clearVersionHistory: (jobId: string) => void;
+  toggleVersionExpand: (jobId: string) => void;
+  setUsedSettings: (jobId: string, strength: number, hfDeHissDb: number) => void;
 
   // ── Helpers ────────────────────────────────────────────────────────────────
   findJobTab: (id: string) => AudioSubTab | null;
@@ -125,6 +135,38 @@ export const useQueueStore = create<QueueState>()(
       tabViewModes: emptyPerTab(() => 'table' as ViewMode),
       tabGroupByFormat: emptyPerTab(() => false),
       tabJobOpTypes: emptyPerTab(() => ({} as Record<string, 'enhance' | 'convert'>)),
+
+      // ── Version history ───────────────────────────────────────────────────────
+      jobVersionHistory: {} as Record<string, EnhanceVersion[]>,
+      expandedVersionIds: new Set<string>(),
+
+      saveVersion: (jobId, version) =>
+        set((s) => ({
+          jobVersionHistory: {
+            ...s.jobVersionHistory,
+            [jobId]: [...(s.jobVersionHistory[jobId] ?? []), version],
+          },
+        })),
+
+      clearVersionHistory: (jobId) =>
+        set((s) => {
+          const { [jobId]: _, ...rest } = s.jobVersionHistory;
+          return { jobVersionHistory: rest };
+        }),
+
+      toggleVersionExpand: (jobId) =>
+        set((s) => {
+          const next = new Set(s.expandedVersionIds);
+          if (next.has(jobId)) next.delete(jobId); else next.add(jobId);
+          return { expandedVersionIds: next };
+        }),
+
+      setUsedSettings: (jobId, strength, hfDeHissDb) =>
+        set((s) => ({
+          tabQueues: updateJobById(s.tabQueues, jobId, (j) => ({
+            ...j, usedStrength: strength, usedHfDeHissDb: hfDeHissDb,
+          })),
+        })),
 
       // ── Helpers ──────────────────────────────────────────────────────────────
       findJobTab: (id) => {

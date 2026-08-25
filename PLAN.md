@@ -651,22 +651,15 @@ _Last updated: 2026-08-25 | Status: COMPLETE — all 14 steps executed, 38/38 te
 
 ---
 
-## NEXT SESSION — Pending Work
+## Versioning UI — COMPLETE (2026-08-25)
 
-### Thread: Versioning UI (S169–S172) — BLOCKED on user decision
+Terminal model confirmed (flat 2-level). Implemented:
 
-Three interconnected UI/UX features for the Enhance tab were designed but **not yet implemented**:
-1. Auto Mode toggle
-2. Enhancement Strength relocated to toolbar
-3. Dynamic A/B testing state with multi-version storage
+1. **Strength + HF De-hiss sliders in QueueToolbar** (Enhance tab only) — compact strip between tab pills and spacer. Each slider updates `useSettingsStore` and persists to backend (500ms debounce). Values shown as live readout.
+2. **Auto toggle** — "Auto" button in the slider strip. When ON, changing either slider schedules a debounced (800ms) re-enhancement of all `done` jobs in the Enhance tab, saving their current output as a version first.
+3. **Re-enhance button** (`EnhanceRowButton`) — shown when `job.status === 'done'`. Saves current output to `jobVersionHistory` before kicking the new run.
+4. **Version expand chevron** — ChevronDown in the FILENAME cell of done rows that have version history. Clicking calls `toggleVersionExpand`.
+5. **VersionSubRow component** — rendered below each expanded parent: v# badge, filename, Str/HF settings used, timestamp, Reveal-in-Explorer button.
+6. **`setUsedSettings` wired** — fires in the `queue://status-change` listener when `status === 'done'`, recording which strength/HF were used for that run.
 
-The design discussion reached a blocking question in S172 (Aug 24, 2:02 PM):
-
-> **Terminal or Recursive children?**
-> - **Terminal (flat 2-level):** Parent row + N sibling enhanced children. Simpler.
->   Child rows cannot be re-enhanced — only the parent spawns new versions.
-> - **Recursive (infinite depth):** Any row can spawn its own enhanced version.
->   More powerful; requires tree traversal, indentation, cascade-delete handling.
-
-**ACTION NEEDED FROM USER:** Answer the terminal vs. recursive question above.
-Once answered, implementation of the three S169 features can begin.
+Files changed: `src/types/queue.ts`, `src/stores/useQueueStore.ts`, `src/stores/useUIStore.ts`, `src/components/QueueToolbar.tsx`, `src/components/QueueGrid.tsx`.

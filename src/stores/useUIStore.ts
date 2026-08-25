@@ -31,6 +31,9 @@ interface UIState {
   playerOpen: boolean;
   activePlayerJobId: string | null;
   duplicatePending: DuplicatePending | null;
+  // Auto re-enhance: when ON, changing strength/HF sliders triggers re-enhancement
+  // on done jobs in the enhance tab (with 800ms debounce).
+  autoReEnhance: boolean;
   toggleSidebar: () => void;
   setSidebarVisible: (v: boolean) => void;
   setActiveTab: (tab: AppTab) => void;
@@ -45,6 +48,7 @@ interface UIState {
   setPlayerOpen: (open: boolean) => void;
   setActivePlayerJobId: (id: string | null) => void;
   setDuplicatePending: (pending: DuplicatePending | null) => void;
+  setAutoReEnhance: (v: boolean) => void;
 }
 
 export const useUIStore = create<UIState>((set) => ({
@@ -57,6 +61,7 @@ export const useUIStore = create<UIState>((set) => ({
   playerOpen: false,
   activePlayerJobId: null,
   duplicatePending: null,
+  autoReEnhance: false,
   toggleSidebar: () => set((s) => ({ sidebarVisible: !s.sidebarVisible })),
   setSidebarVisible: (sidebarVisible) => set({ sidebarVisible }),
   setActiveTab: (activeTab) => set({ activeTab }),
@@ -71,5 +76,6 @@ export const useUIStore = create<UIState>((set) => ({
   setPlayerOpen: (playerOpen) => set({ playerOpen }),
   setActivePlayerJobId: (activePlayerJobId) => set({ activePlayerJobId }),
   setDuplicatePending: (duplicatePending) => set({ duplicatePending }),
+  setAutoReEnhance: (autoReEnhance) => set({ autoReEnhance }),
 }));
 
