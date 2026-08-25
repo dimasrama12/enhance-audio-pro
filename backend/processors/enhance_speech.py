@@ -146,6 +146,18 @@ def _post_process(audio, sr: int, hf_shelf_db: Optional[float] = None):
     audio = _apply_envelope_smoothing(audio, sr)
     return audio
 
+def build_suffixed_path(output_path: str, strength: float, hf_shelf_db: float) -> str:
+    """Return output_path with strength/HF params encoded in the stem.
+
+    strength 0.0–1.0 is displayed as integer percent (0.8 → str80).
+    hf_shelf_db uses :g format (-4.0 → hf-4, -4.5 → hf-4.5).
+    """
+    p = pathlib.Path(output_path)
+    str_val = int(round(strength * 100))
+    hf_str = f"{hf_shelf_db:g}"
+    return str(p.parent / f"{p.stem}_str{str_val}_hf{hf_str}{p.suffix}")
+
+
 def _load_model():
     global _model
     

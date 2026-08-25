@@ -10,6 +10,7 @@ import { useSettingsStore } from '@/stores/useSettingsStore';
 import { useUIStore, type ImportItem, type AudioSubTab } from '@/stores/useUIStore';
 import { useToastStore } from '@/stores/useToastStore';
 import { prewarmAudio } from '@/lib/audioPreload';
+import { triggerEnhanceAll } from '@/lib/queueActions';
 import type { QueueJob } from '@/types/queue';
 
 export function normalizePath(p: string): string {
@@ -108,6 +109,10 @@ async function processImportItem(
     if (outputFolder && !realJob.destination) {
       store.setDestination(realJob.id, outputFolder);
       void invokeSetDestination(realJob.id, outputFolder);
+    }
+
+    if (tab === 'enhance' && useSettingsStore.getState().autoEnhanceOnDrop) {
+      await triggerEnhanceAll();
     }
   } catch (err) {
     console.error('Background import failed:', item.path, err);

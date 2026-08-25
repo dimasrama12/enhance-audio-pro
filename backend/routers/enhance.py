@@ -13,7 +13,7 @@ from fastapi import APIRouter, BackgroundTasks
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 
-from processors.enhance_speech import enhance_file, cancellation_events, JobCancelledError
+from processors.enhance_speech import enhance_file, cancellation_events, JobCancelledError, build_suffixed_path
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -116,12 +116,15 @@ async def _process_jobs(job_ids: List[str], callback_url: str, strength: float =
                 
                 out_dir.mkdir(parents=True, exist_ok=True)
                 
-                base_name = f"{stem}_enhanced"
-                candidate_path = out_dir / f"{base_name}.{output_format}"
+                candidate_path = pathlib.Path(
+                    build_suffixed_path(str(out_dir / f"{stem}.{output_format}"), strength, hf_shelf_db)
+                )
                 if candidate_path.exists():
                     counter = 1
                     while True:
-                        candidate_path = out_dir / f"{base_name}_{counter:02d}.{output_format}"
+                        candidate_path = pathlib.Path(
+                            build_suffixed_path(str(out_dir / f"{stem}_{counter:02d}.{output_format}"), strength, hf_shelf_db)
+                        )
                         if not candidate_path.exists():
                             break
                         counter += 1

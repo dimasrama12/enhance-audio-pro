@@ -100,3 +100,25 @@ def test_strength_half_maps_to_twenty_db():
     enhance_mock = sys.modules["df.enhance"].enhance
     _, kwargs = enhance_mock.call_args
     assert abs(kwargs.get("atten_lim_db", 0) - 20.0) < 0.01
+
+
+def test_build_suffixed_path_encodes_strength_as_integer_percent():
+    import pathlib
+    from processors.enhance_speech import build_suffixed_path
+    result = pathlib.Path(build_suffixed_path("/tmp/voice.wav", 0.8, -4.0))
+    assert result.name == "voice_str80_hf-4.wav"
+
+
+def test_build_suffixed_path_handles_fractional_hf_db():
+    import pathlib
+    from processors.enhance_speech import build_suffixed_path
+    result = pathlib.Path(build_suffixed_path("/tmp/audio.flac", 0.5, -4.5))
+    assert result.name == "audio_str50_hf-4.5.flac"
+
+
+def test_build_suffixed_path_preserves_parent_directory():
+    import pathlib
+    from processors.enhance_speech import build_suffixed_path
+    result = pathlib.Path(build_suffixed_path("/out/dir/speech.wav", 1.0, -8.0))
+    assert result.name == "speech_str100_hf-8.wav"
+    assert result.parent == pathlib.Path("/out/dir")
