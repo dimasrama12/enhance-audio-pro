@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { listen } from '@tauri-apps/api/event';
 import { motion, AnimatePresence } from 'framer-motion';
 import { clsx } from 'clsx';
-import { GripVertical, Play, Lock, ChevronRight, ChevronDown, FolderOpen, Trash2, Wand2, Download, RefreshCw } from 'lucide-react';
+import { GripVertical, Play, Lock, ChevronRight, Trash2, Wand2, Download, RefreshCw } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { save as saveDialog } from '@tauri-apps/plugin-dialog';
 import ProcessingTimer from '@/components/ProcessingTimer';
@@ -30,12 +30,12 @@ import { useQueueStore } from '@/stores/useQueueStore';
 import { useShallow } from 'zustand/react/shallow';
 import { useUIStore, type AudioSubTab } from '@/stores/useUIStore';
 import { useSettingsStore } from '@/stores/useSettingsStore';
-import { invokeSetOutputFormat, invokeArchiveJobs, invokeProcessQueue, invokeCancelJobs, invokeSetJobStatus, invokeCopyEnhancedFile, invokeConvertFiles, invokeDeleteFile, invokeShowItemInFolder } from '@/lib/ipc';
+import { invokeAddFiles, invokeSetOutputFormat, invokeArchiveJobs, invokeProcessQueue, invokeCancelJobs, invokeSetJobStatus, invokeCopyEnhancedFile, invokeConvertFiles, invokeDeleteFile } from '@/lib/ipc';
 import { triggerEnhanceAll, triggerConvertAll } from '@/lib/queueActions';
 import { useToastStore } from '@/stores/useToastStore';
 import { logError } from '@/lib/errorLogger';
 import i18n from '@/i18n';
-import type { QueueJob, JobStatus, EnhanceVersion } from '@/types/queue';
+import type { QueueJob, JobStatus } from '@/types/queue';
 
 const VALID_JOB_STATUSES = new Set<string>(['pending', 'queued', 'processing', 'done', 'error']);
 
@@ -243,7 +243,7 @@ function getSourceDir(filepath: string): string {
 function EnhanceRowButton({ job }: { job: QueueJob }): JSX.Element | null {
   const enhancementStrength = useSettingsStore((s) => s.enhancementStrength);
   const hfDeHissDb = useSettingsStore((s) => s.hfDeHissDb);
-  const { saveVersion, setUsedSettings } = useQueueStore();
+  const { insertJobAtTop, setUsedSettings } = useQueueStore();
   const { addToast } = useToastStore();
   const isProcessing = job.status === 'processing';
   const isQueued = job.status === 'queued';
@@ -257,24 +257,37 @@ function EnhanceRowButton({ job }: { job: QueueJob }): JSX.Element | null {
       catch (err) { console.error('Failed to cancel', err); }
       return;
     }
-    // Save the current output as a version before re-enhancing
-    if (isDone && job.output_filepath) {
-      const history = useQueueStore.getState().jobVersionHistory[job.id] ?? [];
-      saveVersion(job.id, {
-        versionIndex: history.length + 1,
-        outputFilepath: job.output_filepath,
-        strength: job.usedStrength ?? enhancementStrength,
-        hfDeHissDb: job.usedHfDeHissDb ?? (hfDeHissDb ?? -4),
-        createdAt: Date.now(),
-      });
-    }
-    // Record which settings we're using for this new run
-    setUsedSettings(job.id, enhancementStrength, hfDeHissDb ?? -4);
 
+    const { aiModel } = useSettingsStore.getState();
     const tab = useUIStore.getState().audioSubTab;
+
+    if (isDone) {
+      // Re-enhance: create a new independent job at the top of the queue
+      try {
+        const res = await invokeAddFiles([job.filepath]);
+        if (res.success && res.data && res.data.length > 0) {
+          const newJob = res.data[0];
+          insertJobAtTop(newJob, tab);
+          setUsedSettings(newJob.id, enhancementStrength, hfDeHissDb ?? -4);
+          const tabJobs = useQueueStore.getState().tabQueues[tab];
+          const hasActive = tabJobs.some((j) => j.status === 'processing');
+          if (hasActive) {
+            useQueueStore.getState().setStatus(newJob.id, 'queued');
+            await invokeSetJobStatus(newJob.id, 'queued');
+            addToast(`Queued re-enhance of "${job.filename}"`, 'info');
+          } else {
+            await invokeProcessQueue([newJob.id], enhancementStrength, aiModel, hfDeHissDb ?? -4);
+          }
+        } else {
+          addToast(`Re-enhance failed: ${res.error ?? 'Could not add file'}`, 'error');
+        }
+      } catch (err) { logError('re-enhance', String(err)); addToast('Re-enhance failed', 'error'); }
+      return;
+    }
+
+    setUsedSettings(job.id, enhancementStrength, hfDeHissDb ?? -4);
     const tabJobs = useQueueStore.getState().tabQueues[tab];
     const hasActive = tabJobs.some((j) => j.status === 'processing');
-    const { aiModel } = useSettingsStore.getState();
     if (hasActive) {
       try {
         useQueueStore.getState().setStatus(job.id, 'queued');
@@ -413,43 +426,6 @@ function DownloadJobButton({ job }: { job: QueueJob }): JSX.Element | null {
   );
 }
 
-// ─── Version history sub-row ──────────────────────────────────────────────────
-
-function VersionSubRow({ version, tdColSpan }: { version: EnhanceVersion; tdColSpan: number }): JSX.Element {
-  const filename = version.outputFilepath.replace(/\\/g, '/').split('/').pop() ?? 'output';
-  const timeStr = new Date(version.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-
-  return (
-    <tr className="bg-violet-50/30 dark:bg-violet-500/[0.02] border-b border-dashed border-slate-100 dark:border-white/[0.03]">
-      <td /> {/* grip */}
-      <td className="py-1.5 px-1 text-center">
-        <span className="inline-block text-[9px] font-mono font-semibold text-violet-500 dark:text-violet-400/80 bg-violet-500/10 px-1.5 py-0.5 rounded">
-          v{version.versionIndex}
-        </span>
-      </td>
-      <td className="py-1.5 pl-8 pr-2 text-[10px] text-slate-400 dark:text-zinc-500" colSpan={tdColSpan}>
-        <div className="flex items-center gap-3 min-w-0">
-          <button
-            onClick={(e) => { e.stopPropagation(); void invokeShowItemInFolder(version.outputFilepath); }}
-            title="Reveal in Explorer"
-            className="p-0.5 rounded hover:bg-slate-200 dark:hover:bg-white/[0.08] text-slate-300 dark:text-zinc-600 hover:text-slate-500 dark:hover:text-zinc-400 transition shrink-0"
-          >
-            <FolderOpen size={10} />
-          </button>
-          <span className="truncate text-slate-500 dark:text-zinc-400 min-w-0" title={version.outputFilepath}>
-            {filename}
-          </span>
-          <span className="shrink-0 tabular-nums">Str&nbsp;{version.strength}</span>
-          <span className="shrink-0 tabular-nums">
-            HF&nbsp;{version.hfDeHissDb > 0 ? '+' : ''}{version.hfDeHissDb}&nbsp;dB
-          </span>
-          <span className="shrink-0 text-slate-300 dark:text-zinc-600 tabular-nums">{timeStr}</span>
-        </div>
-      </td>
-    </tr>
-  );
-}
-
 // ─── Bottom action bar ────────────────────────────────────────────────────────
 
 function QueueActionBar(): JSX.Element {
@@ -523,9 +499,6 @@ function SortableJobRow({
   const isDraggingAnySelected = isDragOfSelectedItem && selectedJobIds.includes(job.id);
   const isLocked = useQueueStore((s) => s.tabLockedIds[audioSubTab as 'enhance'|'convert'].includes(job.id));
   const unlockJobs = useQueueStore((s) => s.unlockJobs);
-  const hasVersions = useQueueStore((s) => (s.jobVersionHistory[job.id]?.length ?? 0) > 0);
-  const isVersionExpanded = useQueueStore((s) => s.expandedVersionIds.has(job.id));
-  const toggleVersionExpand = useQueueStore((s) => s.toggleVersionExpand);
 
   const isEnhanced = job.ab_mode === 'enhanced';
   const isSecondaryDrag = isDraggingAnySelected && !isDragging;
@@ -571,32 +544,35 @@ function SortableJobRow({
       </td>
       <td className={clsx('px-4 py-2 text-sm text-slate-800 dark:text-zinc-100 font-medium relative', !filenameExpanded && 'overflow-hidden')}
         style={{ width: colWidths.filename }}>
-        <div className="flex items-center gap-2 min-w-0">
-          <button onClick={(e) => { e.stopPropagation(); useUIStore.getState().setActivePlayerJobId(job.id); useUIStore.getState().setPlayerOpen(true); }}
-            className="p-1 rounded bg-violet-500/10 hover:bg-violet-500/20 text-violet-600 dark:text-violet-400 transition shrink-0"
-            title="Open in Waveform Player">
-            <Play size={10} fill="currentColor" />
-          </button>
-          {audioSubTab === 'enhance' && job.status === 'done' && hasVersions && (
-            <button
-              onClick={(e) => { e.stopPropagation(); toggleVersionExpand(job.id); }}
-              title={isVersionExpanded ? 'Hide version history' : 'Show version history'}
-              className="p-0.5 rounded text-slate-300 dark:text-white/20 hover:text-violet-500 dark:hover:text-violet-400 transition-colors shrink-0"
-            >
-              <ChevronDown size={10} className={`transition-transform duration-150 ${isVersionExpanded ? 'rotate-180' : ''}`} />
+        <div className="min-w-0">
+          <div className="flex items-center gap-2 min-w-0">
+            <button onClick={(e) => { e.stopPropagation(); useUIStore.getState().setActivePlayerJobId(job.id); useUIStore.getState().setPlayerOpen(true); }}
+              className="p-1 rounded bg-violet-500/10 hover:bg-violet-500/20 text-violet-600 dark:text-violet-400 transition shrink-0"
+              title="Open in Waveform Player">
+              <Play size={10} fill="currentColor" />
             </button>
-          )}
-          <span onClick={(e) => { e.stopPropagation(); setFilenameExpanded((v) => !v); }}
-            className={clsx('flex-1 cursor-pointer hover:text-violet-600 dark:hover:text-violet-400 transition-colors',
-              filenameExpanded ? 'break-all whitespace-normal' : 'truncate')}
-            title={filenameExpanded ? undefined : job.filename}>
-            {job.filename}
-          </span>
-          {job.status === 'processing' && <span className="ml-auto shrink-0"><ProcessingTimer startedAt={job.startedAt} /></span>}
-          {job.status === 'done' && job.completed_duration !== undefined && (
-            <span className="text-xs text-yellow-600/85 bg-yellow-500/10 dark:text-yellow-400/90 dark:bg-yellow-500/10 px-2 py-0.5 rounded whitespace-nowrap font-medium tabular-nums ml-auto shrink-0">
-              {Math.floor(job.completed_duration / 60).toString().padStart(2, '0')}:{(job.completed_duration % 60).toString().padStart(2, '0')}
+            <span onClick={(e) => { e.stopPropagation(); setFilenameExpanded((v) => !v); }}
+              className={clsx('flex-1 cursor-pointer hover:text-violet-600 dark:hover:text-violet-400 transition-colors',
+                filenameExpanded ? 'break-all whitespace-normal' : 'truncate')}
+              title={filenameExpanded ? undefined : job.filename}>
+              {job.filename}
             </span>
+            {job.status === 'processing' && <span className="ml-auto shrink-0"><ProcessingTimer startedAt={job.startedAt} /></span>}
+            {job.status === 'done' && job.completed_duration !== undefined && (
+              <span className="text-xs text-yellow-600/85 bg-yellow-500/10 dark:text-yellow-400/90 dark:bg-yellow-500/10 px-2 py-0.5 rounded whitespace-nowrap font-medium tabular-nums ml-auto shrink-0">
+                {Math.floor(job.completed_duration / 60).toString().padStart(2, '0')}:{(job.completed_duration % 60).toString().padStart(2, '0')}
+              </span>
+            )}
+          </div>
+          {audioSubTab === 'enhance' && job.status === 'done' && job.usedStrength !== undefined && (
+            <div className="flex items-center gap-1 pl-7 mt-0.5">
+              <span className="text-[9px] font-medium text-violet-500/75 dark:text-violet-400/60 bg-violet-500/[0.08] px-1 py-px rounded tabular-nums">
+                Str {job.usedStrength}
+              </span>
+              <span className="text-[9px] font-medium text-violet-500/75 dark:text-violet-400/60 bg-violet-500/[0.08] px-1 py-px rounded tabular-nums">
+                HF {(job.usedHfDeHissDb ?? -4) > 0 ? '+' : ''}{job.usedHfDeHissDb ?? -4}&nbsp;dB
+              </span>
+            </div>
           )}
         </div>
         <ResizeHandle colKey="filename" onResize={onResize} disabled={false} />
@@ -803,8 +779,6 @@ export default function QueueGrid(): JSX.Element {
   const selectedJobIds = useQueueStore((s) => s.tabSelectedIds[audioSubTab]).filter((id) => visibleJobIds.includes(id));
   const reorderJobs = useQueueStore((s) => s.reorderJobs);
   const { setProgress, setStatus, setOutputFilepath, setAbMode, setSelectedJob, toggleSelectJob, rangeSelectJobs } = useQueueStore();
-  const jobVersionHistory = useQueueStore((s) => s.jobVersionHistory);
-  const expandedVersionIds = useQueueStore((s) => s.expandedVersionIds);
   const viewMode = useQueueStore((s) => s.tabViewModes[audioSubTab]);
   const groupByFormat = useQueueStore((s) => s.tabGroupByFormat[audioSubTab]);
   const clearSelection = useQueueStore((s) => s.clearSelection);
@@ -1286,22 +1260,13 @@ export default function QueueGrid(): JSX.Element {
                         <DndContext key={`dnd-${gi}`} sensors={sensors} collisionDetection={closestCenter} onDragStart={handleDragStart} onDragEnd={handleDragEnd} modifiers={[restrictToVerticalAxis, restrictToFirstScrollableAncestor]}>
                           <SortableContext items={group.jobs.map((j) => j.id)} strategy={verticalListSortingStrategy}>
                             <AnimatePresence>
-                              {group.jobs.map((job, i) => {
-                                const versions = jobVersionHistory[job.id];
-                                const isExpanded = expandedVersionIds.has(job.id);
-                                return (
-                                  <React.Fragment key={job.id}>
-                                    <SortableJobRow job={job}
-                                      index={groups.find((g) => g.label === group.label)?.jobs.findIndex((j) => j.id === job.id) ?? i}
-                                      isSelected={selectedJobIds.includes(job.id)} onSelect={(e) => handleRowClick(e, job.id)}
-                                      isImporting={importingJobIds.includes(job.id)} activeDragId={activeDragId}
-                                      onErrorClick={handleErrorClick} colWidths={colWidths} onResize={handleResize} audioSubTab={audioSubTab} />
-                                    {audioSubTab === 'enhance' && isExpanded && versions?.map((v) => (
-                                      <VersionSubRow key={`v${v.versionIndex}`} version={v} tdColSpan={7} />
-                                    ))}
-                                  </React.Fragment>
-                                );
-                              })}
+                              {group.jobs.map((job, i) => (
+                                <SortableJobRow key={job.id} job={job}
+                                  index={groups.find((g) => g.label === group.label)?.jobs.findIndex((j) => j.id === job.id) ?? i}
+                                  isSelected={selectedJobIds.includes(job.id)} onSelect={(e) => handleRowClick(e, job.id)}
+                                  isImporting={importingJobIds.includes(job.id)} activeDragId={activeDragId}
+                                  onErrorClick={handleErrorClick} colWidths={colWidths} onResize={handleResize} audioSubTab={audioSubTab} />
+                              ))}
                             </AnimatePresence>
                           </SortableContext>
                           <DragOverlay dropAnimation={null}>{dragOverlayContent}</DragOverlay>
@@ -1314,21 +1279,12 @@ export default function QueueGrid(): JSX.Element {
                 <DndContext sensors={sensors} collisionDetection={closestCenter} onDragStart={handleDragStart} onDragEnd={handleDragEnd} modifiers={[restrictToVerticalAxis, restrictToFirstScrollableAncestor]}>
                   <SortableContext items={visibleJobs.map((j) => j.id)} strategy={verticalListSortingStrategy}>
                     <AnimatePresence>
-                      {visibleJobs.map((job) => {
-                        const versions = jobVersionHistory[job.id];
-                        const isExpanded = expandedVersionIds.has(job.id);
-                        return (
-                          <React.Fragment key={job.id}>
-                            <SortableJobRow job={job} index={jobs.findIndex((j) => j.id === job.id)}
-                              isSelected={selectedJobIds.includes(job.id)} onSelect={(e) => handleRowClick(e, job.id)}
-                              isImporting={importingJobIds.includes(job.id)} activeDragId={activeDragId}
-                              onErrorClick={handleErrorClick} colWidths={colWidths} onResize={handleResize} audioSubTab={audioSubTab} />
-                            {audioSubTab === 'enhance' && isExpanded && versions?.map((v) => (
-                              <VersionSubRow key={`v${v.versionIndex}`} version={v} tdColSpan={7} />
-                            ))}
-                          </React.Fragment>
-                        );
-                      })}
+                      {visibleJobs.map((job) => (
+                        <SortableJobRow key={job.id} job={job} index={jobs.findIndex((j) => j.id === job.id)}
+                          isSelected={selectedJobIds.includes(job.id)} onSelect={(e) => handleRowClick(e, job.id)}
+                          isImporting={importingJobIds.includes(job.id)} activeDragId={activeDragId}
+                          onErrorClick={handleErrorClick} colWidths={colWidths} onResize={handleResize} audioSubTab={audioSubTab} />
+                      ))}
                     </AnimatePresence>
                   </SortableContext>
                   <DragOverlay dropAnimation={null}>{dragOverlayContent}</DragOverlay>
