@@ -4,6 +4,7 @@ import { Mic, Square } from 'lucide-react';
 import { useQueueStore } from '@/stores/useQueueStore';
 import { useSettingsStore } from '@/stores/useSettingsStore';
 import { invokeSaveRecording, invokeAddFiles } from '@/lib/ipc';
+import { startCapture, type AudioCaptureHandle } from '@/lib/audioCapture';
 
 // Encode raw float32 PCM samples as a WAV file (mono, 16-bit).
 function encodePCMToWav(samples: Float32Array, sampleRate: number): ArrayBuffer {
@@ -44,36 +45,13 @@ export default function RecordButton(): JSX.Element {
   const addJobs = useQueueStore((s) => s.addJobs);
   const recordingPrefix = useSettingsStore((s) => s.recordingPrefix ?? 'Record');
 
-  const audioCtxRef = useRef<AudioContext | null>(null);
-  const processorRef = useRef<ScriptProcessorNode | null>(null);
-  const sourceRef = useRef<MediaStreamAudioSourceNode | null>(null);
-  const streamRef = useRef<MediaStream | null>(null);
-  const samplesRef = useRef<Float32Array[]>([]);
+  const captureRef = useRef<AudioCaptureHandle | null>(null);
 
   async function startRecording(): Promise<void> {
     setError(null);
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      streamRef.current = stream;
-
-      const audioCtx = new AudioContext();
-      audioCtxRef.current = audioCtx;
-
-      const source = audioCtx.createMediaStreamSource(stream);
-      sourceRef.current = source;
-
-      // Use ScriptProcessorNode to capture raw PCM frames.
-      // eslint-disable-next-line deprecation/deprecation
-      const processor = audioCtx.createScriptProcessor(4096, 1, 1);
-      processorRef.current = processor;
-      samplesRef.current = [];
-
-      processor.onaudioprocess = (e) => {
-        samplesRef.current.push(new Float32Array(e.inputBuffer.getChannelData(0)));
-      };
-
-      source.connect(processor);
-      processor.connect(audioCtx.destination);
+      captureRef.current = await startCapture(stream);
       setRecording(true);
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Microphone access denied');
@@ -81,18 +59,15 @@ export default function RecordButton(): JSX.Element {
   }
 
   async function stopRecording(): Promise<void> {
-    const audioCtx = audioCtxRef.current;
-    const processor = processorRef.current;
-    const source = sourceRef.current;
-    const stream = streamRef.current;
-    const chunks = samplesRef.current;
+    const capture = captureRef.current;
+    if (!capture) return;
 
-    source?.disconnect();
-    processor?.disconnect();
-    stream?.getTracks().forEach((t) => t.stop());
+    const { sampleRate } = capture;
+    capture.stop();
+    captureRef.current = null;
 
-    if (audioCtx && chunks.length > 0) {
-      const sampleRate = audioCtx.sampleRate;
+    const chunks = capture.getSamples();
+    if (chunks.length > 0) {
       const total = chunks.reduce((acc, c) => acc + c.length, 0);
       const combined = new Float32Array(total);
       let off = 0;
@@ -116,15 +91,8 @@ export default function RecordButton(): JSX.Element {
       } catch (e) {
         setError(e instanceof Error ? e.message : 'Save failed');
       }
-
-      void audioCtx.close();
     }
 
-    audioCtxRef.current = null;
-    processorRef.current = null;
-    sourceRef.current = null;
-    streamRef.current = null;
-    samplesRef.current = [];
     setRecording(false);
   }
 

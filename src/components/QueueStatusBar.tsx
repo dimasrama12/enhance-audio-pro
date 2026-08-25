@@ -3,6 +3,7 @@ import { useQueueStore } from '@/stores/useQueueStore';
 import { useUIStore } from '@/stores/useUIStore';
 import { useToastStore } from '@/stores/useToastStore';
 import { invokeCopyEnhancedFile } from '@/lib/ipc';
+import { triggerCancelAll } from '@/lib/queueActions';
 import type { QueueJob } from '@/types/queue';
 
 async function downloadFilesToFolder(jobs: QueueJob[], addToast: (msg: string, type: string) => void): Promise<void> {
@@ -77,7 +78,7 @@ export default function QueueStatusBar(): JSX.Element {
         <>
           <span className="text-slate-300 dark:text-white/10">|</span>
           <button
-            onClick={() => window.dispatchEvent(new CustomEvent('queue:cancel-all'))}
+            onClick={() => { void triggerCancelAll(); }}
             className="text-red-500 hover:text-red-400 font-semibold focus:outline-none transition-colors active:scale-95 cursor-pointer"
           >
             Cancel All

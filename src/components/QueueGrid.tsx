@@ -31,6 +31,7 @@ import { useShallow } from 'zustand/react/shallow';
 import { useUIStore, type AudioSubTab } from '@/stores/useUIStore';
 import { useSettingsStore } from '@/stores/useSettingsStore';
 import { invokeSetOutputFormat, invokeArchiveJobs, invokeProcessQueue, invokeCancelJobs, invokeSetJobStatus, invokeCopyEnhancedFile, invokeConvertFiles, invokeDeleteFile, invokeShowItemInFolder } from '@/lib/ipc';
+import { triggerEnhanceAll, triggerConvertAll } from '@/lib/queueActions';
 import { useToastStore } from '@/stores/useToastStore';
 import { logError } from '@/lib/errorLogger';
 import i18n from '@/i18n';
@@ -477,7 +478,7 @@ function QueueActionBar(): JSX.Element {
     <div className="flex justify-end items-center px-4 py-2 border-t border-slate-200 dark:border-white/[0.06] bg-white/90 dark:bg-[#0C1120]/90 backdrop-blur-sm shrink-0">
       {audioSubTab === 'enhance' && (
         <button
-          onClick={() => window.dispatchEvent(new CustomEvent('action:enhance'))}
+          onClick={() => { void triggerEnhanceAll(); }}
           disabled={!canEnhance}
           className="flex items-center justify-center gap-1.5 px-3.5 py-1.5 rounded-md text-xs font-medium transition-all duration-150 bg-violet-600 hover:bg-violet-500 text-white shadow-sm disabled:opacity-40 disabled:cursor-not-allowed"
         >
@@ -486,7 +487,7 @@ function QueueActionBar(): JSX.Element {
       )}
       {audioSubTab === 'convert' && (
         <button
-          onClick={() => window.dispatchEvent(new CustomEvent('action:convert'))}
+          onClick={() => { void triggerConvertAll(); }}
           disabled={!canConvert}
           className={ghostBtn}
         >

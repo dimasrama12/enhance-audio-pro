@@ -9,21 +9,15 @@ import { useQueueStore } from '@/stores/useQueueStore';
 import { useSettingsStore } from '@/stores/useSettingsStore';
 import { useUIStore } from '@/stores/useUIStore';
 import type { AudioSubTab } from '@/stores/useUIStore';
-import { useToastStore } from '@/stores/useToastStore';
 import {
   invokeProcessQueue,
-  invokeConvertFiles,
   invokeArchiveJobs,
-  invokeCancelJobs,
   invokeSetJobStatus,
   invokeSaveSettings,
 } from '@/lib/ipc';
-import { createLogger } from '@/lib/logger';
 import type { ViewMode } from '@/stores/useQueueStore';
 import type { QueueJob } from '@/types/queue';
 import type { AppSettings } from '@/types/settings';
-
-const log = createLogger('QueueToolbar');
 
 const FILTERS = [
   { value: 'all', label: 'All' },
@@ -44,7 +38,6 @@ export default function QueueToolbar(): JSX.Element {
   const hfDeHissDb = useSettingsStore((s) => s.hfDeHissDb);
   const setEnhancementStrength = useSettingsStore((s) => s.setEnhancementStrength);
   const setHfDeHissDb = useSettingsStore((s) => s.setHfDeHissDb);
-  const filenameTemplateConverted = useSettingsStore((s) => s.filenameTemplateConverted);
   const focusSearchTick = useUIStore((s) => s.focusSearchTick);
   const activeTab = useUIStore((s) => s.activeTab);
   const audioSubTab = useUIStore((s) => s.audioSubTab);
@@ -62,11 +55,9 @@ export default function QueueToolbar(): JSX.Element {
   const { setFilter, setSearchQuery, setViewMode, setGroupByFormat } = useQueueStore();
 
   const searchRef = useRef<HTMLInputElement>(null);
-  const abortProcessRef = useRef(false);
   const saveDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const autoReEnhanceDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const { t } = useTranslation();
-  const { addToast } = useToastStore();
 
   function scheduleAutoReEnhance(): void {
     if (autoReEnhanceDebounceRef.current) clearTimeout(autoReEnhanceDebounceRef.current);
@@ -161,101 +152,6 @@ export default function QueueToolbar(): JSX.Element {
     void invokeArchiveJobs(idsToDelete);
   }
 
-  async function handleProcess(): Promise<void> {
-    const tab = useUIStore.getState().audioSubTab;
-    const { tabQueues, tabImportingIds } = useQueueStore.getState();
-    const tabJobs = tabQueues[tab];
-    // Exclude rows still importing (dimmed placeholders) — they aren't in the DB yet.
-    const importingIds = new Set(tabImportingIds[tab]);
-    const enhIds = tabJobs
-      .filter((j) => (j.status === 'pending' || j.status === 'error') && !importingIds.has(j.id))
-      .map((j) => j.id);
-    // Do NOT bail when something is already processing/queued: queue the rest so a
-    // manual per-row run doesn't lock the global "Enhance All" action.
-    if (!enhIds.length) return;
-
-    abortProcessRef.current = false;
-    const { setStatus } = useQueueStore.getState();
-    const { aiModel } = useSettingsStore.getState();
-    log.info(`Enhance All: queuing ${enhIds.length} job(s)`);
-    enhIds.forEach((id) => setStatus(id, 'queued'));
-    await Promise.all(enhIds.map((id) => invokeSetJobStatus(id, 'queued')));
-    const freshJobs = useQueueStore.getState().tabQueues[tab];
-    const isAnyProcessing = freshJobs.some((j) => j.status === 'processing');
-    if (!isAnyProcessing) {
-      const nextQueued = freshJobs.find((j) => j.status === 'queued');
-      if (nextQueued) {
-        invokeProcessQueue([nextQueued.id], enhancementStrength, aiModel, useSettingsStore.getState().hfDeHissDb ?? -4).catch((err) => {
-          console.error('Failed to auto-start queued job', err);
-        });
-      }
-    }
-  }
-
-  async function handleCancelAll(): Promise<void> {
-    abortProcessRef.current = true;
-    // Cancel only the ACTIVE tab's jobs — the other tab's queue is untouched.
-    const tab = useUIStore.getState().audioSubTab;
-    const { tabQueues } = useQueueStore.getState();
-    const activeIds = tabQueues[tab]
-      .filter((j) => j.status === 'processing' || j.status === 'queued')
-      .map((j) => j.id);
-    log.info(`Cancel All [${tab}]: cancelling ${activeIds.length} active job(s)`);
-    if (activeIds.length > 0) {
-      try {
-        await invokeCancelJobs(activeIds);
-        addToast(`Cancelled ${activeIds.length} job${activeIds.length > 1 ? 's' : ''}`, 'info');
-      } catch (err) {
-        log.error('Cancel All failed', err);
-      }
-    }
-  }
-
-
-
-  async function handleConvert(): Promise<void> {
-    const tab = useUIStore.getState().audioSubTab;
-    const { tabQueues, tabImportingIds } = useQueueStore.getState();
-    const tabJobs = tabQueues[tab];
-    const importingIds = new Set(tabImportingIds[tab]);
-    const ids = tabJobs
-      .filter((j) => j.status === 'pending' && !importingIds.has(j.id))
-      .map((j) => j.id);
-    // Queue the rest even while one is converting so per-row runs don't lock "Convert All".
-    if (!ids.length) return;
-
-    abortProcessRef.current = false;
-    const { setStatus, setJobOperationMode } = useQueueStore.getState();
-    log.info(`Convert All: queuing ${ids.length} job(s)`);
-    ids.forEach((id) => { setJobOperationMode(id, 'convert', tab); setStatus(id, 'queued'); });
-    await Promise.all(ids.map((id) => invokeSetJobStatus(id, 'queued')));
-    const freshJobs = useQueueStore.getState().tabQueues[tab];
-    const isAnyProcessing = freshJobs.some((j) => j.status === 'processing');
-    if (!isAnyProcessing) {
-      const nextQueued = freshJobs.find((j) => j.status === 'queued');
-      if (nextQueued) {
-        invokeConvertFiles([nextQueued.id], filenameTemplateConverted).catch((err) => {
-          console.error('Failed to auto-start convert job', err);
-        });
-      }
-    }
-  }
-
-  // Register event listeners so QueueActionBar can trigger these handlers
-  useEffect(() => {
-    const onEnhance = (): void => { void handleProcess(); };
-    const onConvert = (): void => { void handleConvert(); };
-    const onCancelAll = (): void => { void handleCancelAll(); };
-    window.addEventListener('action:enhance', onEnhance);
-    window.addEventListener('action:convert', onConvert);
-    window.addEventListener('queue:cancel-all', onCancelAll);
-    return () => {
-      window.removeEventListener('action:enhance', onEnhance);
-      window.removeEventListener('action:convert', onConvert);
-      window.removeEventListener('queue:cancel-all', onCancelAll);
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
 
 
 
