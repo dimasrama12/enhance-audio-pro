@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { clsx } from 'clsx';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   X, FolderOpen, Settings, HelpCircle, Keyboard, Disc,
@@ -281,6 +282,7 @@ export default function SettingsPanel({ open, onClose }: Props): JSX.Element {
       aiModel: store.aiModel ?? 'deepfilternet',
       scratchDiskDir: store.scratchDiskDir,
       customDefaultShortcuts: store.customDefaultShortcuts,
+      autoEnhanceOnDrop: store.autoEnhanceOnDrop ?? false,
       ...patch,
     };
     store.setSettings(next);
@@ -383,43 +385,36 @@ export default function SettingsPanel({ open, onClose }: Props): JSX.Element {
                     </Section>
 
                     <Section title={t('settings.enhancement')}>
-                      <label className="text-sm text-slate-900 dark:text-slate-100">{t('settings.strengthLabel')}</label>
-                      <div className="flex items-center gap-3">
-                        <input
-                          type="range" min={0} max={100} step={1}
-                          value={store.enhancementStrength}
-                          onChange={(e) => {
-                            const v = Number(e.target.value);
-                            store.setEnhancementStrength(v);
-                            save({ enhancementStrength: v });
+                      <div className="flex items-center justify-between">
+                        <div className="flex-1 min-w-0">
+                          <label className="text-sm text-slate-900 dark:text-slate-100">Auto Enhance on Drop</label>
+                          <p className="text-[10px] text-slate-400 dark:text-white/30 mt-0.5">
+                            When ON, dropping a file into the Enhance queue immediately starts processing. Adjusting Str/HF sliders does not trigger re-processing.
+                          </p>
+                        </div>
+                        <button
+                          onClick={() => {
+                            const next = !(store.autoEnhanceOnDrop ?? false);
+                            store.setAutoEnhanceOnDrop(next);
+                            save({ autoEnhanceOnDrop: next });
                           }}
-                          className="flex-1 accent-violet-500"
-                        />
-                        <span className="text-sm text-slate-500 dark:text-white/60 w-8 text-right tabular-nums">
-                          {store.enhancementStrength}
-                        </span>
+                          className={clsx(
+                            'relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 focus:outline-none ml-4',
+                            (store.autoEnhanceOnDrop ?? false)
+                              ? 'bg-violet-500'
+                              : 'bg-slate-300 dark:bg-white/20',
+                          )}
+                          role="switch"
+                          aria-checked={store.autoEnhanceOnDrop ?? false}
+                        >
+                          <span
+                            className={clsx(
+                              'pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow ring-0 transition duration-200',
+                              (store.autoEnhanceOnDrop ?? false) ? 'translate-x-4' : 'translate-x-0',
+                            )}
+                          />
+                        </button>
                       </div>
-                      <p className="text-[10px] text-slate-400 dark:text-white/30">{t('settings.strengthHint')}</p>
-
-                      <label className="text-sm text-slate-900 dark:text-slate-100 mt-2">HF De-hiss</label>
-                      <div className="flex items-center gap-3">
-                        <input
-                          type="range" min={-12} max={0} step={0.5}
-                          value={store.hfDeHissDb ?? -4}
-                          onChange={(e) => {
-                            const v = Number(e.target.value);
-                            store.setHfDeHissDb(v);
-                            save({ hfDeHissDb: v });
-                          }}
-                          className="flex-1 accent-violet-500"
-                        />
-                        <span className="text-sm text-slate-500 dark:text-white/60 w-14 text-right tabular-nums">
-                          {(store.hfDeHissDb ?? -4).toFixed(1)} dB
-                        </span>
-                      </div>
-                      <p className="text-[10px] text-slate-400 dark:text-white/30">
-                        Attenuates residual high-frequency hiss after DeepFilterNet. 0 = off, −4 dB = default, −12 dB = most aggressive.
-                      </p>
                     </Section>
 
                     <Section title={t('settings.output')}>
