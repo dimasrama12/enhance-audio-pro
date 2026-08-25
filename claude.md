@@ -582,6 +582,18 @@ Exposes the existing `EAP_HF_SHELF_DB` env-var control as a first-class UI slide
 - Contents: project description, feature list, quality benchmark table (vs Adobe Podcast), installation instructions, tech stack table, build-from-source guide, project structure overview.
 - Committed and pushed as commit `c45ed58`.
 
+# src/ Audit — 14 Issues Fixed (2026-08-25)
+Full audit of `src/` identified 17 actionable issues (bugs, perf, structural). 14 were fixed in commit `5f5adb7`. Issues deferred: A7 (ScriptProcessorNode → AudioWorklet, large scope), C5 (custom DOM events, architectural alignment needed). Details in `PLAN.md`.
+
+# Versioning UI — Re-enhance, Version Sub-rows, Toolbar Sliders, Auto Toggle (2026-08-25)
+Terminal model (flat 2-level): parent job spawns N version children; children cannot be re-enhanced. All session-scoped (not persisted to SQLite).
+- **`src/types/queue.ts`** — `EnhanceVersion` interface (versionIndex, outputFilepath, strength, hfDeHissDb, createdAt); `QueueJob` gains `usedStrength?` / `usedHfDeHissDb?` fields.
+- **`src/stores/useQueueStore.ts`** — `jobVersionHistory`, `expandedVersionIds`, `saveVersion`, `clearVersionHistory`, `toggleVersionExpand`, `setUsedSettings` actions.
+- **`src/stores/useUIStore.ts`** — `autoReEnhance: boolean` + `setAutoReEnhance`.
+- **`src/components/QueueToolbar.tsx`** — Compact "Str" + "HF" sliders in Enhance tab (range inputs, live readout, 500ms debounce persist to backend); "Auto" toggle button. When Auto ON + slider changes → 800ms debounce re-enhances all done Enhance-tab jobs (saves their output as a version first).
+- **`src/components/QueueGrid.tsx`** — `EnhanceRowButton` now shows "Re-enhance" (RefreshCw, ghost style) when `job.status === 'done'`; saves version before kicking the new run. `SortableJobRow` FILENAME cell shows ChevronDown expand chevron for done rows with version history. `VersionSubRow` component: v# badge, filename, Str/HF settings used, timestamp, Reveal-in-Explorer button. `queue://status-change` listener calls `setUsedSettings` when status becomes `done`. Both grouped and flat table body render paths inject version sub-rows via `React.Fragment`.
+- **Verification:** `tsc --noEmit` → 0 errors; **38/38 Vitest** pass. Commit `996c151`.
+
 ---
 ## 14. Testing
 ```
