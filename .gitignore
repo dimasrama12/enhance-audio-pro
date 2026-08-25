@@ -76,7 +76,7 @@ ruvector.db
 .swarm/
 
 # Claude Code tool artifacts (local only)
-.claude/settings.local.json
+.claude/
 .claude-flow/
 
 # Logs
