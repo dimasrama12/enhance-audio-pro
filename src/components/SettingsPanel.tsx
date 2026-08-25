@@ -243,6 +243,17 @@ function FormatsTab(): JSX.Element {
   );
 }
 
+// ─── Guide section ─────────────────────────────────────────────────────────────
+
+function GuideSection({ title, children }: { title: string; children: React.ReactNode }): JSX.Element {
+  return (
+    <div>
+      <h5 className="text-[11px] font-semibold uppercase tracking-wider text-slate-500 dark:text-white/45 mb-1.5">{title}</h5>
+      <p className="text-xs text-slate-500 dark:text-white/50 leading-relaxed">{children}</p>
+    </div>
+  );
+}
+
 // ─── Section wrapper ──────────────────────────────────────────────────────────
 
 function Section({ title, children }: { title: string; children: React.ReactNode }): JSX.Element {
@@ -415,6 +426,16 @@ export default function SettingsPanel({ open, onClose }: Props): JSX.Element {
                           />
                         </button>
                       </div>
+                      <div className="mt-2 pt-2 border-t border-slate-200 dark:border-white/[0.06] flex flex-col gap-1.5">
+                        <p className="text-[10px] text-slate-400 dark:text-white/30 leading-relaxed">
+                          <span className="font-semibold text-slate-500 dark:text-white/45">Strength (Str):</span>{' '}
+                          Higher = more aggressive noise reduction, but may sound unnatural. Lower = more natural, but less noise removed.
+                        </p>
+                        <p className="text-[10px] text-slate-400 dark:text-white/30 leading-relaxed">
+                          <span className="font-semibold text-slate-500 dark:text-white/45">HF De-hiss:</span>{' '}
+                          The more negative = the cleaner from hiss, but the sound gets &lsquo;darker&rsquo;. The closer to 0 = more natural, but hiss is more noticeable.
+                        </p>
+                      </div>
                     </Section>
 
                     <Section title={t('settings.output')}>
@@ -517,9 +538,38 @@ export default function SettingsPanel({ open, onClose }: Props): JSX.Element {
 
                 {/* ── User Guide ───────────────────────────────────────── */}
                 {activeTab === 'guide' && (
-                  <div>
-                    <h4 className="text-sm font-semibold text-slate-800 dark:text-white/80 mb-3">{t('guide.title')}</h4>
-                    <p className="text-sm text-slate-500 dark:text-white/50 leading-relaxed">{t('guide.content')}</p>
+                  <div className="flex flex-col gap-5">
+                    <GuideSection title="Importing Files">
+                      Drop audio or video files onto the drop zone, or click the drop area to browse. Files appear instantly as rows in the queue below the drop zone.
+                    </GuideSection>
+
+                    <GuideSection title="Strength &amp; HF Sliders">
+                      The <strong>Str</strong> (Strength) and <strong>HF</strong> (High-Frequency de-hiss) sliders live in the main toolbar at the top of the Enhance tab — not in Settings. Adjust them before running enhancement. Str controls how aggressively noise is removed; HF controls hiss attenuation (more negative = cleaner but darker).
+                    </GuideSection>
+
+                    <GuideSection title="Auto Enhance on Drop">
+                      When <em>Auto Enhance on Drop</em> is enabled (Settings → Enhancement), every file added to the Enhance queue is processed automatically — no need to click a button. Turn it off for manual control over when processing starts.
+                    </GuideSection>
+
+                    <GuideSection title="Enhance All">
+                      Click <strong>Enhance All</strong> in the bottom-right corner to process all pending files in the queue. You can also press <kbd className="px-1.5 py-0.5 rounded bg-slate-200 dark:bg-white/10 font-mono text-[10px]">E</kbd> as a shortcut — it only triggers enhancement on pending files, never on already-processed ones.
+                    </GuideSection>
+
+                    <GuideSection title="Re-enhance a File">
+                      To re-process a finished file with new Str/HF settings, select it in the queue (it shows a green <em>Done</em> badge). The bottom-right button automatically changes to <strong>Re-enhance</strong>. Select multiple done files and it becomes <strong>Re-enhance All</strong>. Clicking it adds a fresh job to the top of the queue with the current slider settings. There is no keyboard shortcut for re-enhance — you must select a done file and click the button manually.
+                    </GuideSection>
+
+                    <GuideSection title="Output Filenames">
+                      Enhanced files are saved using the template in Settings → Output (default: <code className="px-1 rounded bg-slate-100 dark:bg-white/[0.06] font-mono text-[10px]">{'{name}'}_enhanced</code>). The Str and HF values used are also appended automatically — for example <code className="px-1 rounded bg-slate-100 dark:bg-white/[0.06] font-mono text-[10px]">vocal_enhanced_str50_hf-4.wav</code> — so each result is uniquely identifiable.
+                    </GuideSection>
+
+                    <GuideSection title="Waveform Player">
+                      Click the play icon on any queue row to open the waveform player. Use the A/B toggle to compare the original and enhanced audio side by side with live playback.
+                    </GuideSection>
+
+                    <GuideSection title="Recording">
+                      Click the microphone icon in the toolbar to record directly from your input device. Recordings are saved as WAV files and added straight to the active queue tab, named with the prefix set in Settings → Output.
+                    </GuideSection>
                   </div>
                 )}
 

@@ -3,12 +3,15 @@ import { useSettingsStore } from '@/stores/useSettingsStore';
 import { useUIStore } from '@/stores/useUIStore';
 import { useToastStore } from '@/stores/useToastStore';
 import {
+  invokeAddFiles,
   invokeProcessQueue,
   invokeConvertFiles,
   invokeCancelJobs,
   invokeSetJobStatus,
 } from '@/lib/ipc';
+import { logError } from '@/lib/errorLogger';
 import { createLogger } from '@/lib/logger';
+import type { QueueJob } from '@/types/queue';
 
 const log = createLogger('QueueActions');
 
@@ -57,6 +60,54 @@ export async function triggerConvertAll(): Promise<void> {
         console.error('Failed to auto-start convert job', err);
       });
     }
+  }
+}
+
+export async function triggerReEnhance(): Promise<void> {
+  const tab = useUIStore.getState().audioSubTab;
+  const { tabQueues, tabSelectedIds, insertJobAtTop, setUsedSettings } = useQueueStore.getState();
+  const { enhancementStrength, aiModel, hfDeHissDb } = useSettingsStore.getState();
+  const { addToast } = useToastStore.getState();
+
+  const selectedIds = tabSelectedIds[tab];
+  const jobs = tabQueues[tab];
+  const doneJobs: QueueJob[] = selectedIds
+    .map((id) => jobs.find((j) => j.id === id))
+    .filter((j): j is QueueJob => j !== undefined && j.status === 'done');
+
+  if (!doneJobs.length) return;
+
+  // Phase 1: add all new jobs to the store first (before any processing starts)
+  const newJobs: QueueJob[] = [];
+  for (const job of doneJobs) {
+    try {
+      const res = await invokeAddFiles([job.filepath]);
+      if (res.success && res.data && res.data.length > 0) {
+        const newJob = res.data[0];
+        insertJobAtTop(newJob, tab);
+        setUsedSettings(newJob.id, enhancementStrength, hfDeHissDb ?? -4);
+        newJobs.push(newJob);
+      } else {
+        addToast(`Re-enhance failed: ${res.error ?? 'Could not add file'}`, 'error');
+      }
+    } catch (err) {
+      logError('re-enhance', String(err));
+      addToast(`Re-enhance failed for "${job.filename}"`, 'error');
+    }
+  }
+
+  if (!newJobs.length) return;
+
+  // Phase 2: queue all new jobs, then start the first — mirrors triggerEnhanceAll
+  const hasActive = useQueueStore.getState().tabQueues[tab].some((j) => j.status === 'processing');
+  newJobs.forEach((j) => useQueueStore.getState().setStatus(j.id, 'queued'));
+  await Promise.all(newJobs.map((j) => invokeSetJobStatus(j.id, 'queued')));
+
+  if (!hasActive) {
+    const first = newJobs[0];
+    invokeProcessQueue([first.id], enhancementStrength, aiModel ?? 'deepfilternet', hfDeHissDb ?? -4).catch(
+      (err) => { console.error('Failed to start re-enhance job', err); },
+    );
   }
 }
 

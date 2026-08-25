@@ -30,8 +30,8 @@ import { useQueueStore } from '@/stores/useQueueStore';
 import { useShallow } from 'zustand/react/shallow';
 import { useUIStore, type AudioSubTab } from '@/stores/useUIStore';
 import { useSettingsStore } from '@/stores/useSettingsStore';
-import { invokeAddFiles, invokeSetOutputFormat, invokeArchiveJobs, invokeProcessQueue, invokeCancelJobs, invokeSetJobStatus, invokeCopyEnhancedFile, invokeConvertFiles, invokeDeleteFile } from '@/lib/ipc';
-import { triggerEnhanceAll, triggerConvertAll } from '@/lib/queueActions';
+import { invokeSetOutputFormat, invokeArchiveJobs, invokeProcessQueue, invokeCancelJobs, invokeSetJobStatus, invokeCopyEnhancedFile, invokeConvertFiles, invokeDeleteFile } from '@/lib/ipc';
+import { triggerEnhanceAll, triggerConvertAll, triggerReEnhance } from '@/lib/queueActions';
 import { useToastStore } from '@/stores/useToastStore';
 import { logError } from '@/lib/errorLogger';
 import i18n from '@/i18n';
@@ -243,7 +243,7 @@ function getSourceDir(filepath: string): string {
 function EnhanceRowButton({ job }: { job: QueueJob }): JSX.Element | null {
   const enhancementStrength = useSettingsStore((s) => s.enhancementStrength);
   const hfDeHissDb = useSettingsStore((s) => s.hfDeHissDb);
-  const { insertJobAtTop, setUsedSettings } = useQueueStore();
+  const { setUsedSettings } = useQueueStore();
   const { addToast } = useToastStore();
   const isProcessing = job.status === 'processing';
   const isQueued = job.status === 'queued';
@@ -261,30 +261,6 @@ function EnhanceRowButton({ job }: { job: QueueJob }): JSX.Element | null {
     const { aiModel } = useSettingsStore.getState();
     const tab = useUIStore.getState().audioSubTab;
 
-    if (isDone) {
-      // Re-enhance: create a new independent job at the top of the queue
-      try {
-        const res = await invokeAddFiles([job.filepath]);
-        if (res.success && res.data && res.data.length > 0) {
-          const newJob = res.data[0];
-          insertJobAtTop(newJob, tab);
-          setUsedSettings(newJob.id, enhancementStrength, hfDeHissDb ?? -4);
-          const tabJobs = useQueueStore.getState().tabQueues[tab];
-          const hasActive = tabJobs.some((j) => j.status === 'processing');
-          if (hasActive) {
-            useQueueStore.getState().setStatus(newJob.id, 'queued');
-            await invokeSetJobStatus(newJob.id, 'queued');
-            addToast(`Queued re-enhance of "${job.filename}"`, 'info');
-          } else {
-            await invokeProcessQueue([newJob.id], enhancementStrength, aiModel, hfDeHissDb ?? -4);
-          }
-        } else {
-          addToast(`Re-enhance failed: ${res.error ?? 'Could not add file'}`, 'error');
-        }
-      } catch (err) { logError('re-enhance', String(err)); addToast('Re-enhance failed', 'error'); }
-      return;
-    }
-
     setUsedSettings(job.id, enhancementStrength, hfDeHissDb ?? -4);
     const tabJobs = useQueueStore.getState().tabQueues[tab];
     const hasActive = tabJobs.some((j) => j.status === 'processing');
@@ -299,16 +275,7 @@ function EnhanceRowButton({ job }: { job: QueueJob }): JSX.Element | null {
     }
   }
 
-  if (isDone) {
-    return (
-      <button onClick={handleEnhance}
-        title="Re-enhance with current settings"
-        className="flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-medium transition-all duration-150 bg-slate-100/80 dark:bg-white/[0.05] text-slate-400 dark:text-zinc-500 hover:bg-violet-500/10 hover:text-violet-600 dark:hover:text-violet-400">
-        <RefreshCw size={10} />
-        Re-enhance
-      </button>
-    );
-  }
+  if (isDone) return null;
 
   return (
     <button onClick={handleEnhance}
@@ -431,6 +398,7 @@ function DownloadJobButton({ job }: { job: QueueJob }): JSX.Element | null {
 function QueueActionBar(): JSX.Element {
   const audioSubTab = useUIStore((s) => s.audioSubTab);
   const jobs = useQueueStore((s) => s.tabQueues[audioSubTab]);
+  const selectedIds = useQueueStore((s) => s.tabSelectedIds[audioSubTab]);
   const jobOpTypes = useQueueStore((s) => s.tabJobOpTypes[audioSubTab]);
   const importingIds = useQueueStore((s) => s.tabImportingIds[audioSubTab]);
 
@@ -439,13 +407,20 @@ function QueueActionBar(): JSX.Element {
   const isAnyConverting = activeJobs.some((j) => jobOpTypes[j.id] === 'convert');
   const isAnyEnhancing = activeJobs.some((j) => jobOpTypes[j.id] !== 'convert');
 
-  // "Enhance/Convert All" stays available while a per-row job runs — it queues
-  // the remaining pending rows. Dimmed import placeholders are excluded (not in DB).
+  // "Enhance/Convert All" stays available while a per-row job runs.
+  // Dimmed import placeholders are excluded (not in DB).
   const canEnhance =
     jobs.filter((j) => (j.status === 'pending' || j.status === 'error') && !importing.has(j.id))
       .length > 0;
   const canConvert =
     jobs.filter((j) => j.status === 'pending' && !importing.has(j.id)).length > 0;
+
+  // Count done jobs among the current selection to decide button mode.
+  const doneSelectedCount = selectedIds.filter(
+    (id) => jobs.find((j) => j.id === id)?.status === 'done',
+  ).length;
+  const isReEnhanceMode = audioSubTab === 'enhance' && doneSelectedCount > 0;
+  const reEnhanceLabel = doneSelectedCount === 1 ? 'Re-enhance' : 'Re-enhance All';
 
   const ghostBtn =
     'flex items-center justify-center gap-1.5 px-3.5 py-1.5 rounded-md text-xs font-medium transition-all duration-150 bg-slate-200 dark:bg-white/[0.06] text-slate-700 dark:text-slate-300 hover:bg-slate-300 dark:hover:bg-white/[0.10] disabled:opacity-40 disabled:cursor-not-allowed';
@@ -453,13 +428,22 @@ function QueueActionBar(): JSX.Element {
   return (
     <div className="flex justify-end items-center px-4 py-2 border-t border-slate-200 dark:border-white/[0.06] bg-white/90 dark:bg-[#0C1120]/90 backdrop-blur-sm shrink-0">
       {audioSubTab === 'enhance' && (
-        <button
-          onClick={() => { void triggerEnhanceAll(); }}
-          disabled={!canEnhance}
-          className="flex items-center justify-center gap-1.5 px-3.5 py-1.5 rounded-md text-xs font-medium transition-all duration-150 bg-violet-600 hover:bg-violet-500 text-white shadow-sm disabled:opacity-40 disabled:cursor-not-allowed"
-        >
-          {canEnhance ? 'Enhance All' : isAnyEnhancing ? 'Enhancing…' : 'Enhance All'}
-        </button>
+        isReEnhanceMode ? (
+          <button
+            onClick={() => { void triggerReEnhance(); }}
+            className="flex items-center justify-center gap-1.5 px-3.5 py-1.5 rounded-md text-xs font-medium transition-all duration-150 bg-emerald-500 hover:bg-emerald-400 text-white shadow-sm"
+          >
+            {reEnhanceLabel}
+          </button>
+        ) : (
+          <button
+            onClick={() => { void triggerEnhanceAll(); }}
+            disabled={!canEnhance}
+            className="flex items-center justify-center gap-1.5 px-3.5 py-1.5 rounded-md text-xs font-medium transition-all duration-150 bg-violet-600 hover:bg-violet-500 text-white shadow-sm disabled:opacity-40 disabled:cursor-not-allowed"
+          >
+            {canEnhance ? 'Enhance All' : isAnyEnhancing ? 'Enhancing…' : 'Enhance All'}
+          </button>
+        )
       )}
       {audioSubTab === 'convert' && (
         <button
