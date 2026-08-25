@@ -10,9 +10,7 @@ import { useSettingsStore } from '@/stores/useSettingsStore';
 import { useUIStore } from '@/stores/useUIStore';
 import type { AudioSubTab } from '@/stores/useUIStore';
 import {
-  invokeProcessQueue,
   invokeArchiveJobs,
-  invokeSetJobStatus,
   invokeSaveSettings,
 } from '@/lib/ipc';
 import type { ViewMode } from '@/stores/useQueueStore';
@@ -42,9 +40,6 @@ export default function QueueToolbar(): JSX.Element {
   const activeTab = useUIStore((s) => s.activeTab);
   const audioSubTab = useUIStore((s) => s.audioSubTab);
   const setAudioSubTab = useUIStore((s) => s.setAudioSubTab);
-  const autoReEnhance = useUIStore((s) => s.autoReEnhance);
-  const setAutoReEnhance = useUIStore((s) => s.setAutoReEnhance);
-
   // Per-tab state reads
   const filter = useQueueStore((s) => s.tabFilters[audioSubTab]);
   const searchQuery = useQueueStore((s) => s.tabSearches[audioSubTab]);
@@ -56,41 +51,7 @@ export default function QueueToolbar(): JSX.Element {
 
   const searchRef = useRef<HTMLInputElement>(null);
   const saveDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const autoReEnhanceDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const { t } = useTranslation();
-
-  function scheduleAutoReEnhance(): void {
-    if (autoReEnhanceDebounceRef.current) clearTimeout(autoReEnhanceDebounceRef.current);
-    autoReEnhanceDebounceRef.current = setTimeout(() => {
-      const { enhancementStrength: str, hfDeHissDb: hf, aiModel } = useSettingsStore.getState();
-      const { tabQueues, jobVersionHistory, saveVersion, setUsedSettings } = useQueueStore.getState();
-      const doneJobs = tabQueues['enhance'].filter((j) => j.status === 'done' && j.output_filepath);
-      if (!doneJobs.length) return;
-
-      doneJobs.forEach((job) => {
-        const history = jobVersionHistory[job.id] ?? [];
-        saveVersion(job.id, {
-          versionIndex: history.length + 1,
-          outputFilepath: job.output_filepath!,
-          strength: job.usedStrength ?? str,
-          hfDeHissDb: job.usedHfDeHissDb ?? (hf ?? -4),
-          createdAt: Date.now(),
-        });
-        setUsedSettings(job.id, str, hf ?? -4);
-        useQueueStore.getState().setStatus(job.id, 'queued');
-        void invokeSetJobStatus(job.id, 'queued');
-      });
-
-      const freshJobs = useQueueStore.getState().tabQueues['enhance'];
-      const isAnyProcessing = freshJobs.some((j) => j.status === 'processing');
-      if (!isAnyProcessing) {
-        const nextQueued = freshJobs.find((j) => j.status === 'queued');
-        if (nextQueued) {
-          invokeProcessQueue([nextQueued.id], str, aiModel, hf ?? -4).catch(console.error);
-        }
-      }
-    }, 800);
-  }
 
   function handleStrengthChange(value: number): void {
     setEnhancementStrength(value);
@@ -99,7 +60,6 @@ export default function QueueToolbar(): JSX.Element {
       const s = useSettingsStore.getState();
       void invokeSaveSettings(s as unknown as AppSettings);
     }, 500);
-    if (autoReEnhance) scheduleAutoReEnhance();
   }
 
   function handleHfChange(value: number): void {
@@ -109,7 +69,6 @@ export default function QueueToolbar(): JSX.Element {
       const s = useSettingsStore.getState();
       void invokeSaveSettings(s as unknown as AppSettings);
     }, 500);
-    if (autoReEnhance) scheduleAutoReEnhance();
   }
 
   useEffect(() => {
@@ -190,7 +149,7 @@ export default function QueueToolbar(): JSX.Element {
         })}
       </div>
 
-      {/* ── Enhance-tab sliders + Auto toggle ── */}
+      {/* ── Enhance-tab sliders ── */}
       {audioSubTab === 'enhance' && (
         <div className="flex items-center gap-3 bg-slate-100 dark:bg-white/[0.03] rounded-xl px-3 py-1.5 border border-slate-200 dark:border-white/[0.06]">
           <div className="flex items-center gap-1.5">
@@ -216,19 +175,6 @@ export default function QueueToolbar(): JSX.Element {
               {(hfDeHissDb ?? -4) > 0 ? '+' : ''}{hfDeHissDb ?? -4} dB
             </span>
           </div>
-          <div className="w-px h-3 bg-slate-300 dark:bg-white/[0.12] shrink-0" />
-          <button
-            onClick={() => setAutoReEnhance(!autoReEnhance)}
-            title={autoReEnhance ? 'Auto re-enhance ON — slider changes re-enhance done files' : 'Auto re-enhance OFF'}
-            className={clsx(
-              'px-2 py-0.5 rounded text-[10px] font-medium transition-all duration-150 select-none',
-              autoReEnhance
-                ? 'bg-violet-500/15 text-violet-600 dark:text-violet-400 ring-1 ring-violet-500/30'
-                : 'text-slate-400 dark:text-zinc-500 hover:text-slate-600 dark:hover:text-zinc-300 hover:bg-slate-200 dark:hover:bg-white/[0.06]',
-            )}
-          >
-            Auto
-          </button>
         </div>
       )}
 
