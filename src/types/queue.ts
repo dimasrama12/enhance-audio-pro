@@ -1,16 +1,6 @@
 export type MediaType = 'audio' | 'video';
 export type JobStatus = 'pending' | 'queued' | 'processing' | 'done' | 'error';
 
-// A saved past enhancement — stored in session memory when a job is re-enhanced.
-// The "terminal children" of the versioning model live here (not in SQLite).
-export interface EnhanceVersion {
-  versionIndex: number;    // 1-based (v1 = first enhanced output)
-  outputFilepath: string;
-  strength: number;
-  hfDeHissDb: number;
-  createdAt: number;       // Date.now()
-}
-
 export interface QueueJob {
   id: string;
   filename: string;

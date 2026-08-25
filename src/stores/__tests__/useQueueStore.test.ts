@@ -210,4 +210,22 @@ describe('useQueueStore', () => {
     expect(groups[0].label).toBe('MP3');
     expect(groups[1].label).toBe('WAV');
   });
+
+  it('insertJobAtTop places a new job at index 0 without duplicating an existing job', () => {
+    useQueueStore.setState({
+      tabQueues: { enhance: [makeJob({ id: 'a' }), makeJob({ id: 'b' })], convert: [] },
+    });
+    useQueueStore.getState().insertJobAtTop(makeJob({ id: 'new' }), TAB);
+    const ids = getTabJobs().map((j) => j.id);
+    expect(ids).toEqual(['new', 'a', 'b']);
+  });
+
+  it('insertJobAtTop is a no-op if the job id already exists in the tab', () => {
+    useQueueStore.setState({
+      tabQueues: { enhance: [makeJob({ id: 'a' }), makeJob({ id: 'b' })], convert: [] },
+    });
+    useQueueStore.getState().insertJobAtTop(makeJob({ id: 'a' }), TAB);
+    expect(getTabJobs()).toHaveLength(2);
+    expect(getTabJobs()[0].id).toBe('a');
+  });
 });

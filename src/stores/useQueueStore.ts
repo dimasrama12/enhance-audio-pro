@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import type { QueueJob, JobStatus, EnhanceVersion } from '@/types/queue';
+import type { QueueJob, JobStatus } from '@/types/queue';
 import type { AudioSubTab } from '@/stores/useUIStore';
 import { useUIStore } from '@/stores/useUIStore';
 import { evictPrewarm } from '@/lib/audioPreload';
@@ -53,15 +53,15 @@ interface QueueState {
   tabGroupByFormat: Record<AudioSubTab, boolean>;
   tabJobOpTypes: Record<AudioSubTab, Record<string, 'enhance' | 'convert'>>;
 
-  // ── Version history (terminal-children, session-scoped) ────────────────────
-  // Past enhanced outputs saved when a done job is re-enhanced.
-  // Keys are parent job IDs; values are ordered oldest→newest.
-  jobVersionHistory: Record<string, EnhanceVersion[]>;
-  expandedVersionIds: Set<string>;   // which parent rows show version sub-rows
-  saveVersion: (jobId: string, version: EnhanceVersion) => void;
-  clearVersionHistory: (jobId: string) => void;
-  toggleVersionExpand: (jobId: string) => void;
+  // ── Version settings capture ────────────────────────────────────────────────
+  // Records which str/hf values were used when a job reaches 'done'.
+  // Read by the StrHfBadges component in QueueGrid.
   setUsedSettings: (jobId: string, strength: number, hfDeHissDb: number) => void;
+
+  // ── Re-enhance ─────────────────────────────────────────────────────────────
+  // Inserts a freshly-added job at the top (index 0) of the specified tab queue.
+  // Used by EnhanceRowButton to start a new independent enhancement run.
+  insertJobAtTop: (job: QueueJob, tab?: AudioSubTab) => void;
 
   // ── Helpers ────────────────────────────────────────────────────────────────
   findJobTab: (id: string) => AudioSubTab | null;
@@ -136,37 +136,20 @@ export const useQueueStore = create<QueueState>()(
       tabGroupByFormat: emptyPerTab(() => false),
       tabJobOpTypes: emptyPerTab(() => ({} as Record<string, 'enhance' | 'convert'>)),
 
-      // ── Version history ───────────────────────────────────────────────────────
-      jobVersionHistory: {} as Record<string, EnhanceVersion[]>,
-      expandedVersionIds: new Set<string>(),
-
-      saveVersion: (jobId, version) =>
-        set((s) => ({
-          jobVersionHistory: {
-            ...s.jobVersionHistory,
-            [jobId]: [...(s.jobVersionHistory[jobId] ?? []), version],
-          },
-        })),
-
-      clearVersionHistory: (jobId) =>
-        set((s) => {
-          const { [jobId]: _, ...rest } = s.jobVersionHistory;
-          return { jobVersionHistory: rest };
-        }),
-
-      toggleVersionExpand: (jobId) =>
-        set((s) => {
-          const next = new Set(s.expandedVersionIds);
-          if (next.has(jobId)) next.delete(jobId); else next.add(jobId);
-          return { expandedVersionIds: next };
-        }),
-
+      // ── Version settings capture ──────────────────────────────────────────────
       setUsedSettings: (jobId, strength, hfDeHissDb) =>
         set((s) => ({
           tabQueues: updateJobById(s.tabQueues, jobId, (j) => ({
             ...j, usedStrength: strength, usedHfDeHissDb: hfDeHissDb,
           })),
         })),
+
+      insertJobAtTop: (job, tab) =>
+        set((s) => {
+          const t = tab ?? useUIStore.getState().audioSubTab;
+          if (s.tabQueues[t].some((j) => j.id === job.id)) return s;
+          return { tabQueues: { ...s.tabQueues, [t]: [job, ...s.tabQueues[t]] } };
+        }),
 
       // ── Helpers ──────────────────────────────────────────────────────────────
       findJobTab: (id) => {

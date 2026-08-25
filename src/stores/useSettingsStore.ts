@@ -18,6 +18,7 @@ interface SettingsState extends AppSettings {
   setRecordingPrefix: (prefix: string) => void;
   setAiModel: (model: 'deepfilternet') => void;
   setScratchDiskDir: (dir: string) => void;
+  setAutoEnhanceOnDrop: (v: boolean) => void;
   markSetupComplete: () => void;
   setInitialized: (v: boolean) => void;
 }
@@ -40,6 +41,7 @@ export const useSettingsStore = create<SettingsState>()(
       setRecordingPrefix: (recordingPrefix) => set({ recordingPrefix }),
       setAiModel: (aiModel: 'deepfilternet') => set({ aiModel }),
       setScratchDiskDir: (scratchDiskDir) => set({ scratchDiskDir }),
+      setAutoEnhanceOnDrop: (autoEnhanceOnDrop) => set({ autoEnhanceOnDrop }),
       markSetupComplete: () => set({ setupComplete: true }),
       setInitialized: (initialized) => set({ initialized }),
     }),
@@ -58,6 +60,7 @@ export const useSettingsStore = create<SettingsState>()(
         recordingPrefix: state.recordingPrefix,
         aiModel: state.aiModel,
         scratchDiskDir: state.scratchDiskDir,
+        autoEnhanceOnDrop: state.autoEnhanceOnDrop,
       }),
     }
   )

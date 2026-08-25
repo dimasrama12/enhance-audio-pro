@@ -104,6 +104,7 @@ export interface AppSettings {
   recordingPrefix?: string;
   aiModel: 'deepfilternet';
   scratchDiskDir?: string;
+  autoEnhanceOnDrop?: boolean;
 }
 
 export const DEFAULT_SETTINGS: AppSettings = {
@@ -120,4 +121,5 @@ export const DEFAULT_SETTINGS: AppSettings = {
   recordingPrefix: 'Record',
   aiModel: 'deepfilternet',
   scratchDiskDir: '',
+  autoEnhanceOnDrop: false,
 };
