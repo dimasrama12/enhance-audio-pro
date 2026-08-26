@@ -1,665 +1,160 @@
-# PLAN.md — src/ Audit & Upgrade Plan
-> Scope: `src/` directory only · No new dependencies · No stylistic reformatting  
-> Status: **COMPLETE** — commit `5f5adb7` (2026-08-25)
+# Enhance Audio Pro — Active Development Plan
+
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+
+**Goal:** Fix two confirmed bugs (queue concurrency + slider locking), then outline the next tier of feature and performance improvements for Enhance Audio Pro v0.2.x.
+
+**Architecture:** Tauri v2 desktop app — React + Zustand frontend, Rust IPC core, Python FastAPI sidecar (DeepFilterNet). All audio processing is strictly offline. Communication is Tauri `invoke` → Rust HTTP → Python asyncio.
+
+**Tech Stack:** TypeScript / React 18 / Zustand / Vitest · Rust / Tauri v2 · Python 3.11 / FastAPI / DeepFilterNet3 / torchaudio
+
+**Spec:** This file is self-contained; see `CLAUDE.md §13` for feature history.
+
+## Global Constraints
+
+- Never process the original file — output always goes to a separate destination path.
+- No external network calls for audio processing. All AI is local.
+- Build command: `$env:CARGO_TARGET_DIR='D:\cargo_build\enhance-audio-pro'; npm run tauri build -- --target x86_64-pc-windows-gnu`
+- Installer lands at: `D:\cargo_build\enhance-audio-pro\x86_64-pc-windows-gnu\release\bundle\nsis\`
+- Frontend tests: `npx vitest run` (must be 53/53 green before any commit)
+- TypeScript: `npx tsc --noEmit` must report 0 errors before any commit
 
 ---
 
-## Executive Summary
+## COMPLETED TASKS (this session, 2026-08-26)
 
-An autonomous audit of the `src/` directory found **17 actionable issues** across four categories. No changes are made here — each item below specifies the exact file, line range, problem, and the minimal code change required to fix it.
+### Task 1 — Queue Concurrency Bug (DONE ✅)
 
-| # | Severity | Category | File | Issue |
-|---|----------|----------|------|-------|
-| 1 | 🔴 HIGH | Bug | `audioPreload.ts` | Blob URL memory leak — prewarmCache grows unboundedly |
-| 2 | 🔴 HIGH | Bug | `useQueueStore.ts` | `setTimeout` inside Zustand `set()` updater |
-| 3 | 🔴 HIGH | Performance | `QueueGrid.tsx` | `querySelectorAll` on every `mousemove` event (60 fps × O(n)) |
-| 4 | 🔴 HIGH | Performance | `QueueGrid.tsx` | `filteredJobs` selector returns new array on every state tick |
-| 5 | 🟠 MED | Bug | `QueueGrid.tsx` | `status as JobStatus` unsafe cast from backend event |
-| 6 | 🟠 MED | Bug | `useKeyboardShortcuts.ts` | Alt+X closes app with no processing-job check |
-| 7 | 🟠 MED | Bug | `App.tsx` | Settings merge puts full in-memory store over backend data |
-| 8 | 🟠 MED | Bug | `useAudioPlayer.ts` | `onended`/`onpause` handlers re-assigned on every `play()` call |
-| 9 | 🟠 MED | Performance | `useKeyboardShortcuts.ts` / `QueueToolbar.tsx` | Sequential `await invokeSetJobStatus` in for-loops |
-| 10 | 🟠 MED | Structural | `useQueueStore.ts` | Cross-store dependency: reads `useUIStore` inside state updater |
-| 11 | 🟠 MED | Structural | Multiple | i18n gap — `window.confirm` strings hardcoded English (16 languages ignored) |
-| 12 | 🟡 LOW | Performance | `audioPreload.ts` | `prewarmCache` has no size cap — memory grows with each imported file |
-| 13 | 🟡 LOW | Structural | `audioPreload.ts` / `WaveformPlayer.tsx` | `getMimeType` duplicated across two files |
-| 14 | 🟡 LOW | Structural | `QueueGrid.tsx` | Custom DOM events as cross-component bus (`action:enhance` / `action:convert`) |
-| 15 | 🟡 LOW | Structural | `QueueGrid.tsx` | `audioSubTab` prop typed as `string`, cast unsafely inside components |
-| 16 | 🟡 LOW | Structural | `DropZone.tsx` | Redundant `useCallback` + `useRef` pattern for `handleFiles` |
-| 17 | 🟡 LOW | Bug | `RecordButton.tsx` | Deprecated `ScriptProcessorNode` (`eslint-disable` already acknowledges it) |
+**Root cause (systematic-debugging):** The `queue://status-change` listener in `QueueGrid.tsx` wrapped the auto-advance in `setTimeout(callback, 100)`. This created a 100 ms race window where:
+1. Job A's `done` event fires → `setStatus(A, done)` in Zustand → `setTimeout(advance, 100ms)` scheduled
+2. A second `done/error/pending` event fires within 100 ms → second `setTimeout(advance, 100ms)` scheduled
+3. Both timeouts fire; both read Zustand state; both find job B as `queued` (the backend's `processing` event for B hasn't arrived yet — can take 50–500 ms)
+4. Both call `invokeProcessQueue([B])` — B gets dispatched twice and starts processing before A is confirmed done
+
+**Fix applied:**
+- `src/lib/queueActions.ts` — added `autoAdvanceQueue(tab)` (extracted, testable) + module-level dispatch guard `_lastDispatchedJobId` that prevents the same job being dispatched twice; `clearDispatchGuard(jobId)` resets the guard when the backend confirms the job started processing
+- `src/components/QueueGrid.tsx` — replaced the `setTimeout`-based block with synchronous `autoAdvanceQueue(jobTab)` on `done/error`; added `clearDispatchGuard(jobId)` on `processing`; removed `pending` from the auto-advance trigger (semantically wrong)
+- 6 new Vitest tests proving: sequential dispatch, guard blocks double-dispatch, guard clears correctly for next job, convert-mode routing
+
+**Files changed:** `src/lib/queueActions.ts`, `src/components/QueueGrid.tsx`, `src/lib/__tests__/queueActions.test.ts`
 
 ---
 
-## Category A — Bugs
+### Task 2 — Slider Locking During Processing (DONE ✅)
 
-### A1 🔴 Blob URL memory leak in `audioPreload.ts`
-**File:** `src/lib/audioPreload.ts`  
-**Lines:** 14–46
+**Root cause:** The Str and HF sliders in `QueueToolbar.tsx` had no awareness of queue state. A user could adjust parameters mid-flight, causing the already-dispatched job to finish with one set of values while the UI showed different values, creating a confusing mismatch.
 
-**Problem:** `prewarmCache` is a module-level `Map` with no size cap and no eviction. `evictPrewarm(filepath)` is exported but is **never called anywhere** in the codebase. Every file imported creates a Blob URL that is stored permanently. On a long editing session with hundreds of files this leaks memory continuously.
+**Fix applied:**
+- `src/components/QueueToolbar.tsx` — added `isProcessing` selector (`tabQueues['enhance'].some(j => j.status === 'processing')`); slider container gets `opacity-45 pointer-events-none cursor-not-allowed` + a small "locked" label when true; both `<input type="range">` elements receive `disabled={isProcessing}` and shift to `accent-slate-400 cursor-not-allowed` styling; tooltip changes to "Locked while processing"
 
-**Evidence:**  
-- `prewarmCache` grows without bound in `prewarmAudio()`
-- `grep evictPrewarm src/**` returns only the declaration — zero call sites
+**Design rationale (frontend-design skill):** Fade the entire control group (not just individual sliders) so the lock reads as a single semantic unit. The "locked" micro-label is direct and non-apologetic — it states what state the UI is in. Accent color shifts to neutral gray so the slider thumb itself signals unavailability without requiring an icon.
 
-**Fix — add a LRU cap inside `prewarmAudio` and wire eviction to `deleteJobs`:**
+**Files changed:** `src/components/QueueToolbar.tsx`
 
-```ts
-// src/lib/audioPreload.ts
-const MAX_PREWARM = 50;
+---
 
-export function prewarmAudio(filepath: string): void {
-  if (prewarmCache.has(filepath) || inFlight.has(filepath)) return;
+## PROPOSED IMPROVEMENTS — NEXT ITERATIONS
 
-  // Evict oldest entry if at cap
-  if (prewarmCache.size >= MAX_PREWARM) {
-    const oldest = prewarmCache.keys().next().value;
-    if (oldest) evictPrewarm(oldest);
-  }
+### P1 — High Impact, Low Risk
 
-  inFlight.add(filepath);
-  // ... rest unchanged
-}
+#### P1-A: Batch-enhance parameter snapshot per run
+**Problem:** When a batch of 10 files is enhanced and the user wants to know what settings were used for file 3, they have to look at the Str/HF badges per row — but there's no batch-level summary.  
+**Proposal:** When "Enhance All" is triggered, snapshot `{ enhancementStrength, hfDeHissDb, timestamp }` and store it as a session-level "run record" in Zustand. Display as a collapsed header row above each batch group (e.g. `Run 1 — Str 50, HF −4 dB, Aug 26 10:45`).  
+**Files:** `src/stores/useQueueStore.ts` (new `runs` slice), `src/components/QueueGrid.tsx` (run header row)
+
+#### P1-B: Cancel in-flight enhancement on app close
+**Problem:** If the user closes the app while a job is processing, the Python sidecar may leave a half-written output file. The cleanup in `lib.rs` only deletes the scratch cache, not the partial output.  
+**Proposal:** In `lib.rs::on_window_event(CloseRequested)`, query SQLite for any `processing` jobs; call `cancel_jobs` for each before killing the sidecar. Add a corresponding `DELETE FROM queue_jobs WHERE status='processing'` reset in Python's shutdown handler.  
+**Files:** `src-tauri/src/lib.rs`, `backend/routers/enhance.py`
+
+#### P1-C: Persist queue across restarts (opt-in)
+**Problem:** Closing and reopening the app clears the queue (by design — `App.tsx` `sessionStorage` gate). Power users processing large overnight batches would benefit from an opt-in "resume queue on restart" toggle in Settings.  
+**Proposal:** Add `persistQueueOnRestart: boolean` to `AppSettings`; skip the `clearQueue` gate in `App.tsx` when enabled; on startup, restore queue from SQLite via `invokeGetQueue` and only clear jobs that were `processing` (since they were interrupted) — reset them to `pending`.  
+**Files:** `src/types/settings.ts`, `src/stores/useSettingsStore.ts`, `src/App.tsx`, `src-tauri/src/commands/queue.rs`
+
+---
+
+### P2 — Feature Additions
+
+#### P2-A: Batch download / export folder
+**Problem:** After enhancing 20 files, the user must click each row's Download button individually to save them.  
+**Proposal:** "Save All" button in `QueueActionBar` (enabled when ≥2 done jobs exist); opens a folder picker; iterates `invokeCopyEnhancedFile` for all done jobs into the chosen folder; shows a progress toast.  
+**Files:** `src/components/QueueGrid.tsx` (QueueActionBar), `src/lib/ipc.ts` (already has `invokeCopyEnhancedFile`)
+
+#### P2-B: Queue filter memory
+**Problem:** Every session the filter resets to "All". Power users who always want to see only "Pending" or "Error" have to reset it every time.  
+**Proposal:** Persist `tabFilters` to localStorage (currently not in `partialize` — only `tabQueues`, `tabViewModes`, `tabGroupByFormat`, `tabLockedIds` are persisted). One-line change to `useQueueStore.ts` `partialize`.  
+**Files:** `src/stores/useQueueStore.ts`
+
+#### P2-C: Retry All Errors button
+**Problem:** If 5 files fail due to a transient CUDA OOM, the user must click Retry on each row individually.  
+**Proposal:** In `QueueActionBar`, show a "Retry Errors" button (amber, ghost style) when any error jobs exist in the tab. Clicking it resets all error jobs to `pending` via `invokeSetJobStatus` in batch, then calls `triggerEnhanceAll`.  
+**Files:** `src/components/QueueGrid.tsx`, `src/lib/queueActions.ts`
+
+#### P2-D: Drag-and-drop between Enhance and Convert tabs
+**Problem:** A file added to the Enhance tab cannot be moved to Convert without deleting and re-adding.  
+**Proposal:** On drag-over a tab pill in `QueueToolbar`, highlight the pill; on drop completion (`onDragEnd`), check if the drop target is a different tab, then call `deleteJobs` on the source tab and `addJobs` on the destination tab for the dragged job(s). Keep `status: 'pending'` — reset any in-progress state.  
+**Files:** `src/components/QueueToolbar.tsx`, `src/components/QueueGrid.tsx`
+
+---
+
+### P3 — Performance Improvements
+
+#### P3-A: Waveform preload on hover (not on click)
+**Current:** WaveformPlayer loads audio only when the user opens it. For large files this can take 1–2 seconds.  
+**Proposal:** On row `mouseenter`, begin preloading the WaveSurfer buffer into `audioPreload.ts`'s warm cache. Cancel preload on `mouseleave` if not yet started. Add a 300 ms hover debounce to avoid thrashing during fast scrolling.  
+**Files:** `src/components/QueueGrid.tsx` (SortableJobRow), `src/lib/audioPreload.ts`
+
+#### P3-B: Backend model warm-up ping
+**Current:** First enhancement after cold start can take 15–30 seconds while DeepFilterNet loads weights from disk.  
+**Proposal:** After the sidecar health-check passes in `sidecar/manager.rs`, send a no-op `POST /enhance` with an empty job list to trigger model warm-up asynchronously. The user sees the queue as ready but the first job will be faster.  
+**Files:** `src-tauri/src/sidecar/manager.rs`, `backend/routers/enhance.py` (handle empty jobIds gracefully)
+
+#### P3-C: SQLite WAL mode + batch writes
+**Current:** Every `invokeSetJobStatus` call is a separate SQLite write. For a 50-job batch, "Enhance All" triggers 50 individual writes.  
+**Proposal:** Enable WAL journal mode in `db/migrations.rs` (`PRAGMA journal_mode=WAL`); expose a `batch_set_job_status(ids, status)` Rust command; update `triggerEnhanceAll` and `triggerConvertAll` to use it for the initial `queued` mass-update.  
+**Files:** `src-tauri/src/db/migrations.rs`, `src-tauri/src/commands/process.rs`, `src/lib/ipc.ts`, `src/lib/queueActions.ts`
+
+#### P3-D: Frontend virtual list for large queues
+**Current:** `QueueGrid` renders all jobs as real DOM nodes. At 500+ files the scroll becomes sluggish.  
+**Proposal:** Integrate `@tanstack/react-virtual` (already in the React ecosystem) for the table-view body. Only render ±20 visible rows plus overscan. Card/grid view can stay as-is (CSS grid handles moderate counts well).  
+**Files:** `src/components/QueueGrid.tsx`, `package.json`
+
+---
+
+### P4 — Quality & Observability
+
+#### P4-A: Structured error logging to file
+**Current:** `logError` in `src/lib/errorLogger.ts` calls `invokeAppendErrorLog` which writes to a plain text file.  
+**Proposal:** Switch to JSON-lines format (`{ timestamp, level, context, message, detail }`) so the log is machine-parseable. Add a "View Error Log" button to Settings → General that opens the log file path in Explorer. Cap log file at 500 KB with a rolling truncation.  
+**Files:** `src/lib/errorLogger.ts`, `src-tauri/src/commands/` (new `open_log_file` command), `src/components/SettingsPanel.tsx`
+
+#### P4-B: Backend version mismatch detection
+**Current:** If the user installs a new version over an old one without uninstalling, the old sidecar binary may still be in `binaries/`. No version check happens.  
+**Proposal:** Embed the app version in the Python sidecar's `/health` response (`{ status: 'ok', version: '0.2.4' }`). Rust reads it after the health-check; if `sidecar_version != app_version`, emit a warning toast and log it.  
+**Files:** `backend/routers/health.py`, `src-tauri/src/sidecar/manager.rs`
+
+---
+
+## Build & Deploy Reference
+
+```powershell
+# Sidecar (Python) — run from backend/ directory
+py -3.11 -m PyInstaller build.spec --clean --noconfirm
+
+# Copy to Tauri binaries (both triples required)
+cp dist\backend.exe ..\src-tauri\binaries\backend-x86_64-pc-windows-gnu.exe
+cp dist\backend.exe ..\src-tauri\binaries\backend-x86_64-pc-windows-msvc.exe
+
+# Full installer (CRITICAL: must use --target flag)
+$env:CARGO_TARGET_DIR='D:\cargo_build\enhance-audio-pro'
+npm run tauri build -- --target x86_64-pc-windows-gnu
+
+# Output path
+# D:\cargo_build\enhance-audio-pro\x86_64-pc-windows-gnu\release\bundle\nsis\Enhance Audio Pro_0.2.4_x64-setup.exe
+
+# Quick no-bundle binary for testing
+npm run tauri build -- --no-bundle
 ```
 
-Call `evictPrewarm` in `useQueueStore.deleteJobs` after removing jobs:
-```ts
-// src/stores/useQueueStore.ts — deleteJobs action (after existing removal logic)
-import { evictPrewarm } from '@/lib/audioPreload';
-
-deleteJobs: (ids, tab) =>
-  set((s) => {
-    const t = getActiveSubTab(tab);
-    // Revoke prewarmed audio blobs for deleted jobs
-    const deleted = s.tabQueues[t].filter((j) => ids.includes(j.id));
-    deleted.forEach((j) => evictPrewarm(j.filepath));
-    return {
-      tabQueues: { ...s.tabQueues, [t]: s.tabQueues[t].filter((j) => !ids.includes(j.id)) },
-      // ... rest of existing return object unchanged
-    };
-  }),
-```
-
----
-
-### A2 🔴 `setTimeout` inside Zustand `set()` updater
-**File:** `src/stores/useQueueStore.ts`  
-**Lines:** 197–204
-
-**Problem:** The `addJobs` action calls `setTimeout` **inside** the `set()` updater callback. This is an anti-pattern — state updaters must be pure (no side-effects). The timer fires 1.5 s later and calls `useQueueStore.setState` from a stale closure captured at `set()` time. In tests this causes "act()" warnings. In production it can fire after the store state has already moved on (e.g., a job was resolved by `resolvePlaceholder` before the timeout clears it, only to re-clear it unnecessarily).
-
-**Root cause:** `addJobs` is used by `RecordButton` to add a freshly saved recording. The original author wanted the recording row to briefly appear dimmed (importing) then light up. The 1 500 ms timeout was meant to mimic the placeholder→resolve pattern.
-
-**Fix — hoist the `setTimeout` outside of `set()`:**
-
-```ts
-// src/stores/useQueueStore.ts — replace addJobs
-addJobs: (newJobs, tab) => {
-  let t: AudioSubTab;
-  let newIds: string[] = [];
-
-  set((s) => {
-    t = getActiveSubTab(tab);
-    const existing = new Set(s.tabQueues[t].map((j) => j.id));
-    const unique = newJobs.filter((j) => !existing.has(j.id));
-    if (!unique.length) return s;
-    newIds = unique.map((j) => j.id);
-    return {
-      tabQueues: { ...s.tabQueues, [t]: [...s.tabQueues[t], ...unique] },
-      tabImportingIds: {
-        ...s.tabImportingIds,
-        [t]: [...new Set([...s.tabImportingIds[t], ...newIds])],
-      },
-    };
-  });
-
-  if (newIds.length) {
-    setTimeout(() => {
-      useQueueStore.setState((prev) => ({
-        tabImportingIds: {
-          ...prev.tabImportingIds,
-          [t]: prev.tabImportingIds[t].filter((id) => !newIds.includes(id)),
-        },
-      }));
-    }, 1500);
-  }
-},
-```
-
----
-
-### A3 🟠 Unsafe `status as JobStatus` cast from backend event
-**File:** `src/components/QueueGrid.tsx`  
-**Lines:** 880–883 (inside the `queue://status-change` listener)
-
-**Problem:** The backend can theoretically return any string for `status`. Casting it directly with `status as JobStatus` means an unexpected value (e.g., `"cancelled"` from a Python error path) silently propagates into the store and renders incorrectly.
-
-**Fix — validate before casting:**
-
-```ts
-// src/components/QueueGrid.tsx — at the top of the file, near other constants
-const VALID_JOB_STATUSES = new Set<string>(['pending', 'queued', 'processing', 'done', 'error']);
-
-// Inside the queue://status-change listener, replace:
-//   setStatus(jobId, status as JobStatus, error_message);
-// With:
-const safeStatus: JobStatus = VALID_JOB_STATUSES.has(status)
-  ? (status as JobStatus)
-  : 'error';
-setStatus(jobId, safeStatus, error_message ?? `Unexpected status: ${status}`);
-```
-
----
-
-### A4 🟠 Alt+X closes window without checking active jobs
-**File:** `src/hooks/useKeyboardShortcuts.ts`  
-**Lines:** 267–268
-
-**Problem:** `if (matches(e, sc.exit)) { await win.close(); return; }` — this fires the Tauri window close immediately. The `CloseRequested` handler in Rust kills the sidecar and cleans up, but any in-progress enhance/convert jobs are silently aborted with no user warning. The app already shows a `window.confirm` when deleting processing items, but the shortcut bypasses this.
-
-**Fix:**
-
-```ts
-// src/hooks/useKeyboardShortcuts.ts — replace the exit handler
-if (matches(e, sc.exit)) {
-  const allJobs = Object.values(useQueueStore.getState().tabQueues).flat();
-  const hasActive = allJobs.some((j) => j.status === 'processing' || j.status === 'queued');
-  if (hasActive) {
-    const ok = window.confirm(
-      'Files are still being processed. Exit and discard progress?'
-    );
-    if (!ok) return;
-  }
-  await win.close();
-  return;
-}
-```
-
----
-
-### A5 🟠 Settings merge overwrites backend-authoritative fields with in-memory defaults
-**File:** `src/App.tsx`  
-**Lines:** 35–41
-
-**Problem:** `settingsRef.current()` returns the full Zustand store state (including all action methods and `initialized: false`). Spreading it as `{ ...settingsRes.data, ...persisted }` means **every field in the in-memory store wins over the fresh backend response** — including `setupComplete`, which is `true` in `DEFAULT_SETTINGS` but intentionally NOT in `partialize`. If the Rust backend ever returns `setupComplete: false` (models missing), the frontend would override it with `true` and skip the wizard.
-
-**Fix — only merge fields that are actually persisted to localStorage:**
-
-```ts
-// src/App.tsx — replace the settingsRef and merge logic
-// Remove: const settingsRef = useRef(useSettingsStore.getState);
-
-useEffect(() => {
-  async function init(): Promise<void> {
-    const [settingsRes, queueRes] = await Promise.all([
-      invokeGetSettings(),
-      invokeGetQueue(),
-    ]);
-    if (settingsRes.success && settingsRes.data) {
-      // Only pull UI-preference fields from localStorage (mirrors partialize).
-      // Backend-authoritative fields (setupComplete, aiModel) always come from Rust.
-      const cached = useSettingsStore.getState();
-      setSettings({
-        ...settingsRes.data,
-        theme: cached.theme,
-        outputFolder: cached.outputFolder,
-        language: cached.language,
-        enhancementStrength: cached.enhancementStrength,
-        hfDeHissDb: cached.hfDeHissDb,
-        filenameTemplate: cached.filenameTemplate,
-        filenameTemplateConverted: cached.filenameTemplateConverted,
-        keyboardShortcuts: cached.keyboardShortcuts,
-        customDefaultShortcuts: cached.customDefaultShortcuts,
-        recordingPrefix: cached.recordingPrefix,
-        scratchDiskDir: cached.scratchDiskDir,
-      });
-    }
-    if (queueRes.success && queueRes.data) setJobs(queueRes.data);
-    if (!sessionStorage.getItem('app_initialized')) {
-      sessionStorage.setItem('app_initialized', 'true');
-      useQueueStore.getState().setJobs([], 'enhance');
-      useQueueStore.getState().setJobs([], 'convert');
-    }
-    setInitialized(true);
-  }
-  init();
-}, [setSettings, setJobs, setInitialized]);
-```
-
----
-
-### A6 🟠 `onended`/`onpause` handlers re-assigned on every `play()` call
-**File:** `src/stores/useAudioPlayer.ts`  
-**Lines:** 41–43
-
-**Problem:** `audio.onended` and `audio.onpause` are reassigned inside `play()` on every invocation. The old handlers are silently replaced with no `removeEventListener`. If `play()` is called rapidly (e.g., user clicks different rows), the replaced handlers could behave unexpectedly. The idiomatic pattern is to wire these listeners once at audio element construction time.
-
-**Fix — move event wiring to `getAudio()`:**
-
-```ts
-// src/stores/useAudioPlayer.ts
-function getAudio(): HTMLAudioElement {
-  if (!_audio) {
-    _audio = new Audio();
-    _audio.preload = 'none';
-    _audio.addEventListener('ended', () => {
-      useAudioPlayer.setState({ isPlaying: false });
-    });
-    _audio.addEventListener('pause', () => {
-      if (useAudioPlayer.getState().playingJobId) {
-        useAudioPlayer.setState({ isPlaying: false });
-      }
-    });
-  }
-  return _audio;
-}
-
-// In play(), remove the onended/onpause assignments:
-play: (jobId, filePath) => {
-  const audio = getAudio();
-  const src = toTauriSrc(filePath);
-  if (!audio.paused) audio.pause();
-  if (audio.src !== src) { audio.src = src; audio.load(); }
-  audio.play().catch(() => useAudioPlayer.setState({ isPlaying: false }));
-  set({ playingJobId: jobId, isPlaying: true });
-},
-```
-
----
-
-### A7 🟡 `ScriptProcessorNode` deprecated in `RecordButton.tsx`
-**File:** `src/components/RecordButton.tsx`  
-**Line:** 67
-
-**Problem:** `createScriptProcessor` is deprecated and will be removed from future Chromium versions (Tauri 2 uses Chromium). The comment acknowledges it but leaves it for later. The replacement is `AudioWorkletNode`.
-
-**Proposed change (defer if replacement scope is large):** Extract the PCM capture logic to `src/lib/audioCapture.ts` using `AudioWorkletNode` + an inline-registered `AudioWorkletProcessor`. This is a larger change — mark as deferred unless user approves scope. No action in this pass.
-
----
-
-## Category B — Performance
-
-### B1 🔴 `querySelectorAll` called on every `mousemove` during marquee selection
-**File:** `src/components/QueueGrid.tsx`  
-**Lines:** 806–841
-
-**Problem:** The marquee (rubber-band) selection handler calls `document.querySelectorAll('[data-job-id]')` inside `onMouseMove`, which fires at browser-native rate (60 fps). For a queue of 100 rows this is 6 000 DOM queries per second during a drag.
-
-**Fix — throttle with `requestAnimationFrame`:**
-
-```ts
-// src/components/QueueGrid.tsx — replace the onMouseMove body
-let rafId: number | null = null;
-
-const onMouseMove = (ev: MouseEvent): void => {
-  const clampedX = Math.max(containerRect.left, Math.min(containerRect.right, ev.clientX));
-  const clampedY = Math.max(containerRect.top, Math.min(containerRect.bottom, ev.clientY));
-  const left = Math.min(startX, clampedX);
-  const top = Math.min(startY, clampedY);
-  const width = Math.abs(startX - clampedX);
-  const height = Math.abs(startY - clampedY);
-
-  if (!dragStarted && (Math.abs(ev.clientX - startX) > 3 || Math.abs(ev.clientY - startY) > 3)) {
-    dragStarted = true;
-  }
-
-  if (!dragStarted) return;
-  setSelectionBox({ left, top, width, height });
-
-  if (rafId !== null) return; // already scheduled
-  rafId = requestAnimationFrame(() => {
-    rafId = null;
-    const elements = document.querySelectorAll('[data-job-id]');
-    const intersectedIds: string[] = [];
-    elements.forEach((el) => {
-      const jobId = el.getAttribute('data-job-id');
-      if (!jobId) return;
-      const box = el.getBoundingClientRect();
-      const intersects = left < box.right && left + width > box.left && top < box.bottom && top + height > box.top;
-      if (intersects) intersectedIds.push(jobId);
-    });
-    const { tabSelectedIds } = useQueueStore.getState();
-    const curTab = useUIStore.getState().audioSubTab;
-    const curSelected = tabSelectedIds[curTab];
-    if (ev.shiftKey || ev.ctrlKey || ev.metaKey) {
-      useQueueStore.setState((s) => ({
-        tabSelectedIds: { ...s.tabSelectedIds, [curTab]: [...new Set([...curSelected, ...intersectedIds])] },
-      }));
-    } else {
-      useQueueStore.setState((s) => ({
-        tabSelectedIds: { ...s.tabSelectedIds, [curTab]: intersectedIds },
-      }));
-    }
-  });
-};
-
-// In onMouseUp, also cancel pending RAF:
-const onMouseUp = (): void => {
-  if (rafId !== null) { cancelAnimationFrame(rafId); rafId = null; }
-  setSelectionBox(null);
-  window.removeEventListener('mousemove', onMouseMove);
-  window.removeEventListener('mouseup', onMouseUp);
-  // ... existing cancelClick logic unchanged
-};
-```
-
----
-
-### B2 🔴 `filteredJobs` selector returns a new array on every store tick
-**File:** `src/components/QueueGrid.tsx`  
-**Lines:** 720–721
-
-**Problem:** 
-```ts
-const jobs = useQueueStore((s) => s.filteredJobs(audioSubTab, activeTab));
-```
-`filteredJobs` returns a fresh array from `.filter()` on every call. Zustand's default equality check is `Object.is`, so the new array reference always triggers a re-render — even when the underlying job data has not changed (e.g., a `setProgress` call for a different component). This causes the entire grid to re-render on every progress tick.
-
-**Fix — wrap with `useShallow` (already installed via zustand):**
-
-```ts
-// src/components/QueueGrid.tsx
-import { useShallow } from 'zustand/react/shallow';
-
-// Replace:
-// const jobs = useQueueStore((s) => s.filteredJobs(audioSubTab, activeTab));
-// const groups = useQueueStore((s) => s.groupedFilteredJobs(audioSubTab, activeTab));
-
-const { jobs, groups } = useQueueStore(
-  useShallow((s) => ({
-    jobs: s.filteredJobs(audioSubTab, activeTab),
-    groups: s.groupedFilteredJobs(audioSubTab, activeTab),
-  }))
-);
-```
-
-`useShallow` performs shallow-equality on the returned object, so re-renders only fire when a job's identity or a filter actually changes, not on every `setProgress`.
-
----
-
-### B3 🟠 Sequential `await invokeSetJobStatus` in for-loops
-**Files:**  
-- `src/hooks/useKeyboardShortcuts.ts` lines 123–126 (`enhance` shortcut)  
-- `src/components/QueueToolbar.tsx` lines 123–126 (`handleProcess`)  
-- `src/components/QueueToolbar.tsx` lines 173–176 (`handleConvert`)
-
-**Problem:** Each IPC call is awaited sequentially. For 50 queued files, this makes 50 round-trips to Rust before the first job starts enhancing.
-
-**Fix — parallel IPC with `Promise.all`:**
-
-```ts
-// In all three for-loops, replace sequential await with parallel:
-
-// Before:
-for (const id of enhIds) {
-  setStatus(id, 'queued');
-  await invokeSetJobStatus(id, 'queued');
-}
-
-// After:
-enhIds.forEach((id) => setStatus(id, 'queued'));
-await Promise.all(enhIds.map((id) => invokeSetJobStatus(id, 'queued')));
-```
-
-Apply the same pattern to the `convert` loop in `handleConvert` and the `enhance` loop in the keyboard shortcut handler.
-
----
-
-### B4 🟡 `prewarmCache` has no size cap
-**File:** `src/lib/audioPreload.ts`  
-**Lines:** 14, 22–42
-
-**Problem:** (Covered partially in A1.) Even without the leak, a session with 200+ files would keep 200+ Blob URLs in memory. The fix is the `MAX_PREWARM = 50` cap added in A1.
-
----
-
-## Category C — Structural Weaknesses
-
-### C1 🟠 Cross-store dependency: `useQueueStore` reads `useUIStore` inside updater
-**File:** `src/stores/useQueueStore.ts`  
-**Lines:** 17–19
-
-**Problem:**
-```ts
-function getActiveSubTab(tab?: AudioSubTab): AudioSubTab {
-  return tab ?? useUIStore.getState().audioSubTab;
-}
-```
-`useQueueStore` calls `useUIStore.getState()` inside its own state updaters. This creates an implicit circular dependency and makes the queue store non-self-contained. It breaks unit test isolation and could cause issues if stores initialize in different orders.
-
-**Root cause:** It's a convenience fallback so callers can omit `tab`. All callers that matter (QueueGrid, QueueToolbar, etc.) already pass `tab` explicitly. Only `clearQueue` and a few internal helpers use the fallback.
-
-**Fix — remove the fallback; require `tab` everywhere:**
-
-Make `tab` required in the 4 internal actions that currently use the fallback (`clearQueue`, `setFilter`, `setSearchQuery`, `setViewMode`, `setGroupByFormat`, `setJobOperationMode`, `setSelectedJob`, `clearSelection`, `primarySelectedId`). All call sites already pass `tab`.
-
-```ts
-// src/stores/useQueueStore.ts — remove getActiveSubTab entirely
-// Change every internal action signature from (tab?: AudioSubTab) to (tab: AudioSubTab)
-// For actions called without tab in the interface, keep the optional signature but inline the fallback
-// at the call site (in each action):
-
-setFilter: (filter, tab) =>
-  set((s) => {
-    const t = tab ?? useUIStore.getState().audioSubTab; // keep fallback HERE, not in shared fn
-    return { tabFilters: { ...s.tabFilters, [t]: filter } };
-  }),
-```
-
-This is a single-source-of-truth fix — the cross-store read happens at the leaf (only if truly needed) rather than in a shared helper that gives the impression of a deeper dependency.
-
----
-
-### C2 🟠 i18n gap — confirmation dialogs hardcoded to English
-**Files:**  
-- `src/components/QueueGrid.tsx` lines 585–589 (row trash button)  
-- `src/components/QueueToolbar.tsx` lines 85–93 (`handleDeleteSelected`)  
-- `src/hooks/useKeyboardShortcuts.ts` lines 197–202 (Delete shortcut)
-
-**Problem:** Three places that call `window.confirm()` check only for Indonesian (`language === 'id'`) and fall back to English for all other 16 supported languages. The confirmation message in French, Arabic, Portuguese, etc. is always in English.
-
-**Fix — use `i18n.t()` directly (not the React hook, since these are imperative handlers):**
-
-```ts
-// src/components/QueueGrid.tsx — near top, add import
-import i18n from '@/i18n';
-
-// Replace the isIndonesian check block with:
-const msg = i18n.t(
-  activeJobs.length === 1
-    ? 'queue.confirmDeleteSingle'
-    : 'queue.confirmDeleteMultiple',
-  { count: activeJobs.length }
-);
-if (!window.confirm(msg)) return;
-```
-
-Add the keys to `src/i18n/locales/en.json` (and other locales):
-```json
-"queue": {
-  "confirmDeleteSingle": "Are you sure you want to delete this file? It is currently being processed.",
-  "confirmDeleteMultiple": "Are you sure you want to delete {{count}} files? Some are currently being processed."
-}
-```
-
-Apply the same pattern in `QueueToolbar.tsx` and `useKeyboardShortcuts.ts`. Remove the `isIndonesian` special-casing entirely (Indonesian translation handles it via locale file).
-
----
-
-### C3 🟡 Duplicated `getMimeType` function
-**Files:**  
-- `src/lib/audioPreload.ts` lines 3–10  
-- `src/components/WaveformPlayer.tsx` lines 33–43
-
-**Problem:** Two nearly identical functions map file extensions to MIME types. They diverge: `audioPreload.ts` includes `wma` and `aiff`; `WaveformPlayer.tsx` adds video types (`mp4`, `webm`, `mov`, etc.) and maps `opus` to `audio/ogg`. Neither is complete.
-
-**Fix — extract to `src/lib/mime.ts`:**
-
-```ts
-// NEW: src/lib/mime.ts
-const MIME_MAP: Record<string, string> = {
-  mp3: 'audio/mpeg',
-  wav: 'audio/wav',
-  flac: 'audio/flac',
-  aac: 'audio/aac',
-  ogg: 'audio/ogg',
-  opus: 'audio/ogg',
-  m4a: 'audio/mp4',
-  wma: 'audio/x-ms-wma',
-  aiff: 'audio/aiff',
-  mp4: 'video/mp4',
-  webm: 'video/webm',
-  mov: 'video/quicktime',
-  avi: 'video/x-msvideo',
-  mkv: 'video/x-matroska',
-};
-
-export function getMimeType(path: string): string {
-  const ext = path.split('.').pop()?.toLowerCase() ?? '';
-  return MIME_MAP[ext] ?? 'audio/mpeg';
-}
-```
-
-Remove the two local `getMimeType` functions and import from `@/lib/mime`.
-
----
-
-### C4 🟡 `audioSubTab` typed as `string` in sortable components
-**File:** `src/components/QueueGrid.tsx`  
-**Lines:** 436–437 (`SortableJobRow` props), 613–614 (`SortableJobCard` props)
-
-**Problem:**
-```ts
-audioSubTab: string;  // prop type
-
-// then inside:
-const rowToolMode = useQueueStore((s) => s.tabJobOpTypes[audioSubTab as 'enhance'|'convert'][job.id] ?? 'enhance');
-```
-The cast defeats TypeScript safety. If a new sub-tab is added or a typo occurs, there's no compile-time catch.
-
-**Fix — narrow the prop type:**
-
-```ts
-// src/components/QueueGrid.tsx
-import type { AudioSubTab } from '@/stores/useUIStore';
-
-// SortableJobRow props:
-audioSubTab: AudioSubTab;
-
-// SortableJobCard props:
-audioSubTab: AudioSubTab;
-
-// Remove all internal `as 'enhance'|'convert'` casts — they're no longer needed.
-```
-
----
-
-### C5 🟡 Custom DOM events as cross-component communication bus
-**File:** `src/components/QueueGrid.tsx` lines 412–413, `QueueToolbar.tsx` lines 191–203
-
-**Problem:** `QueueActionBar` dispatches `new CustomEvent('action:enhance')` to trigger `handleProcess` in `QueueToolbar`. This is implicit, untyped, and untestable — the relationship between the two components is invisible from either file.
-
-**Note:** This is an intentional architectural decision to avoid prop-drilling across multiple layers. The fix would require lifting the handlers to a shared Zustand action or passing them down via context. This is a larger refactor — **flag for future cleanup rather than immediate change.**
-
----
-
-### C6 🟡 Redundant `useCallback` + `useRef` in `DropZone.tsx`
-**File:** `src/components/DropZone.tsx`  
-**Lines:** 30–52
-
-**Problem:**
-```ts
-const handleFiles = useCallback(async (paths: string[]): Promise<void> => {
-  await handleImportFiles(paths);
-}, []);
-
-const handleFilesRef = useRef(handleFiles);
-handleFilesRef.current = handleFiles;
-```
-
-`handleFiles` is stable (empty deps) and could be imported directly. `handleFilesRef` exists to safely reference `handleFiles` inside the Tauri `onDragDropEvent` closure — but since `handleFiles` is already stable, the ref adds no value. The same pattern exists for `resolveDroppedPaths`.
-
-**Fix — use `useCallback` directly in the Tauri event handler (it's already stable):**
-
-```ts
-// src/components/DropZone.tsx — remove the useRef wrappers
-// The Tauri effect already re-registers on mount and cleans up on unmount,
-// so a stable useCallback reference is sufficient.
-
-useEffect(() => {
-  let cancelled = false;
-  let unlisten: (() => void) | null = null;
-
-  getCurrentWindow().onDragDropEvent(async (event) => {
-    const type = event.payload.type;
-    if (type === 'over') {
-      setIsDragging(true);
-    } else if (type === 'drop') {
-      setIsDragging(false);
-      const paths = (event.payload as { type: 'drop'; paths: string[]; position: unknown }).paths;
-      if (paths?.length) {
-        const resolved = await resolveDroppedPaths(paths);  // direct ref
-        if (resolved.length) handleFiles(resolved);          // direct ref
-      }
-    } else {
-      setIsDragging(false);
-    }
-  }).then((fn) => { if (cancelled) fn(); else unlisten = fn; });
-
-  return () => { cancelled = true; unlisten?.(); };
-}, [handleFiles, resolveDroppedPaths]);  // stable refs, effect only runs on mount/unmount
-```
-
-Remove `handleFilesRef` and `resolveRef` variables.
-
----
-
-## Execution Order
-
-When the user approves, apply in this order to minimise inter-task conflicts:
-
-| Step | Issue | Files touched | Risk |
-|------|-------|---------------|------|
-| 1 | C3 — extract `getMimeType` | `src/lib/mime.ts` (new), `audioPreload.ts`, `WaveformPlayer.tsx` | Low |
-| 2 | A1 — Blob URL leak + size cap | `audioPreload.ts`, `useQueueStore.ts` | Low |
-| 3 | A2 — `setTimeout` outside `set` | `useQueueStore.ts` | Low |
-| 4 | A6 — `onended`/`onpause` wiring | `useAudioPlayer.ts` | Low |
-| 5 | A3 — unsafe status cast | `QueueGrid.tsx` | Low |
-| 6 | C4 — `AudioSubTab` prop type | `QueueGrid.tsx` | Low |
-| 7 | B3 — parallel `invokeSetJobStatus` | `QueueToolbar.tsx`, `useKeyboardShortcuts.ts` | Low |
-| 8 | B1 — RAF throttle for marquee | `QueueGrid.tsx` | Medium |
-| 9 | B2 — `useShallow` for `filteredJobs` | `QueueGrid.tsx` | Medium |
-| 10 | A4 — exit shortcut safety check | `useKeyboardShortcuts.ts` | Low |
-| 11 | A5 — settings merge fix | `App.tsx` | Medium |
-| 12 | C6 — DropZone ref cleanup | `DropZone.tsx` | Low |
-| 13 | C2 — i18n for confirm dialogs | `QueueGrid.tsx`, `QueueToolbar.tsx`, `useKeyboardShortcuts.ts`, locale files | Medium |
-| 14 | C1 — remove cross-store fallback | `useQueueStore.ts` | Medium |
-
-After all steps: run `npx tsc --noEmit` and `npm run test` to verify zero regressions.
-
----
-
-## Out of Scope (per user constraint)
-- No new libraries or packages
-- No stylistic reformatting
-- A17 (`ScriptProcessorNode`) deferred — replacement requires `AudioWorkletNode` (new file, larger scope)
-- C5 (custom DOM events) deferred — requires architectural alignment on component ownership
-
----
-
-_Last updated: 2026-08-25 | Status: COMPLETE — all 14 steps executed, 38/38 tests pass, tsc clean_
-
----
-
-## Versioning UI — COMPLETE (2026-08-25)
-
-Terminal model confirmed (flat 2-level). Implemented:
-
-1. **Strength + HF De-hiss sliders in QueueToolbar** (Enhance tab only) — compact strip between tab pills and spacer. Each slider updates `useSettingsStore` and persists to backend (500ms debounce). Values shown as live readout.
-2. **Auto toggle** — "Auto" button in the slider strip. When ON, changing either slider schedules a debounced (800ms) re-enhancement of all `done` jobs in the Enhance tab, saving their current output as a version first.
-3. **Re-enhance button** (`EnhanceRowButton`) — shown when `job.status === 'done'`. Saves current output to `jobVersionHistory` before kicking the new run.
-4. **Version expand chevron** — ChevronDown in the FILENAME cell of done rows that have version history. Clicking calls `toggleVersionExpand`.
-5. **VersionSubRow component** — rendered below each expanded parent: v# badge, filename, Str/HF settings used, timestamp, Reveal-in-Explorer button.
-6. **`setUsedSettings` wired** — fires in the `queue://status-change` listener when `status === 'done'`, recording which strength/HF were used for that run.
-
-Files changed: `src/types/queue.ts`, `src/stores/useQueueStore.ts`, `src/stores/useUIStore.ts`, `src/components/QueueToolbar.tsx`, `src/components/QueueGrid.tsx`.
+> **CRITICAL:** Never use plain `npm run tauri build` for the installer. It bundles the stale `backend-x86_64-pc-windows-msvc.exe` (old stub) instead of the current gnu sidecar, producing a ~46 MB installer instead of the correct ~366 MB full build.

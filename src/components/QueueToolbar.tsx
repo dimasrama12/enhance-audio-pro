@@ -36,6 +36,7 @@ export default function QueueToolbar(): JSX.Element {
   const hfDeHissDb = useSettingsStore((s) => s.hfDeHissDb);
   const setEnhancementStrength = useSettingsStore((s) => s.setEnhancementStrength);
   const setHfDeHissDb = useSettingsStore((s) => s.setHfDeHissDb);
+  const isProcessing = useQueueStore((s) => s.tabQueues['enhance'].some((j) => j.status === 'processing'));
   const focusSearchTick = useUIStore((s) => s.focusSearchTick);
   const activeTab = useUIStore((s) => s.activeTab);
   const audioSubTab = useUIStore((s) => s.audioSubTab);
@@ -151,14 +152,23 @@ export default function QueueToolbar(): JSX.Element {
 
       {/* ── Enhance-tab sliders ── */}
       {audioSubTab === 'enhance' && (
-        <div className="flex items-center gap-3 bg-slate-100 dark:bg-white/[0.03] rounded-xl px-3 py-1.5 border border-slate-200 dark:border-white/[0.06]">
+        <div
+          className={clsx(
+            'flex items-center gap-3 rounded-xl px-3 py-1.5 border transition-opacity duration-200',
+            isProcessing
+              ? 'bg-slate-100/60 dark:bg-white/[0.02] border-slate-200/60 dark:border-white/[0.04] opacity-45 pointer-events-none cursor-not-allowed'
+              : 'bg-slate-100 dark:bg-white/[0.03] border-slate-200 dark:border-white/[0.06]',
+          )}
+          title={isProcessing ? 'Parameters locked while processing' : undefined}
+        >
           <div className="flex items-center gap-1.5">
             <span className="text-[10px] text-slate-500 dark:text-zinc-400 font-medium shrink-0 select-none">Str</span>
             <input
               type="range" min={0} max={100} step={1} value={enhancementStrength}
               onChange={(e) => handleStrengthChange(Number(e.target.value))}
-              className="w-20 h-1 accent-violet-500 cursor-pointer"
-              title={`Enhancement strength: ${enhancementStrength}%`}
+              disabled={isProcessing}
+              className={clsx('w-20 h-1', isProcessing ? 'accent-slate-400 cursor-not-allowed' : 'accent-violet-500 cursor-pointer')}
+              title={isProcessing ? 'Locked while processing' : `Enhancement strength: ${enhancementStrength}%`}
             />
             <span className="text-[10px] text-slate-600 dark:text-zinc-300 tabular-nums w-7 text-right select-none">{enhancementStrength}%</span>
           </div>
@@ -168,13 +178,17 @@ export default function QueueToolbar(): JSX.Element {
             <input
               type="range" min={-12} max={0} step={0.5} value={hfDeHissDb ?? -4}
               onChange={(e) => handleHfChange(Number(e.target.value))}
-              className="w-16 h-1 accent-violet-500 cursor-pointer"
-              title={`HF de-hiss: ${hfDeHissDb ?? -4} dB`}
+              disabled={isProcessing}
+              className={clsx('w-16 h-1', isProcessing ? 'accent-slate-400 cursor-not-allowed' : 'accent-violet-500 cursor-pointer')}
+              title={isProcessing ? 'Locked while processing' : `HF de-hiss: ${hfDeHissDb ?? -4} dB`}
             />
             <span className="text-[10px] text-slate-600 dark:text-zinc-300 tabular-nums w-10 text-right select-none">
               {(hfDeHissDb ?? -4) > 0 ? '+' : ''}{hfDeHissDb ?? -4} dB
             </span>
           </div>
+          {isProcessing && (
+            <span className="text-[9px] text-slate-400 dark:text-zinc-500 shrink-0 select-none tracking-wide">locked</span>
+          )}
         </div>
       )}
 

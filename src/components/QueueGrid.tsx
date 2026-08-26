@@ -31,7 +31,7 @@ import { useShallow } from 'zustand/react/shallow';
 import { useUIStore, type AudioSubTab } from '@/stores/useUIStore';
 import { useSettingsStore } from '@/stores/useSettingsStore';
 import { invokeSetOutputFormat, invokeArchiveJobs, invokeProcessQueue, invokeCancelJobs, invokeSetJobStatus, invokeCopyEnhancedFile, invokeConvertFiles, invokeDeleteFile } from '@/lib/ipc';
-import { triggerEnhanceAll, triggerConvertAll, triggerReEnhance } from '@/lib/queueActions';
+import { triggerEnhanceAll, triggerConvertAll, triggerReEnhance, autoAdvanceQueue, clearDispatchGuard } from '@/lib/queueActions';
 import { useToastStore } from '@/stores/useToastStore';
 import { logError } from '@/lib/errorLogger';
 import i18n from '@/i18n';
@@ -960,27 +960,20 @@ export default function QueueGrid(): JSX.Element {
           logError(opNameTitle, `Failed to ${opNameAction} "${filename}"`, error_message ?? undefined);
         }
 
-        // Auto-advance within the same tab
-        if (status === 'done' || status === 'error' || status === 'pending') {
-          setTimeout(() => {
-            const jobTab = useQueueStore.getState().findJobTab(jobId);
-            if (!jobTab) return;
-            const { tabQueues, tabJobOpTypes } = useQueueStore.getState();
-            const tabJobs = tabQueues[jobTab];
-            const isAnyProcessing = tabJobs.some((j) => j.status === 'processing');
-            if (!isAnyProcessing) {
-              const nextQueued = tabJobs.find((j) => j.status === 'queued');
-              if (nextQueued) {
-                const opType = tabJobOpTypes[jobTab][nextQueued.id] ?? 'enhance';
-                const { aiModel, enhancementStrength, filenameTemplateConverted, hfDeHissDb } = useSettingsStore.getState();
-                if (opType === 'enhance') {
-                  invokeProcessQueue([nextQueued.id], enhancementStrength, aiModel, hfDeHissDb ?? -4).catch(console.error);
-                } else {
-                  invokeConvertFiles([nextQueued.id], filenameTemplateConverted).catch(console.error);
-                }
-              }
-            }
-          }, 100);
+        // Confirm dispatch guard when a job's 'processing' event arrives, so the
+        // next queued job can be dispatched when this one eventually finishes.
+        if (safeStatus === 'processing') {
+          clearDispatchGuard(jobId);
+        }
+
+        // Auto-advance: synchronous state read (no setTimeout) + dispatch guard
+        // prevents the same job being dispatched twice before its 'processing'
+        // event arrives (the previous source of the concurrency bug).
+        if (safeStatus === 'done' || safeStatus === 'error') {
+          const jobTab = useQueueStore.getState().findJobTab(jobId);
+          if (jobTab) {
+            autoAdvanceQueue(jobTab).catch(console.error);
+          }
         }
       },
     );

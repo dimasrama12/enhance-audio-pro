@@ -140,3 +140,107 @@ describe('triggerReEnhance', () => {
     expect(vi.mocked(invokeAddFiles)).toHaveBeenCalledWith([doneJob.filepath]);
   });
 });
+
+// ── autoAdvanceQueue ──────────────────────────────────────────────────────────
+
+const SETTINGS_DEFAULTS = {
+  enhancementStrength: 50,
+  hfDeHissDb: -4 as number,
+  aiModel: 'deepfilternet' as const,
+  filenameTemplateConverted: '',
+};
+
+describe('autoAdvanceQueue', () => {
+  beforeEach(async () => {
+    vi.clearAllMocks();
+    useQueueStore.setState(STORE_DEFAULTS);
+    useSettingsStore.setState(SETTINGS_DEFAULTS);
+    useUIStore.setState({ audioSubTab: 'enhance' });
+    const { _resetDispatchGuardForTest } = await import('@/lib/queueActions');
+    _resetDispatchGuardForTest();
+  });
+
+  it('dispatches the next queued job when nothing is processing', async () => {
+    const { autoAdvanceQueue } = await import('@/lib/queueActions');
+    const { invokeProcessQueue } = await import('@/lib/ipc');
+    const jobB = makeJob('b', 'queued');
+    useQueueStore.setState({ ...STORE_DEFAULTS, tabQueues: { enhance: [jobB], convert: [] } });
+
+    await autoAdvanceQueue('enhance');
+
+    expect(vi.mocked(invokeProcessQueue)).toHaveBeenCalledOnce();
+    expect(vi.mocked(invokeProcessQueue)).toHaveBeenCalledWith(['b'], 50, 'deepfilternet', -4);
+  });
+
+  it('does NOT dispatch when another job is currently processing', async () => {
+    const { autoAdvanceQueue } = await import('@/lib/queueActions');
+    const { invokeProcessQueue } = await import('@/lib/ipc');
+    const jobA = makeJob('a', 'processing');
+    const jobB = makeJob('b', 'queued');
+    useQueueStore.setState({ ...STORE_DEFAULTS, tabQueues: { enhance: [jobA, jobB], convert: [] } });
+
+    await autoAdvanceQueue('enhance');
+
+    expect(vi.mocked(invokeProcessQueue)).not.toHaveBeenCalled();
+  });
+
+  it('does NOT dispatch when there are no queued jobs', async () => {
+    const { autoAdvanceQueue } = await import('@/lib/queueActions');
+    const { invokeProcessQueue } = await import('@/lib/ipc');
+    const jobA = makeJob('a', 'done');
+    useQueueStore.setState({ ...STORE_DEFAULTS, tabQueues: { enhance: [jobA], convert: [] } });
+
+    await autoAdvanceQueue('enhance');
+
+    expect(vi.mocked(invokeProcessQueue)).not.toHaveBeenCalled();
+  });
+
+  it('does NOT dispatch the same job twice when called twice in rapid succession', async () => {
+    const { autoAdvanceQueue } = await import('@/lib/queueActions');
+    const { invokeProcessQueue } = await import('@/lib/ipc');
+    const jobB = makeJob('b', 'queued');
+    useQueueStore.setState({ ...STORE_DEFAULTS, tabQueues: { enhance: [jobB], convert: [] } });
+
+    await autoAdvanceQueue('enhance');
+    await autoAdvanceQueue('enhance'); // simulates duplicate event within the race window
+
+    expect(vi.mocked(invokeProcessQueue)).toHaveBeenCalledOnce(); // guard blocks second dispatch
+  });
+
+  it('allows dispatch again after clearDispatchGuard confirms the job started processing', async () => {
+    const { autoAdvanceQueue, clearDispatchGuard } = await import('@/lib/queueActions');
+    const { invokeProcessQueue } = await import('@/lib/ipc');
+    const jobB = makeJob('b', 'queued');
+    const jobC = makeJob('c', 'queued');
+    useQueueStore.setState({ ...STORE_DEFAULTS, tabQueues: { enhance: [jobB, jobC], convert: [] } });
+
+    await autoAdvanceQueue('enhance');   // dispatches B
+    clearDispatchGuard('b');             // simulates 'processing' event for B
+
+    useQueueStore.setState({
+      ...STORE_DEFAULTS,
+      tabQueues: { enhance: [{ ...jobB, status: 'done' }, jobC], convert: [] },
+    });
+    await autoAdvanceQueue('enhance');   // now dispatches C
+
+    expect(vi.mocked(invokeProcessQueue)).toHaveBeenCalledTimes(2);
+    expect(vi.mocked(invokeProcessQueue)).toHaveBeenNthCalledWith(1, ['b'], 50, 'deepfilternet', -4);
+    expect(vi.mocked(invokeProcessQueue)).toHaveBeenNthCalledWith(2, ['c'], 50, 'deepfilternet', -4);
+  });
+
+  it('dispatches via invokeConvertFiles for convert-mode jobs', async () => {
+    const { autoAdvanceQueue } = await import('@/lib/queueActions');
+    const { invokeProcessQueue, invokeConvertFiles } = await import('@/lib/ipc');
+    const jobB = makeJob('b', 'queued');
+    useQueueStore.setState({
+      ...STORE_DEFAULTS,
+      tabQueues: { enhance: [], convert: [jobB] },
+      tabJobOpTypes: { enhance: {}, convert: { b: 'convert' } },
+    });
+
+    await autoAdvanceQueue('convert');
+
+    expect(vi.mocked(invokeConvertFiles)).toHaveBeenCalledOnce();
+    expect(vi.mocked(invokeProcessQueue)).not.toHaveBeenCalled();
+  });
+});

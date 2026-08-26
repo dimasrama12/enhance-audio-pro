@@ -1,6 +1,7 @@
 import { useQueueStore } from '@/stores/useQueueStore';
 import { useSettingsStore } from '@/stores/useSettingsStore';
 import { useUIStore } from '@/stores/useUIStore';
+import type { AudioSubTab } from '@/stores/useUIStore';
 import { useToastStore } from '@/stores/useToastStore';
 import {
   invokeAddFiles,
@@ -108,6 +109,47 @@ export async function triggerReEnhance(): Promise<void> {
     invokeProcessQueue([first.id], enhancementStrength, aiModel ?? 'deepfilternet', hfDeHissDb ?? -4).catch(
       (err) => { console.error('Failed to start re-enhance job', err); },
     );
+  }
+}
+
+// ── Sequential-queue dispatch guard ──────────────────────────────────────────
+//
+// Prevents a job from being dispatched twice before the backend emits its first
+// 'processing' event. Without this guard, two rapid 'done'/'error' events from
+// the backend can both pass the isAnyProcessing=false check (the new job's
+// Zustand state hasn't updated yet) and call invokeProcessQueue twice for the
+// same queued job.
+
+let _lastDispatchedJobId: string | null = null;
+
+export function clearDispatchGuard(confirmedJobId: string): void {
+  if (_lastDispatchedJobId === confirmedJobId) {
+    _lastDispatchedJobId = null;
+  }
+}
+
+export function _resetDispatchGuardForTest(): void {
+  _lastDispatchedJobId = null;
+}
+
+export async function autoAdvanceQueue(jobTab: AudioSubTab): Promise<void> {
+  const { tabQueues, tabJobOpTypes } = useQueueStore.getState();
+  const tabJobs = tabQueues[jobTab];
+  const isAnyProcessing = tabJobs.some((j) => j.status === 'processing');
+  if (isAnyProcessing) return;
+
+  const nextQueued = tabJobs.find((j) => j.status === 'queued');
+  if (!nextQueued) return;
+  if (nextQueued.id === _lastDispatchedJobId) return;
+
+  _lastDispatchedJobId = nextQueued.id;
+
+  const { aiModel, enhancementStrength, filenameTemplateConverted, hfDeHissDb } = useSettingsStore.getState();
+  const opType = tabJobOpTypes[jobTab][nextQueued.id] ?? 'enhance';
+  if (opType === 'enhance') {
+    await invokeProcessQueue([nextQueued.id], enhancementStrength, aiModel, hfDeHissDb ?? -4);
+  } else {
+    await invokeConvertFiles([nextQueued.id], filenameTemplateConverted);
   }
 }
 
