@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import type { QueueJob, JobStatus } from '@/types/queue';
+import type { QueueJob, JobStatus, EnhanceRun } from '@/types/queue';
 import type { AudioSubTab } from '@/stores/useUIStore';
 import { useUIStore } from '@/stores/useUIStore';
 import { evictPrewarm } from '@/lib/audioPreload';
@@ -52,6 +52,13 @@ interface QueueState {
   tabViewModes: Record<AudioSubTab, ViewMode>;
   tabGroupByFormat: Record<AudioSubTab, boolean>;
   tabJobOpTypes: Record<AudioSubTab, Record<string, 'enhance' | 'convert'>>;
+
+  // ── Enhance run records (P1-A) ──────────────────────────────────────────────
+  // Session-level batch snapshots — one record per "Enhance All" invocation.
+  // Displayed as compact header rows above each batch in QueueGrid.
+  enhanceRuns: EnhanceRun[];
+  addEnhanceRun: (run: EnhanceRun) => void;
+  clearEnhanceRuns: () => void;
 
   // ── Version settings capture ────────────────────────────────────────────────
   // Records which str/hf values were used when a job reaches 'done'.
@@ -126,6 +133,10 @@ interface QueueState {
 export const useQueueStore = create<QueueState>()(
   persist(
     (set, get) => ({
+      enhanceRuns: [] as EnhanceRun[],
+      addEnhanceRun: (run) => set((s) => ({ enhanceRuns: [...s.enhanceRuns, run] })),
+      clearEnhanceRuns: () => set({ enhanceRuns: [] }),
+
       tabQueues: emptyPerTab(() => [] as QueueJob[]),
       tabFilters: emptyPerTab(() => 'all'),
       tabSearches: emptyPerTab(() => ''),

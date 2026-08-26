@@ -31,6 +31,9 @@ interface UIState {
   playerOpen: boolean;
   activePlayerJobId: string | null;
   duplicatePending: DuplicatePending | null;
+  // ── Cross-tab drag state (P2-D) ──────────────────────────────────────────────
+  isDraggingJob: boolean;
+  crossTabDropTarget: AudioSubTab | null;
   toggleSidebar: () => void;
   setSidebarVisible: (v: boolean) => void;
   setActiveTab: (tab: AppTab) => void;
@@ -45,6 +48,8 @@ interface UIState {
   setPlayerOpen: (open: boolean) => void;
   setActivePlayerJobId: (id: string | null) => void;
   setDuplicatePending: (pending: DuplicatePending | null) => void;
+  setIsDraggingJob: (v: boolean) => void;
+  setCrossTabDropTarget: (tab: AudioSubTab | null) => void;
 }
 
 export const useUIStore = create<UIState>((set) => ({
@@ -57,6 +62,8 @@ export const useUIStore = create<UIState>((set) => ({
   playerOpen: false,
   activePlayerJobId: null,
   duplicatePending: null,
+  isDraggingJob: false,
+  crossTabDropTarget: null,
   toggleSidebar: () => set((s) => ({ sidebarVisible: !s.sidebarVisible })),
   setSidebarVisible: (sidebarVisible) => set({ sidebarVisible }),
   setActiveTab: (activeTab) => set({ activeTab }),
@@ -71,5 +78,7 @@ export const useUIStore = create<UIState>((set) => ({
   setPlayerOpen: (playerOpen) => set({ playerOpen }),
   setActivePlayerJobId: (activePlayerJobId) => set({ activePlayerJobId }),
   setDuplicatePending: (duplicatePending) => set({ duplicatePending }),
+  setIsDraggingJob: (isDraggingJob) => set({ isDraggingJob }),
+  setCrossTabDropTarget: (crossTabDropTarget) => set({ crossTabDropTarget }),
 }));
 

@@ -31,11 +31,11 @@ import { useShallow } from 'zustand/react/shallow';
 import { useUIStore, type AudioSubTab } from '@/stores/useUIStore';
 import { useSettingsStore } from '@/stores/useSettingsStore';
 import { invokeSetOutputFormat, invokeArchiveJobs, invokeProcessQueue, invokeCancelJobs, invokeSetJobStatus, invokeCopyEnhancedFile, invokeConvertFiles, invokeDeleteFile } from '@/lib/ipc';
-import { triggerEnhanceAll, triggerConvertAll, triggerReEnhance, autoAdvanceQueue, clearDispatchGuard } from '@/lib/queueActions';
+import { triggerEnhanceAll, triggerConvertAll, triggerReEnhance, autoAdvanceQueue, clearDispatchGuard, handleJobError, willRetry } from '@/lib/queueActions';
 import { useToastStore } from '@/stores/useToastStore';
 import { logError } from '@/lib/errorLogger';
 import i18n from '@/i18n';
-import type { QueueJob, JobStatus } from '@/types/queue';
+import type { QueueJob, JobStatus, EnhanceRun } from '@/types/queue';
 
 const VALID_JOB_STATUSES = new Set<string>(['pending', 'queued', 'processing', 'done', 'error']);
 
@@ -178,6 +178,31 @@ function ImportingStatus({ progress }: { progress: number }): JSX.Element {
         )}
       </div>
     </div>
+  );
+}
+
+// ─── Run header row (P1-A) ────────────────────────────────────────────────────
+
+function RunHeaderRow({ run, runIndex }: { run: EnhanceRun; runIndex: number }): JSX.Element {
+  const time = new Date(run.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  return (
+    <tr className="border-b border-violet-200/40 dark:border-violet-500/[0.12] bg-violet-50/30 dark:bg-violet-500/[0.04]">
+      <td colSpan={12} className="px-3 py-0.5 select-none">
+        <span className="text-[10px] font-medium text-violet-500 dark:text-violet-400 tracking-wide">
+          Run {runIndex + 1}
+        </span>
+        <span className="mx-1.5 text-violet-300 dark:text-violet-700 text-[10px]">—</span>
+        <span className="text-[10px] text-slate-500 dark:text-zinc-400">
+          Str {run.strength}%
+        </span>
+        <span className="mx-1 text-slate-300 dark:text-zinc-600 text-[10px]">·</span>
+        <span className="text-[10px] text-slate-500 dark:text-zinc-400">
+          HF {run.hfDeHissDb > 0 ? '+' : ''}{run.hfDeHissDb} dB
+        </span>
+        <span className="mx-1.5 text-slate-300 dark:text-zinc-600 text-[10px]">·</span>
+        <span className="text-[10px] text-slate-400 dark:text-zinc-500">{time}</span>
+      </td>
+    </tr>
   );
 }
 
@@ -762,11 +787,23 @@ export default function QueueGrid(): JSX.Element {
   const visibleJobIds = jobs.map((j) => j.id);
   const selectedJobIds = useQueueStore((s) => s.tabSelectedIds[audioSubTab]).filter((id) => visibleJobIds.includes(id));
   const reorderJobs = useQueueStore((s) => s.reorderJobs);
+  const deleteJobs = useQueueStore((s) => s.deleteJobs);
+  const addJobs = useQueueStore((s) => s.addJobs);
   const { setProgress, setStatus, setOutputFilepath, setAbMode, setSelectedJob, toggleSelectJob, rangeSelectJobs } = useQueueStore();
   const viewMode = useQueueStore((s) => s.tabViewModes[audioSubTab]);
   const groupByFormat = useQueueStore((s) => s.tabGroupByFormat[audioSubTab]);
   const clearSelection = useQueueStore((s) => s.clearSelection);
+  const enhanceRuns = useQueueStore((s) => s.enhanceRuns ?? []);
   const { t } = useTranslation();
+
+  // P1-A: map each job ID to its run record so we can insert run headers
+  const jobToRun = useMemo(() => {
+    const map = new Map<string, { run: EnhanceRun; index: number }>();
+    enhanceRuns.forEach((run, index) => {
+      run.jobIds.forEach((id) => map.set(id, { run, index }));
+    });
+    return map;
+  }, [enhanceRuns]);
 
   // ── Resizable columns ──────────────────────────────────────────────────────
   // Column sizes are now locked to their correct predefined values.
@@ -955,9 +992,16 @@ export default function QueueGrid(): JSX.Element {
         if (status === 'done') {
           addToast(`"${filename}" ${opNamePast} successfully`, 'success');
         } else if (status === 'error') {
-          console.error(`Error performing ${opNameAction} on "${filename}":`, error_message);
-          addToast(`Error: ${error_message || 'Failed to ' + opNameAction + ' ' + filename}`, 'error');
-          logError(opNameTitle, `Failed to ${opNameAction} "${filename}"`, error_message ?? undefined);
+          if (willRetry(jobId)) {
+            // Will be auto-retried — show a non-alarming info toast
+            const attempt = willRetry(jobId) ? (/* current count before increment */ 1) : 0;
+            void attempt; // suppress unused lint
+            addToast(`Retrying "${filename}"…`, 'info');
+          } else {
+            console.error(`Error performing ${opNameAction} on "${filename}":`, error_message);
+            addToast(`Error: ${error_message || 'Failed to ' + opNameAction + ' ' + filename}`, 'error');
+            logError(opNameTitle, `Failed to ${opNameAction} "${filename}"`, error_message ?? undefined);
+          }
         }
 
         // Confirm dispatch guard when a job's 'processing' event arrives, so the
@@ -966,13 +1010,16 @@ export default function QueueGrid(): JSX.Element {
           clearDispatchGuard(jobId);
         }
 
-        // Auto-advance: synchronous state read (no setTimeout) + dispatch guard
-        // prevents the same job being dispatched twice before its 'processing'
-        // event arrives (the previous source of the concurrency bug).
-        if (safeStatus === 'done' || safeStatus === 'error') {
+        // Auto-advance on done; auto-retry or advance on error (P2-C).
+        if (safeStatus === 'done') {
           const jobTab = useQueueStore.getState().findJobTab(jobId);
           if (jobTab) {
             autoAdvanceQueue(jobTab).catch(console.error);
+          }
+        } else if (safeStatus === 'error') {
+          const jobTab = useQueueStore.getState().findJobTab(jobId);
+          if (jobTab) {
+            handleJobError(jobId, jobTab).catch(console.error);
           }
         }
       },
@@ -998,11 +1045,33 @@ export default function QueueGrid(): JSX.Element {
 
   function handleDragStart(event: DragStartEvent): void {
     setActiveDragId(String(event.active.id));
+    useUIStore.getState().setIsDraggingJob(true);
   }
 
   function handleDragEnd(event: DragEndEvent): void {
     setActiveDragId(null);
     const { active, over } = event;
+
+    // P2-D: cross-tab drop — move dragged job(s) to the highlighted tab
+    const uiState = useUIStore.getState();
+    const crossTabDrop = uiState.crossTabDropTarget;
+    uiState.setCrossTabDropTarget(null);
+    uiState.setIsDraggingJob(false);
+
+    if (crossTabDrop && crossTabDrop !== audioSubTab) {
+      const draggedIds = selectedJobIds.includes(String(active.id))
+        ? [...selectedJobIds]
+        : [String(active.id)];
+      const jobsToMove = draggedIds
+        .map((id) => jobs.find((j) => j.id === id))
+        .filter((j): j is QueueJob => j !== undefined)
+        .map((j): QueueJob => ({ ...j, status: 'pending', progress: 0, error_message: null }));
+      deleteJobs(draggedIds, audioSubTab);
+      addJobs(jobsToMove, crossTabDrop);
+      uiState.setAudioSubTab(crossTabDrop);
+      return;
+    }
+
     if (over && active.id !== over.id) {
       reorderJobs(String(active.id), String(over.id), audioSubTab);
     }
@@ -1256,12 +1325,21 @@ export default function QueueGrid(): JSX.Element {
                 <DndContext sensors={sensors} collisionDetection={closestCenter} onDragStart={handleDragStart} onDragEnd={handleDragEnd} modifiers={[restrictToVerticalAxis, restrictToFirstScrollableAncestor]}>
                   <SortableContext items={visibleJobs.map((j) => j.id)} strategy={verticalListSortingStrategy}>
                     <AnimatePresence>
-                      {visibleJobs.map((job) => (
-                        <SortableJobRow key={job.id} job={job} index={jobs.findIndex((j) => j.id === job.id)}
-                          isSelected={selectedJobIds.includes(job.id)} onSelect={(e) => handleRowClick(e, job.id)}
-                          isImporting={importingJobIds.includes(job.id)} activeDragId={activeDragId}
-                          onErrorClick={handleErrorClick} colWidths={colWidths} onResize={handleResize} audioSubTab={audioSubTab} />
-                      ))}
+                      {visibleJobs.map((job, i, arr) => {
+                        // P1-A: insert a compact run-header row whenever the batch changes
+                        const runEntry = audioSubTab === 'enhance' ? jobToRun.get(job.id) : undefined;
+                        const prevRunId = i > 0 ? (audioSubTab === 'enhance' ? jobToRun.get(arr[i - 1].id)?.run.id : null) : null;
+                        const showRunHeader = runEntry && runEntry.run.id !== prevRunId;
+                        return (
+                          <React.Fragment key={job.id}>
+                            {showRunHeader && <RunHeaderRow run={runEntry.run} runIndex={runEntry.index} />}
+                            <SortableJobRow job={job} index={jobs.findIndex((j) => j.id === job.id)}
+                              isSelected={selectedJobIds.includes(job.id)} onSelect={(e) => handleRowClick(e, job.id)}
+                              isImporting={importingJobIds.includes(job.id)} activeDragId={activeDragId}
+                              onErrorClick={handleErrorClick} colWidths={colWidths} onResize={handleResize} audioSubTab={audioSubTab} />
+                          </React.Fragment>
+                        );
+                      })}
                     </AnimatePresence>
                   </SortableContext>
                   <DragOverlay dropAnimation={null}>{dragOverlayContent}</DragOverlay>

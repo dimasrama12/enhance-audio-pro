@@ -12,13 +12,13 @@ import {
 } from '@/lib/ipc';
 import { logError } from '@/lib/errorLogger';
 import { createLogger } from '@/lib/logger';
-import type { QueueJob } from '@/types/queue';
+import type { QueueJob, EnhanceRun } from '@/types/queue';
 
 const log = createLogger('QueueActions');
 
 export async function triggerEnhanceAll(): Promise<void> {
   const tab = useUIStore.getState().audioSubTab;
-  const { tabQueues, tabImportingIds, setStatus } = useQueueStore.getState();
+  const { tabQueues, tabImportingIds, setStatus, addEnhanceRun } = useQueueStore.getState();
   const { enhancementStrength, aiModel, hfDeHissDb } = useSettingsStore.getState();
   const importingIds = new Set(tabImportingIds[tab]);
   const enhIds = tabQueues[tab]
@@ -26,7 +26,17 @@ export async function triggerEnhanceAll(): Promise<void> {
     .map((j) => j.id);
   if (!enhIds.length) return;
 
-  log.info(`Enhance All: queuing ${enhIds.length} job(s)`);
+  // Snapshot this batch as a run record (P1-A)
+  const run: EnhanceRun = {
+    id: `run-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+    strength: enhancementStrength,
+    hfDeHissDb: hfDeHissDb ?? -4,
+    timestamp: Date.now(),
+    jobIds: [...enhIds],
+  };
+  addEnhanceRun(run);
+
+  log.info(`Enhance All: queuing ${enhIds.length} job(s) [run ${run.id}]`);
   enhIds.forEach((id) => setStatus(id, 'queued'));
   await Promise.all(enhIds.map((id) => invokeSetJobStatus(id, 'queued')));
   const freshJobs = useQueueStore.getState().tabQueues[tab];
@@ -150,6 +160,43 @@ export async function autoAdvanceQueue(jobTab: AudioSubTab): Promise<void> {
     await invokeProcessQueue([nextQueued.id], enhancementStrength, aiModel, hfDeHissDb ?? -4);
   } else {
     await invokeConvertFiles([nextQueued.id], filenameTemplateConverted);
+  }
+}
+
+// ── Auto-retry on error (P2-C revised) ───────────────────────────────────────
+//
+// When a job reaches 'error', the status-change listener calls handleJobError
+// instead of autoAdvanceQueue. If the job has failed fewer than MAX_JOB_RETRIES
+// times it is reset to 'queued' and re-dispatched automatically. After
+// MAX_JOB_RETRIES failures the job stays in 'error' and the queue advances
+// to the next job normally.
+
+const MAX_JOB_RETRIES = 3;
+const _jobRetryCounts: Record<string, number> = {};
+
+export function _resetRetryCountsForTest(): void {
+  for (const k of Object.keys(_jobRetryCounts)) delete _jobRetryCounts[k];
+}
+
+export function willRetry(jobId: string): boolean {
+  return (_jobRetryCounts[jobId] ?? 0) < MAX_JOB_RETRIES;
+}
+
+export async function handleJobError(jobId: string, jobTab: AudioSubTab): Promise<void> {
+  const count = _jobRetryCounts[jobId] ?? 0;
+  if (count < MAX_JOB_RETRIES) {
+    _jobRetryCounts[jobId] = count + 1;
+    clearDispatchGuard(jobId);
+    useQueueStore.getState().setStatus(jobId, 'queued');
+    await invokeSetJobStatus(jobId, 'queued');
+    await autoAdvanceQueue(jobTab);
+  } else {
+    delete _jobRetryCounts[jobId];
+    clearDispatchGuard(jobId);
+    // Ensure job stays in 'error' — the last retry may have left it as 'queued'
+    // before the backend had time to transition it back.
+    useQueueStore.getState().setStatus(jobId, 'error');
+    await autoAdvanceQueue(jobTab);
   }
 }
 

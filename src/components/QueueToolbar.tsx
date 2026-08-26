@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react';
-import { Search, Trash2, LayoutList, LayoutGrid, Layers } from 'lucide-react';
+import { Search, Trash2, LayoutList, LayoutGrid, Layers, ArrowRightLeft } from 'lucide-react';
 import { clsx } from 'clsx';
 
 import { useTranslation } from 'react-i18next';
@@ -41,6 +41,10 @@ export default function QueueToolbar(): JSX.Element {
   const activeTab = useUIStore((s) => s.activeTab);
   const audioSubTab = useUIStore((s) => s.audioSubTab);
   const setAudioSubTab = useUIStore((s) => s.setAudioSubTab);
+  const isDraggingJob = useUIStore((s) => s.isDraggingJob);
+  const crossTabDropTarget = useUIStore((s) => s.crossTabDropTarget);
+  const setCrossTabDropTarget = useUIStore((s) => s.setCrossTabDropTarget);
+  const tabPillRefs = useRef<Partial<Record<AudioSubTab, HTMLButtonElement>>>({});
   // Per-tab state reads
   const filter = useQueueStore((s) => s.tabFilters[audioSubTab]);
   const searchQuery = useQueueStore((s) => s.tabSearches[audioSubTab]);
@@ -75,6 +79,30 @@ export default function QueueToolbar(): JSX.Element {
   useEffect(() => {
     if (focusSearchTick > 0) searchRef.current?.focus();
   }, [focusSearchTick]);
+
+  // P2-D: track pointer position over inactive tab pill while a job is being dragged
+  useEffect(() => {
+    if (!isDraggingJob) {
+      setCrossTabDropTarget(null);
+      return;
+    }
+    const handleMove = (e: PointerEvent): void => {
+      let found: AudioSubTab | null = null;
+      for (const tab of (['enhance', 'convert'] as const)) {
+        if (tab === audioSubTab) continue;
+        const el = tabPillRefs.current[tab];
+        if (!el) continue;
+        const r = el.getBoundingClientRect();
+        if (e.clientX >= r.left && e.clientX <= r.right && e.clientY >= r.top && e.clientY <= r.bottom) {
+          found = tab;
+          break;
+        }
+      }
+      setCrossTabDropTarget(found);
+    };
+    document.addEventListener('pointermove', handleMove);
+    return () => document.removeEventListener('pointermove', handleMove);
+  }, [isDraggingJob, audioSubTab, setCrossTabDropTarget]);
 
 
 
@@ -133,17 +161,22 @@ export default function QueueToolbar(): JSX.Element {
       <div className="flex items-center gap-0.5 bg-slate-100 dark:bg-white/[0.03] rounded-xl px-1 py-1 border border-slate-200 dark:border-white/[0.06]">
         {(['enhance', 'convert'] as const).map((tab) => {
           const isActive = audioSubTab === tab;
+          const isDragTarget = isDraggingJob && !isActive && crossTabDropTarget === tab;
           return (
             <button
               key={tab}
+              ref={(el) => { if (el) tabPillRefs.current[tab] = el; }}
               onClick={() => setAudioSubTab(tab)}
               className={clsx(
-                'px-3 py-1.5 rounded-lg text-xs font-medium h-[28px] transition-all duration-150',
+                'px-3 py-1.5 rounded-lg text-xs font-medium h-[28px] transition-all duration-150 flex items-center gap-1',
                 isActive
                   ? 'bg-white dark:bg-white/[0.12] text-slate-900 dark:text-white shadow-sm ring-1 ring-slate-200 dark:ring-white/[0.10]'
+                  : isDragTarget
+                  ? 'bg-violet-500/20 text-violet-700 dark:text-violet-300 ring-1 ring-violet-400/50 shadow-sm'
                   : 'text-slate-500 dark:text-zinc-400 hover:text-slate-800 dark:hover:text-white hover:bg-slate-200/60 dark:hover:bg-white/[0.06]',
               )}
             >
+              {isDragTarget && <ArrowRightLeft size={10} className="shrink-0" />}
               {SUB_TAB_LABELS[tab]}
             </button>
           );

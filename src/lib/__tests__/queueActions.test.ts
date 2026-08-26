@@ -2,7 +2,7 @@ import { vi, beforeEach, describe, it, expect } from 'vitest';
 import { useQueueStore } from '@/stores/useQueueStore';
 import { useSettingsStore } from '@/stores/useSettingsStore';
 import { useUIStore } from '@/stores/useUIStore';
-import type { QueueJob } from '@/types/queue';
+import type { QueueJob, EnhanceRun } from '@/types/queue';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -242,5 +242,148 @@ describe('autoAdvanceQueue', () => {
 
     expect(vi.mocked(invokeConvertFiles)).toHaveBeenCalledOnce();
     expect(vi.mocked(invokeProcessQueue)).not.toHaveBeenCalled();
+  });
+});
+
+// ── handleJobError (auto-retry, P2-C revised) ─────────────────────────────────
+
+describe('handleJobError', () => {
+  beforeEach(async () => {
+    vi.clearAllMocks();
+    useQueueStore.setState(STORE_DEFAULTS);
+    useSettingsStore.setState(SETTINGS_DEFAULTS);
+    useUIStore.setState({ audioSubTab: 'enhance' });
+    const { _resetDispatchGuardForTest, _resetRetryCountsForTest } = await import('@/lib/queueActions');
+    _resetDispatchGuardForTest();
+    _resetRetryCountsForTest();
+  });
+
+  it('resets the errored job to queued and re-dispatches on first error', async () => {
+    const { handleJobError } = await import('@/lib/queueActions');
+    const { invokeProcessQueue, invokeSetJobStatus } = await import('@/lib/ipc');
+    const job = makeJob('err-a', 'error');
+    useQueueStore.setState({ ...STORE_DEFAULTS, tabQueues: { enhance: [job], convert: [] } });
+
+    await handleJobError('err-a', 'enhance');
+
+    expect(vi.mocked(invokeSetJobStatus)).toHaveBeenCalledWith('err-a', 'queued');
+    expect(vi.mocked(invokeProcessQueue)).toHaveBeenCalledOnce();
+  });
+
+  it('re-dispatches the same job on second error (retry 2)', async () => {
+    const { handleJobError } = await import('@/lib/queueActions');
+    const { invokeProcessQueue } = await import('@/lib/ipc');
+    const job = makeJob('err-b', 'error');
+    useQueueStore.setState({ ...STORE_DEFAULTS, tabQueues: { enhance: [job], convert: [] } });
+
+    await handleJobError('err-b', 'enhance'); // retry 1
+    useQueueStore.setState({ ...STORE_DEFAULTS, tabQueues: { enhance: [{ ...job, status: 'queued' }], convert: [] } });
+    await handleJobError('err-b', 'enhance'); // retry 2
+
+    expect(vi.mocked(invokeProcessQueue)).toHaveBeenCalledTimes(2);
+  });
+
+  it('does NOT re-queue the job after the max retry count is exhausted', async () => {
+    const { handleJobError } = await import('@/lib/queueActions');
+    const { invokeSetJobStatus } = await import('@/lib/ipc');
+    const errJob = makeJob('err-c', 'error');
+    const nextJob = makeJob('next-c', 'queued');
+    useQueueStore.setState({ ...STORE_DEFAULTS, tabQueues: { enhance: [errJob, nextJob], convert: [] } });
+
+    // Exhaust all retries
+    const MAX = 3;
+    for (let i = 0; i < MAX; i++) {
+      await handleJobError('err-c', 'enhance');
+    }
+
+    vi.mocked(invokeSetJobStatus).mockClear();
+    vi.mocked(invokeSetJobStatus).mockResolvedValue({ success: true, data: null, error: null });
+    const { invokeProcessQueue } = await import('@/lib/ipc');
+    vi.mocked(invokeProcessQueue).mockClear();
+
+    // Next call: retries exhausted → should NOT re-queue err-c, should advance queue
+    await handleJobError('err-c', 'enhance');
+
+    const setStatusCalls = vi.mocked(invokeSetJobStatus).mock.calls;
+    expect(setStatusCalls.every(([id]) => id !== 'err-c')).toBe(true);
+    // Should have dispatched next-c instead
+    expect(vi.mocked(invokeProcessQueue)).toHaveBeenCalledWith(['next-c'], 50, 'deepfilternet', -4);
+  });
+
+  it('willRetry returns true when below max, false after exhaustion', async () => {
+    const { handleJobError, willRetry } = await import('@/lib/queueActions');
+    const job = makeJob('wrt', 'error');
+    useQueueStore.setState({ ...STORE_DEFAULTS, tabQueues: { enhance: [job], convert: [] } });
+
+    expect(willRetry('wrt')).toBe(true); // not yet retried
+
+    const MAX = 3;
+    for (let i = 0; i < MAX; i++) {
+      await handleJobError('wrt', 'enhance');
+    }
+
+    expect(willRetry('wrt')).toBe(false); // exhausted
+  });
+});
+
+// ── triggerEnhanceAll run snapshot (P1-A) ────────────────────────────────────
+
+describe('triggerEnhanceAll run snapshot', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    useQueueStore.setState({ ...STORE_DEFAULTS, enhanceRuns: [] } as Parameters<typeof useQueueStore.setState>[0]);
+    useSettingsStore.setState({ enhancementStrength: 60, hfDeHissDb: -5, aiModel: 'deepfilternet' as const, filenameTemplateConverted: '' });
+    useUIStore.setState({ audioSubTab: 'enhance' });
+  });
+
+  it('creates a run record with the current strength, hf and job IDs', async () => {
+    const { triggerEnhanceAll } = await import('@/lib/queueActions');
+    const job = makeJob('snap-1', 'pending');
+    useQueueStore.setState({
+      ...STORE_DEFAULTS,
+      enhanceRuns: [],
+      tabQueues: { enhance: [job], convert: [] },
+    } as Parameters<typeof useQueueStore.setState>[0]);
+
+    await triggerEnhanceAll();
+
+    const state = useQueueStore.getState() as { enhanceRuns: EnhanceRun[] };
+    expect(state.enhanceRuns).toHaveLength(1);
+    expect(state.enhanceRuns[0].strength).toBe(60);
+    expect(state.enhanceRuns[0].hfDeHissDb).toBe(-5);
+    expect(state.enhanceRuns[0].jobIds).toContain('snap-1');
+  });
+
+  it('does NOT create a run record when there are no eligible jobs', async () => {
+    const { triggerEnhanceAll } = await import('@/lib/queueActions');
+    const doneJob = makeJob('snap-done', 'done');
+    useQueueStore.setState({
+      ...STORE_DEFAULTS,
+      enhanceRuns: [],
+      tabQueues: { enhance: [doneJob], convert: [] },
+    } as Parameters<typeof useQueueStore.setState>[0]);
+
+    await triggerEnhanceAll();
+
+    const state = useQueueStore.getState() as { enhanceRuns: EnhanceRun[] };
+    expect(state.enhanceRuns).toHaveLength(0);
+  });
+
+  it('accumulates multiple run records across calls', async () => {
+    const { triggerEnhanceAll } = await import('@/lib/queueActions');
+    const job1 = makeJob('snap-r1', 'pending');
+    useQueueStore.setState({
+      ...STORE_DEFAULTS,
+      enhanceRuns: [],
+      tabQueues: { enhance: [job1], convert: [] },
+    } as Parameters<typeof useQueueStore.setState>[0]);
+    await triggerEnhanceAll();
+
+    const job2 = makeJob('snap-r2', 'pending');
+    useQueueStore.setState({ tabQueues: { enhance: [job2], convert: [] } });
+    await triggerEnhanceAll();
+
+    const state = useQueueStore.getState() as { enhanceRuns: EnhanceRun[] };
+    expect(state.enhanceRuns).toHaveLength(2);
   });
 });

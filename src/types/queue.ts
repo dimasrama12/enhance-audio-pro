@@ -1,6 +1,14 @@
 export type MediaType = 'audio' | 'video';
 export type JobStatus = 'pending' | 'queued' | 'processing' | 'done' | 'error';
 
+export interface EnhanceRun {
+  id: string;
+  strength: number;
+  hfDeHissDb: number;
+  timestamp: number;
+  jobIds: string[];
+}
+
 export interface QueueJob {
   id: string;
   filename: string;

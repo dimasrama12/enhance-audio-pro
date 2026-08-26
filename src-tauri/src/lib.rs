@@ -99,6 +99,42 @@ pub fn run() {
                     );
                 }
 
+                // P1-B: cancel any in-flight enhancement jobs so Python can clean up
+                // partial output files before the sidecar is killed.
+                let backend_port = state.backend_port;
+                if let Ok(conn) = state.db.lock() {
+                    let processing_ids: Vec<String> = conn
+                        .prepare("SELECT id FROM queue_jobs WHERE status = 'processing'")
+                        .and_then(|mut stmt| {
+                            stmt.query_map([], |row| row.get(0))
+                                .map(|rows| rows.filter_map(|r| r.ok()).collect())
+                        })
+                        .unwrap_or_default();
+                    if !processing_ids.is_empty() {
+                        let cancel_url = format!("http://127.0.0.1:{}/cancel", backend_port);
+                        // Spawn a separate OS thread with its own mini tokio runtime so we can
+                        // await the cancel HTTP request without conflicting with Tauri's runtime.
+                        let _ = std::thread::spawn(move || {
+                            if let Ok(rt) = tokio::runtime::Builder::new_current_thread()
+                                .enable_all()
+                                .build()
+                            {
+                                let _ = rt.block_on(async {
+                                    reqwest::Client::new()
+                                        .post(&cancel_url)
+                                        .json(&serde_json::json!({ "job_ids": processing_ids }))
+                                        .timeout(std::time::Duration::from_secs(2))
+                                        .send()
+                                        .await
+                                });
+                            }
+                        })
+                        .join();
+                        // Brief pause to let Python's cancellation handler clean up partial files
+                        std::thread::sleep(std::time::Duration::from_millis(400));
+                    }
+                }
+
                 // Kill Python backend sidecar first so no orphaned processes remain and files are unlocked
                 if let Ok(mut child_lock) = state.sidecar_child.lock() {
                     if let Some(child) = child_lock.take() {
