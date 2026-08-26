@@ -594,6 +594,17 @@ Terminal model (flat 2-level): parent job spawns N version children; children ca
 - **`src/components/QueueGrid.tsx`** — `EnhanceRowButton` now shows "Re-enhance" (RefreshCw, ghost style) when `job.status === 'done'`; saves version before kicking the new run. `SortableJobRow` FILENAME cell shows ChevronDown expand chevron for done rows with version history. `VersionSubRow` component: v# badge, filename, Str/HF settings used, timestamp, Reveal-in-Explorer button. `queue://status-change` listener calls `setUsedSettings` when status becomes `done`. Both grouped and flat table body render paths inject version sub-rows via `React.Fragment`.
 - **Verification:** `tsc --noEmit` → 0 errors; **38/38 Vitest** pass. Commit `996c151`.
 
+# Queue Concurrency + Slider Lock Re-fix (2026-08-26)
+Second pass on the two bugs that persisted after the S200 session. Root causes identified via systematic-debugging:
+
+**Bug 1 — Queue concurrency (double-dispatch):** `triggerEnhanceAll` and `triggerConvertAll` were calling `invokeProcessQueue`/`invokeConvertFiles` directly for the first job, bypassing the `autoAdvanceQueue` dispatch guard (`_lastDispatchedJobId`). In the window between the initial dispatch and the backend's `'processing'` Tauri event arriving at JS, Zustand still showed the first job as `'queued'` with no guard set — any concurrent `autoAdvanceQueue` call (from a retry or duplicate event) would re-dispatch the same job. Fix: both functions now call `await autoAdvanceQueue(tab)` so the guard is always set.
+
+**Bug 2 — Slider lock race:** `isProcessing` in `QueueToolbar` only locked sliders on `'processing'` status, which arrives via an async Tauri event *after* the Rust command returns. When "Enhance All" is clicked, jobs are set `'queued'` synchronously in Zustand — leaving sliders unlocked during that pre-processing window. Fix: renamed to `isLocked`, now includes `j.status === 'queued'` so sliders lock immediately when any job enters the queue.
+
+- **Files changed:** `src/lib/queueActions.ts`, `src/components/QueueToolbar.tsx`
+- **Verification:** `tsc --noEmit` → 0 errors; **60/60 Vitest** pass. Commit `2a25127`.
+- **Installer rebuilt (2026-08-26):** `npm run tauri build -- --target x86_64-pc-windows-gnu` (Rust 2m11s, exit 0, 2 known dead-code warnings) → **`Enhance Audio Pro_0.2.4_x64-setup.exe` 366.65 MB** → `D:\tes\`.
+
 ---
 ## 14. Testing
 ```
