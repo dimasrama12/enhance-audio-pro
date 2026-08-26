@@ -605,6 +605,23 @@ Second pass on the two bugs that persisted after the S200 session. Root causes i
 - **Verification:** `tsc --noEmit` → 0 errors; **60/60 Vitest** pass. Commit `2a25127`.
 - **Installer rebuilt (2026-08-26):** `npm run tauri build -- --target x86_64-pc-windows-gnu` (Rust 2m11s, exit 0, 2 known dead-code warnings) → **`Enhance Audio Pro_0.2.4_x64-setup.exe` 366.65 MB** → `D:\tes\`.
 
+# Queue Improvements — P1-A, P1-B, P2-C, P2-D (2026-08-26)
+Four features implemented via TDD (commit `3fad07d`). P1-C and P2-A skipped per user instruction.
+
+- **P1-A — Batch-enhance parameter snapshot per run:** `EnhanceRun` type added to `src/types/queue.ts`; `enhanceRuns`/`addEnhanceRun` slice added to `useQueueStore`; `triggerEnhanceAll` snapshots `{ strength, hfDeHissDb, timestamp }` on each batch start; `RunHeaderRow` component renders a collapsible header above each batch group in the flat table view (e.g. `Run 1 — Str 50% · HF −4 dB · 11:30`).
+- **P1-B — Cancel in-flight enhancement on app close:** `src-tauri/src/lib.rs` `CloseRequested` handler now queries SQLite for any `processing` jobs; spawns a mini tokio thread that POSTs `/cancel` for each (2 s HTTP timeout), waits 400 ms grace period, then kills the sidecar. Prevents half-written output files when the user closes mid-batch.
+- **P2-C — Auto-retry on error (up to 3×):** `handleJobError` in `src/lib/queueActions.ts` increments a per-job retry counter and re-dispatches the job if `retries < 3`; `willRetry` flag readable by UI; fires an info toast "Retrying… (attempt N/3)" during retries and an error toast only after exhaustion.
+- **P2-D — Cross-tab drag-and-drop:** `isDraggingJob` / `crossTabDropTarget` state added to `useUIStore`; `QueueToolbar` tracks pointer position over the inactive tab pill during an active drag; releasing over the pill moves the dragged job(s) to that tab (switches `tabQueues`, resets status to `pending`) and switches the active sub-tab. Visual: target tab pill highlights with a ring on hover.
+- **Files changed:** `src/types/queue.ts`, `src/stores/useQueueStore.ts`, `src/stores/useUIStore.ts`, `src/lib/queueActions.ts`, `src/components/QueueGrid.tsx`, `src/components/QueueToolbar.tsx`, `src-tauri/src/lib.rs`, 6 new Vitest test files.
+- **Test count after:** 60/60 Vitest green.
+
+# Remove Run Header Row from Queue Table (2026-08-26)
+P1-A's `RunHeaderRow` was removed per user request — the "Run N — Str X% · HF Y dB · timestamp" header above each batch group was deemed unnecessary UI noise. The underlying `EnhanceRun` infrastructure (store, types, `triggerEnhanceAll` snapshot) was kept since it drives the per-row version history badges.
+
+- **Removed from `src/components/QueueGrid.tsx`:** `EnhanceRun` type import, `RunHeaderRow` component function, `enhanceRuns` store subscription, `jobToRun` memoized Map, run header conditional render inside the job map.
+- **Files changed:** `src/components/QueueGrid.tsx` only (no store/type changes).
+- **Installer rebuilt (2026-08-26):** `npm run tauri build -- --target x86_64-pc-windows-gnu` → **`Enhance Audio Pro_0.2.4_x64-setup.exe` 366.65 MB**.
+
 ---
 ## 14. Testing
 ```
