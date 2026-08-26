@@ -19,7 +19,7 @@ const log = createLogger('QueueActions');
 export async function triggerEnhanceAll(): Promise<void> {
   const tab = useUIStore.getState().audioSubTab;
   const { tabQueues, tabImportingIds, setStatus, addEnhanceRun } = useQueueStore.getState();
-  const { enhancementStrength, aiModel, hfDeHissDb } = useSettingsStore.getState();
+  const { enhancementStrength, hfDeHissDb } = useSettingsStore.getState();
   const importingIds = new Set(tabImportingIds[tab]);
   const enhIds = tabQueues[tab]
     .filter((j) => (j.status === 'pending' || j.status === 'error') && !importingIds.has(j.id))
@@ -39,21 +39,15 @@ export async function triggerEnhanceAll(): Promise<void> {
   log.info(`Enhance All: queuing ${enhIds.length} job(s) [run ${run.id}]`);
   enhIds.forEach((id) => setStatus(id, 'queued'));
   await Promise.all(enhIds.map((id) => invokeSetJobStatus(id, 'queued')));
-  const freshJobs = useQueueStore.getState().tabQueues[tab];
-  if (!freshJobs.some((j) => j.status === 'processing')) {
-    const next = freshJobs.find((j) => j.status === 'queued');
-    if (next) {
-      invokeProcessQueue([next.id], enhancementStrength, aiModel, hfDeHissDb ?? -4).catch((err) => {
-        console.error('Failed to auto-start queued job', err);
-      });
-    }
-  }
+  // Use autoAdvanceQueue so the dispatch guard is always set for the first job.
+  // Direct invokeProcessQueue calls here bypassed _lastDispatchedJobId, allowing
+  // the same job to be double-dispatched before its 'processing' event arrived.
+  await autoAdvanceQueue(tab);
 }
 
 export async function triggerConvertAll(): Promise<void> {
   const tab = useUIStore.getState().audioSubTab;
   const { tabQueues, tabImportingIds, setStatus, setJobOperationMode } = useQueueStore.getState();
-  const { filenameTemplateConverted } = useSettingsStore.getState();
   const importingIds = new Set(tabImportingIds[tab]);
   const ids = tabQueues[tab]
     .filter((j) => j.status === 'pending' && !importingIds.has(j.id))
@@ -63,15 +57,8 @@ export async function triggerConvertAll(): Promise<void> {
   log.info(`Convert All: queuing ${ids.length} job(s)`);
   ids.forEach((id) => { setJobOperationMode(id, 'convert', tab); setStatus(id, 'queued'); });
   await Promise.all(ids.map((id) => invokeSetJobStatus(id, 'queued')));
-  const freshJobs = useQueueStore.getState().tabQueues[tab];
-  if (!freshJobs.some((j) => j.status === 'processing')) {
-    const next = freshJobs.find((j) => j.status === 'queued');
-    if (next) {
-      invokeConvertFiles([next.id], filenameTemplateConverted).catch((err) => {
-        console.error('Failed to auto-start convert job', err);
-      });
-    }
-  }
+  // Use autoAdvanceQueue so the dispatch guard is set — same fix as triggerEnhanceAll.
+  await autoAdvanceQueue(tab);
 }
 
 export async function triggerReEnhance(): Promise<void> {
