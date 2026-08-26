@@ -53,11 +53,41 @@
 
 ---
 
-## PROPOSED IMPROVEMENTS — NEXT ITERATIONS
+## COMPLETED IMPROVEMENTS (commit 3fad07d, 2026-08-26)
+
+- **P1-A** ✅ Run snapshot header rows — `EnhanceRun` in types/queue.ts, `enhanceRuns`/`addEnhanceRun` in store, `triggerEnhanceAll` snapshots each batch, `RunHeaderRow` renders in flat table view
+- **P1-B** ✅ Cancel in-flight on app close — `lib.rs` queries processing jobs, POSTs `/cancel` (mini tokio thread, 2s timeout + 400ms grace), then kills sidecar
+- **P2-C (revised)** ✅ Auto-retry on error — `handleJobError` retries up to 3×, `willRetry` readable by UI; "Retrying…" info toast during retries, error toast only after exhaustion
+- **P2-D** ✅ Cross-tab drag — `isDraggingJob`/`crossTabDropTarget` in UIStore; QueueToolbar tracks pointer over inactive pill; QueueGrid moves job(s) + switches tab on drop
+- **Skipped per spec** — P1-C (persist queue across restarts), P2-A (batch download)
+
+---
+
+## REMAINING PROPOSALS — NEXT ITERATIONS
 
 ### P1 — High Impact, Low Risk
 
-#### P1-A: Batch-enhance parameter snapshot per run
+#### ~~P1-A: Batch-enhance parameter snapshot per run~~ (DONE)
+
+#### ~~P1-B: Cancel in-flight enhancement on app close~~ (DONE)
+
+#### P1-C: Persist queue across restarts (opt-in) — SKIPPED per user instruction
+
+---
+
+### P2 — Feature Additions
+
+#### ~~P2-A: Batch download / export folder~~ — SKIPPED per user instruction
+
+#### ~~P2-C (revised): Auto-retry on error~~ (DONE)
+
+#### ~~P2-D: Drag-and-drop between Enhance and Convert tabs~~ (DONE)
+
+---
+
+### ORIGINAL PROPOSALS (not yet implemented)
+
+#### P1-A: Batch-enhance parameter snapshot per run (original for reference)
 **Problem:** When a batch of 10 files is enhanced and the user wants to know what settings were used for file 3, they have to look at the Str/HF badges per row — but there's no batch-level summary.  
 **Proposal:** When "Enhance All" is triggered, snapshot `{ enhancementStrength, hfDeHissDb, timestamp }` and store it as a session-level "run record" in Zustand. Display as a collapsed header row above each batch group (e.g. `Run 1 — Str 50, HF −4 dB, Aug 26 10:45`).  
 **Files:** `src/stores/useQueueStore.ts` (new `runs` slice), `src/components/QueueGrid.tsx` (run header row)
